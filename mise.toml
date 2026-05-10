@@ -1,0 +1,17 @@
+# totally not copy pasted from gns3tuil
+[tools]
+go = "1.26.3"
+sqlite = "3.51.2"
+golangci-lint = "2.10.1"
+sqlc = "1.30.0"
+goreleaser = "2.14.1"
+protoc = "29.6"
+buf = "1.66.0"
+air = "1.62.0"
+"github:nrempel/sleek" = "v0.5.0"
+"go:mvdan.cc/gofumpt" = "0.9.2"
+"go:golang.org/x/tools/cmd/goimports" = "0.42.0"
+"go:google.golang.org/protobuf/cmd/protoc-gen-go" = "v1.36.5"
+"go:storj.io/drpc/cmd/protoc-gen-go-drpc" = "v0.0.34"
+"go:github.com/swaggo/swag/cmd/swag" = "latest"
+"github:tursodatabase/turso" = "0.5.3"
