@@ -1,4 +1,4 @@
-package libsnb
+package libtethux
 
 import (
 	"errors"
@@ -193,6 +193,51 @@ func TestRemovePortClosesAndRemovesFDBEntries(t *testing.T) {
 	}
 }
 
+func TestSwitchStopsIdleUDPReadersQuickly(t *testing.T) {
+	leftAddr := freeUDPAddr(t)
+	rightAddr := freeUDPAddr(t)
+
+	left, err := NewPort(UDPScheme, &PortOptions{
+		ID:        "left",
+		LocalAddr: leftAddr,
+		Remote:    rightAddr,
+		MTU:       1500,
+	})
+	if err != nil {
+		t.Fatalf("create left udp port: %v", err)
+	}
+
+	right, err := NewPort(UDPScheme, &PortOptions{
+		ID:        "right",
+		LocalAddr: rightAddr,
+		Remote:    leftAddr,
+		MTU:       1500,
+	})
+	if err != nil {
+		t.Fatalf("create right udp port: %v", err)
+	}
+
+	sw := NewSwitch(SwitchOptions{})
+	mustAttach(t, sw, left, right)
+	mustStart(t, sw)
+
+	start := time.Now()
+	mustStop(t, sw)
+	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
+		t.Fatalf("idle UDP switch stop took %s", elapsed)
+	}
+}
+
+func freeUDPAddr(t *testing.T) string {
+	t.Helper()
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve udp port: %v", err)
+	}
+	defer conn.Close()
+	return conn.LocalAddr().String()
+}
+
 func mustAttach(t *testing.T, sw *Switch, ports ...Port) {
 	t.Helper()
 	for _, port := range ports {
@@ -235,7 +280,7 @@ func ethernetFrame(dst, src string, etherType uint16, payload []byte) Frame {
 	frame := make([]byte, 0, 14+len(payload))
 	frame = append(frame, dstMAC...)
 	frame = append(frame, srcMAC...)
-	frame = append(frame, byte(etherType>>8), byte(etherType))
+	frame = append(frame, byte(etherType>>8), byte(etherType)) // #nosec G115
 	frame = append(frame, payload...)
 	return frame
 }

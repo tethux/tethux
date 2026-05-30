@@ -1,4 +1,4 @@
-module github.com/0xveya/sme
+module github.com/0xveya/tethux
 
 go 1.26.3
 

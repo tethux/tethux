@@ -1,4 +1,4 @@
-package libsnb
+package libtethux
 
 import "time"
 

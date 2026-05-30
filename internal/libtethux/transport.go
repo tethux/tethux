@@ -1,4 +1,4 @@
-package libsnb
+package libtethux
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ type PortOptions struct {
 	SnapLen       int
 }
 
-type PortFactory func(opts PortOptions) (Port, error)
+type PortFactory func(opts *PortOptions) (Port, error)
 
 type PortRegistry struct {
 	mu        sync.RWMutex
@@ -45,7 +45,7 @@ var defaultRegistry = &PortRegistry{
 	factories: make(map[string]PortFactory),
 }
 
-func NewPort(scheme AvailableScheme, opts PortOptions) (Port, error) {
+func NewPort(scheme AvailableScheme, opts *PortOptions) (Port, error) {
 	factory, ok := defaultRegistry.Get(string(scheme))
 	if !ok {
 		return nil, fmt.Errorf("unknown port scheme: %s", scheme)
@@ -54,7 +54,7 @@ func NewPort(scheme AvailableScheme, opts PortOptions) (Port, error) {
 	return factory(opts)
 }
 
-func NewRawSocketPort(opts PortOptions) (Port, error) {
+func NewRawSocketPort(opts *PortOptions) (Port, error) {
 	ifi, err := net.InterfaceByName(opts.Interface)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func NewRawSocketPort(opts PortOptions) (Port, error) {
 	}, nil
 }
 
-func NewPcapPort(opts PortOptions) (Port, error) {
+func NewPcapPort(opts *PortOptions) (Port, error) {
 	inactive, errInactive := pcap.NewInactiveHandle(opts.Interface)
 	if errInactive != nil {
 		return nil, fmt.Errorf("failed to create inactive handle: %w", errInactive)
@@ -128,7 +128,7 @@ func NewPcapPort(opts PortOptions) (Port, error) {
 	}, nil
 }
 
-func NewUDPPort(opts PortOptions) (Port, error) {
+func NewUDPPort(opts *PortOptions) (Port, error) {
 	addr, err := net.ResolveUDPAddr("udp", opts.Remote)
 	if err != nil {
 		return nil, err

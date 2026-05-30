@@ -1,4 +1,4 @@
-package libsnb
+package libtethux
 
 import "github.com/google/gopacket/pcap"
 

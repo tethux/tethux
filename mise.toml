@@ -23,3 +23,7 @@ depends = ["lint-go"]
 [tasks."lint-go"]
 description = "Run Go linter"
 run = "golangci-lint run -c .golangci.yml"
+
+[tasks."demo-container-udp"]
+description = "Run N containers connected by N Go switches over UDP tunnels"
+run = "sudo ./scripts/container-udp-topology.sh ${RUNTIME:-podman} ${N:-4}"

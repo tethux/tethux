@@ -1,20 +1,21 @@
-package libsnb
+package libtethux
 
 import (
 	"fmt"
 	"runtime"
 
-	"github.com/0xveya/sme/internal/libsnb/errs"
-	"github.com/0xveya/sme/internal/libsnb/models"
+	"github.com/0xveya/tethux/internal/libtethux/errs"
+	"github.com/0xveya/tethux/internal/libtethux/models"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 )
 
 func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu int) error {
+	peerName := peerInterfaceName(hostSideName)
 	err := SetupLinkWithNames(models.SetupLinkParams{
 		SourcePID: pid,
 		HostName:  hostSideName,
-		Container: containerSideName,
+		Container: peerName,
 		MTU:       mtu,
 	})
 	if err != nil {
@@ -27,7 +28,16 @@ func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu 
 	}
 	defer cleanup()
 
-	link, err := netlink.LinkByName(containerSideName)
+	link, err := netlink.LinkByName(peerName)
+	if err != nil {
+		return errs.ErrLinkNotFound
+	}
+
+	if err := netlink.LinkSetName(link, containerSideName); err != nil {
+		return fmt.Errorf("%w: failed to rename %s to %s: %w", errs.ErrFailedToCreate, peerName, containerSideName, err)
+	}
+
+	link, err = netlink.LinkByName(containerSideName)
 	if err != nil {
 		return errs.ErrLinkNotFound
 	}
@@ -38,6 +48,14 @@ func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu 
 	}
 
 	return netlink.LinkSetUp(link)
+}
+
+func peerInterfaceName(hostSideName string) string {
+	name := "p" + hostSideName
+	if len(name) <= 15 {
+		return name
+	}
+	return name[:15]
 }
 
 func SetupLinkWithNames(params models.SetupLinkParams) error {

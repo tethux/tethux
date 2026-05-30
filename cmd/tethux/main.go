@@ -7,7 +7,7 @@ import (
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "snb: %v\n", err)
+		fmt.Fprintf(os.Stderr, "tethux: %v\n", err)
 		os.Exit(1)
 	}
 }

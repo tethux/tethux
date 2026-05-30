@@ -1,6 +1,9 @@
-package libsnb
+package libtethux
 
-import "net"
+import (
+	"net"
+	"time"
+)
 
 type UDPPort struct {
 	id         string
@@ -19,6 +22,10 @@ func (u *UDPPort) MTU() int {
 
 func (u *UDPPort) ReadFrame() (Frame, error) {
 	buf := make([]byte, 65536)
+
+	if err := u.conn.SetReadDeadline(time.Now().Add(readPollInterval)); err != nil {
+		return nil, err
+	}
 
 	n, _, err := u.conn.ReadFromUDP(buf)
 	if err != nil {

@@ -1,4 +1,4 @@
-package libsnb
+package libtethux
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/0xveya/tethux/internal/libtethux/errs"
 )
 
 const ethernetHeaderLen = 14
@@ -102,7 +104,7 @@ func (s *Switch) AttachPort(p Port) error {
 	s.mu.Lock()
 	if _, exists := s.ports[p.ID()]; exists {
 		s.mu.Unlock()
-		return errors.New("port already attached")
+		return errs.ErrPortAlrAttached
 	}
 
 	s.ports[p.ID()] = p
@@ -113,7 +115,7 @@ func (s *Switch) AttachPort(p Port) error {
 	}
 
 	s.mu.Unlock()
-	s.emit(Event{Type: EventPortAttached, PortID: p.ID(), Time: time.Now()})
+	s.emit(&Event{Type: EventPortAttached, PortID: p.ID(), Time: time.Now()})
 
 	return nil
 }
@@ -123,7 +125,7 @@ func (s *Switch) RemovePort(id string) error {
 	p, ok := s.ports[id]
 	if !ok {
 		s.mu.Unlock()
-		return errors.New("port not found")
+		return errs.ErrPortNotFound
 	}
 
 	delete(s.ports, id)
@@ -131,13 +133,13 @@ func (s *Switch) RemovePort(id string) error {
 	s.order = removePortOrder(s.order, id)
 	s.mu.Unlock()
 
-	s.emit(Event{Type: EventPortRemoved, PortID: id, Time: time.Now()})
+	s.emit(&Event{Type: EventPortRemoved, PortID: id, Time: time.Now()})
 
 	if err := p.Close(); err != nil {
 		return err
 	}
 
-	s.emit(Event{Type: EventPortClosed, PortID: id, Time: time.Now()})
+	s.emit(&Event{Type: EventPortClosed, PortID: id, Time: time.Now()})
 	return nil
 }
 
@@ -156,7 +158,7 @@ func (s *Switch) Start() error {
 	}
 
 	s.mu.Unlock()
-	s.emit(Event{Type: EventSwitchStart, Time: time.Now()})
+	s.emit(&Event{Type: EventSwitchStart, Time: time.Now()})
 	return nil
 }
 
@@ -177,11 +179,11 @@ func (s *Switch) Stop() error {
 	s.ctx = nil
 	s.mu.Unlock()
 
-	s.emit(Event{Type: EventSwitchStop, Time: time.Now()})
 	cancel()
 	for _, p := range ports {
 		_ = p.Close()
 	}
+	s.emit(&Event{Type: EventSwitchStop, Time: time.Now()})
 	s.wg.Wait()
 	return nil
 }
@@ -224,7 +226,10 @@ func (s *Switch) startReaderLocked(p Port) {
 				case <-ctx.Done():
 					return
 				default:
-					s.emit(Event{
+					if isReadTimeout(err) {
+						continue
+					}
+					s.emit(&Event{
 						Type:   EventFrameDropped,
 						PortID: p.ID(),
 						Time:   time.Now(),
@@ -240,19 +245,28 @@ func (s *Switch) startReaderLocked(p Port) {
 	})
 }
 
+func isReadTimeout(err error) bool {
+	if errors.Is(err, errReadTimeout) {
+		return true
+	}
+
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
 func (s *Switch) processFrame(srcID string, frame Frame) {
 	now := time.Now()
 	frameCopy := cloneFrame(frame)
 	s.capture(&CapturedFrame{PortID: srcID, Direction: FrameIngress, Frame: frameCopy, Time: now})
-	s.emit(Event{Type: EventFrameIngress, PortID: srcID, Frame: frameCopy, Time: now})
+	s.emit(&Event{Type: EventFrameIngress, PortID: srcID, Frame: frameCopy, Time: now})
 
 	if len(frame) < ethernetHeaderLen {
-		s.emit(Event{
+		s.emit(&Event{
 			Type:   EventFrameDropped,
 			PortID: srcID,
 			Frame:  frameCopy,
 			Time:   time.Now(),
-			Err:    errors.New("frame too short"),
+			Err:    errs.ErrFrameTooShort,
 		})
 		return
 	}
@@ -269,7 +283,7 @@ func (s *Switch) processFrame(srcID string, frame Frame) {
 	for _, target := range targets {
 		targetFrame := cloneFrame(frame)
 		if err := target.WriteFrame(targetFrame); err != nil {
-			s.emit(Event{
+			s.emit(&Event{
 				Type:       EventFrameDropped,
 				PortID:     srcID,
 				TargetPort: target.ID(),
@@ -282,7 +296,7 @@ func (s *Switch) processFrame(srcID string, frame Frame) {
 
 		copied := cloneFrame(targetFrame)
 		s.capture(&CapturedFrame{PortID: target.ID(), Direction: FrameEgress, Frame: copied, Time: time.Now()})
-		s.emit(Event{
+		s.emit(&Event{
 			Type:       EventFrameEgress,
 			PortID:     srcID,
 			TargetPort: target.ID(),
@@ -306,7 +320,7 @@ func (s *Switch) learn(mac net.HardwareAddr, portID string) {
 
 	s.fdb[key] = portID
 	s.mu.Unlock()
-	s.emit(Event{
+	s.emit(&Event{
 		Type:   EventFDBLearned,
 		PortID: portID,
 		MAC:    append(net.HardwareAddr(nil), mac...),

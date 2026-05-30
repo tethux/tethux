@@ -1,18 +1,31 @@
-# sme
+# tethux - sne silly network emulator
 
-`sme` contains a small Ethernet switch implementation in `internal/libsnb` and a Cobra CLI in `cmd/snb` for exercising it.
+> why?
+
+gns3util tried to make gns3 scale but its not made for that so this is my attemtp at making a gns3like thing autoscale
+
+this is a monorpo btw
+
+right now `tethux` contains a small Ethernet switch implementation in
+`internal/libtethux` and a Cobra CLI in `cmd/tethux` for exercising it.
+the immediate target is a simple uBridge-style UDP bridge in Go: real network
+namespaces get normal interfaces, and switch-to-switch links are UDP sockets.
+
+evil libcap that uses cgo contained in this
+
+todo: move libary docs into readme of the libary
 
 ## Library sketch
 
 ```go
-sw := libsnb.NewSwitch(libsnb.SwitchOptions{})
+sw := libtethux.NewSwitch(libtethux.SwitchOptions{})
 
-left, _ := libsnb.NewPort(libsnb.RawScheme, libsnb.PortOptions{
+left, _ := libtethux.NewPort(libtethux.RawScheme, libtethux.PortOptions{
 	ID:        "left",
 	Interface: "vethA-host",
 	MTU:       1500,
 })
-right, _ := libsnb.NewPort(libsnb.RawScheme, libsnb.PortOptions{
+right, _ := libtethux.NewPort(libtethux.RawScheme, libtethux.PortOptions{
 	ID:        "right",
 	Interface: "vethB-host",
 	MTU:       1500,
@@ -27,7 +40,7 @@ defer sw.Stop()
 Linux namespace setup is still available as a helper:
 
 ```go
-libsnb.AttachVethToNamespace(pid, "vethA-host", "eth0", 1500)
+libtethux.AttachVethToNamespace(pid, "vethA-host", "tx01", 1500)
 ```
 
 ## CLI
@@ -35,7 +48,7 @@ libsnb.AttachVethToNamespace(pid, "vethA-host", "eth0", 1500)
 Show the command tree:
 
 ```bash
-go run ./cmd/snb --help
+go run ./cmd/tethux --help
 ```
 
 Run the automated tests:
@@ -47,74 +60,88 @@ go test ./...
 If you want just the switch behavior tests:
 
 ```bash
-go test ./internal/libsnb -run TestSwitch -v
+go test ./internal/libtethux -run TestSwitch -v
 ```
 
-### Usermode test flow
+### UDP bridge ports
 
-This mode stays in userspace and uses UDP sockets instead of raw sockets or namespace setup.
-
-Start a three-port bridge:
-
-```bash
-go run ./cmd/snb bridge udp \
-  --port left:127.0.0.1:10001:127.0.0.1:11001 \
-  --port right:127.0.0.1:10002:127.0.0.1:11002 \
-  --port tap:127.0.0.1:10003:127.0.0.1:11003
-```
-
-Listen for one forwarded frame:
+Use the generic port form when you want to wire a switch directly to UDP
+endpoints:
 
 ```bash
-go run ./cmd/snb frame listen --listen 127.0.0.1:11002 --count 1
-```
-
-Inject one test frame into the left side:
-
-```bash
-go run ./cmd/snb frame send \
-  --to 127.0.0.1:10001 \
-  --src 02:00:00:00:00:01 \
-  --dst ff:ff:ff:ff:ff:ff \
-  --payload hello
-```
-
-If you want a more explicit emulator-style topology, use the generic port form:
-
-```bash
-go run ./cmd/snb bridge ports \
+go run ./cmd/tethux bridge ports \
   --port id=left,scheme=udp,listen=127.0.0.1:10001,remote=127.0.0.1:11001 \
   --port id=right,scheme=udp,listen=127.0.0.1:10002,remote=127.0.0.1:11002 \
   --port id=uplink,scheme=udp,listen=0.0.0.0:12000,remote=198.51.100.10:13000
 ```
 
-That lets you expose a local UDP ingress port and forward traffic to a remote emulator endpoint or host.
+That exposes local UDP ingress ports and forwards Ethernet frames to remote
+emulator endpoints or hosts.
 
 ### Mixed transport flow
 
 The generic `bridge ports` command can mix `udp`, `raw`, and `pcap` ports in one switch:
 
 ```bash
-sudo go run ./cmd/snb bridge ports \
-  --port id=uplink,scheme=raw,if=eth0 \
+sudo go run ./cmd/tethux bridge ports \
+  --port id=uplink,scheme=raw,if=tx01 \
   --port id=mirror,scheme=pcap,if=eth1,immediate=true \
   --port id=emulator,scheme=udp,listen=127.0.0.1:10001,remote=127.0.0.1:11001
 ```
 
 Use this when you want to validate that raw sockets and pcap ports can both participate in the same switching graph while a UDP endpoint stands in for a remote emulator process.
 
-You can also run the packaged no-sudo demo script:
+### Container UDP topology demo
+
+This is the closer uBridge-style proof: real containers get deterministic
+interfaces such as `tx01`, while each `tethux` switch talks to the next switch through a UDP
+tunnel. The containers do not need `socat` or any userspace transport helper;
+they only see Ethernet and IP.
+
+Run two containers through two switches with Podman:
 
 ```bash
-./scripts/usermode-demo.sh
+sudo ./scripts/container-udp-topology.sh podman 2
 ```
 
-That script:
+Or use Docker:
 
-- starts a three-port `snb bridge udp`
-- starts listeners for each egress side
-- sends one broadcast frame and one learned unicast frame
-- exits after the listeners receive their expected frames
+```bash
+sudo ./scripts/container-udp-topology.sh docker 2
+```
+
+Or through mise:
+
+```bash
+RUNTIME=podman N=4 mise run demo-container-udp
+```
+
+Container interfaces are deterministic. The default names are `tx01`, `tx02`,
+and so on. Set `CONTAINER_IF_PREFIX` to choose another prefix:
+
+```bash
+sudo CONTAINER_IF_PREFIX=lab ./scripts/container-udp-topology.sh podman 2
+```
+
+The script:
+
+- starts `N` `--net=none` Alpine containers with Podman or Docker
+- starts `N` `tethux bridge container` switch processes
+- each Go switch creates one veth pair and moves the peer into its container as a deterministic interface
+- the wrapper assigns `10.77.0.x/24` addresses after that interface exists
+- connects adjacent switches with UDP ports
+- verifies the path with `ping` from container 1 to container `N`
+
+The command the wrapper uses per node is `tethux bridge container`. It owns the
+interface setup and accepts UDP ports for emulator links:
+
+```bash
+sudo go run ./cmd/tethux bridge container \
+  --pid "$container_pid" \
+  --host-if tx-demo-1 \
+  --container-if tx01 \
+  --port id=uplink,scheme=udp,listen=127.0.0.1:23000,remote=127.0.0.1:23001
+```
 
 ### Namespace test flow
 
@@ -130,7 +157,7 @@ sudo podman run --name b --rm -it --cap-add=NET_ADMIN --net=none alpine
 Bridge them:
 
 ```bash
-sudo go run ./cmd/snb bridge namespace \
+sudo go run ./cmd/tethux bridge namespace \
   "$(sudo podman inspect -f '{{.State.Pid}}' a)" \
   "$(sudo podman inspect -f '{{.State.Pid}}' b)"
 ```
@@ -138,8 +165,8 @@ sudo go run ./cmd/snb bridge namespace \
 Inside each container:
 
 ```bash
-ip addr add 10.0.0.1/24 dev eth0
-ip addr add 10.0.0.2/24 dev eth0
+ip addr add 10.0.0.1/24 dev tx01
+ip addr add 10.0.0.2/24 dev tx01
 ```
 
 Useful flags:

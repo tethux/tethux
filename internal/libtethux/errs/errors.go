@@ -14,4 +14,7 @@ var (
 	ErrFailedToSetMTU   = errors.New("failed to set MTU")
 	ErrMTUOverflow      = errors.New("MTU overflow")
 	ErrSockOverflow     = errors.New("socket descriptor overflows uintptr capacity")
+	ErrPortAlrAttached  = errors.New("port already attached")
+	ErrPortNotFound     = errors.New("port not found")
+	ErrFrameTooShort    = errors.New("frame too short")
 )
