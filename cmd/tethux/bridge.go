@@ -53,6 +53,7 @@ func newBridgePortsCmd() *cobra.Command {
 		Long: "Each --port spec is a comma-separated key=value list.\n" +
 			"Examples:\n" +
 			"  --port id=left,scheme=udp,listen=127.0.0.1:10001,remote=127.0.0.1:11001\n" +
+			"  --port id=tap0,scheme=tap,if=tap0\n" +
 			"  --port id=uplink,scheme=raw,if=tx0\n" +
 			"  --port id=capture,scheme=pcap,if=enp0s1,snaplen=1532,immediate=true",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -420,7 +421,7 @@ func parsePortSpec(raw string) (portSpec, error) {
 		if spec.Listen == "" || spec.Remote == "" {
 			return portSpec{}, fmt.Errorf("udp port %s needs listen and remote", spec.ID)
 		}
-	case libtethux.RawScheme, libtethux.PcapScheme:
+	case libtethux.RawScheme, libtethux.PcapScheme, libtethux.TAPScheme:
 		if spec.Interface == "" {
 			return portSpec{}, fmt.Errorf("%s port %s needs if", spec.Scheme, spec.ID)
 		}
@@ -510,7 +511,7 @@ func printPortSummary(title string, specs []portSpec) {
 		switch spec.Scheme {
 		case libtethux.UDPScheme:
 			fmt.Printf("  %s scheme=%s listen=%s remote=%s mtu=%d\n", spec.ID, spec.Scheme, spec.Listen, spec.Remote, spec.MTU)
-		case libtethux.RawScheme, libtethux.PcapScheme:
+		case libtethux.RawScheme, libtethux.PcapScheme, libtethux.TAPScheme:
 			fmt.Printf("  %s scheme=%s if=%s mtu=%d snaplen=%d immediate=%t latency=%s\n", spec.ID, spec.Scheme, spec.Interface, spec.MTU, spec.SnapLen, spec.ImmediateMode, spec.Latency)
 		default:
 			fmt.Printf("  %s scheme=%s\n", spec.ID, spec.Scheme)

@@ -13,6 +13,7 @@ import (
 func init() {
 	RegisterPortFactory("raw", NewRawSocketPort)
 	RegisterPortFactory("pcap", NewPcapPort)
+	RegisterPortFactory("tap", NewTAPPort)
 	RegisterPortFactory("udp", NewUDPPort)
 }
 
@@ -21,6 +22,7 @@ type AvailableScheme string
 const (
 	RawScheme  AvailableScheme = "raw"
 	PcapScheme AvailableScheme = "pcap"
+	TAPScheme  AvailableScheme = "tap"
 	UDPScheme  AvailableScheme = "udp"
 )
 

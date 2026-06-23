@@ -11,13 +11,14 @@ func TestParsePortSpecs(t *testing.T) {
 	ports, err := parsePortSpecs([]string{
 		"id=left,scheme=udp,listen=127.0.0.1:10001,remote=127.0.0.1:11001,latency=5ms",
 		"id=uplink,scheme=pcap,if=enp0s1,mtu=9000,snaplen=9100,immediate=false",
+		"id=vm,scheme=tap,if=tap0",
 	})
 	if err != nil {
 		t.Fatalf("parsePortSpecs() error = %v", err)
 	}
 
-	if len(ports) != 2 {
-		t.Fatalf("expected 2 ports, got %d", len(ports))
+	if len(ports) != 3 {
+		t.Fatalf("expected 3 ports, got %d", len(ports))
 	}
 
 	if ports[0].Scheme != libtethux.UDPScheme || ports[0].Latency != 5*time.Millisecond {
@@ -27,12 +28,17 @@ func TestParsePortSpecs(t *testing.T) {
 	if ports[1].Scheme != libtethux.PcapScheme || ports[1].Interface != "enp0s1" || ports[1].ImmediateMode {
 		t.Fatalf("unexpected pcap port: %#v", ports[1])
 	}
+
+	if ports[2].Scheme != libtethux.TAPScheme || ports[2].Interface != "tap0" {
+		t.Fatalf("unexpected tap port: %#v", ports[2])
+	}
 }
 
 func TestParsePortSpecsRejectsInvalidValues(t *testing.T) {
 	tests := []string{
 		"id=left,scheme=udp,listen=127.0.0.1:10001",
 		"id=left,scheme=raw",
+		"id=left,scheme=tap",
 		"id=left,scheme=bogus",
 	}
 

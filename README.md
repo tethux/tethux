@@ -8,8 +8,9 @@ this is a monorpo btw
 
 right now `tethux` contains a small Ethernet switch implementation in
 `internal/libtethux` and a Cobra CLI in `cmd/tethux` for exercising it.
-the immediate target is a simple uBridge-style UDP bridge in Go: real network
-namespaces get normal interfaces, and switch-to-switch links are UDP sockets.
+the immediate target is a simple uBridge-style UDP/TAP bridge in Go: real
+network namespaces get normal interfaces, virtualizers can attach TAP devices,
+and switch-to-switch links are UDP sockets.
 
 evil libcap that uses cgo contained in this
 
@@ -80,16 +81,20 @@ emulator endpoints or hosts.
 
 ### Mixed transport flow
 
-The generic `bridge ports` command can mix `udp`, `raw`, and `pcap` ports in one switch:
+The generic `bridge ports` command can mix `udp`, `tap`, `raw`, and `pcap` ports in one switch:
 
 ```bash
 sudo go run ./cmd/tethux bridge ports \
+  --port id=vm,scheme=tap,if=tap0 \
   --port id=uplink,scheme=raw,if=tx01 \
   --port id=mirror,scheme=pcap,if=eth1,immediate=true \
   --port id=emulator,scheme=udp,listen=127.0.0.1:10001,remote=127.0.0.1:11001
 ```
 
-Use this when you want to validate that raw sockets and pcap ports can both participate in the same switching graph while a UDP endpoint stands in for a remote emulator process.
+UDP-only bridges run without elevated privileges. TAP/raw/pcap ports need the
+normal host privileges for opening those device types, so use `sudo` only for
+commands that include them. Use TAP for virtualizers that can attach a TAP NIC,
+and UDP for remote emulator links.
 
 ### Container UDP topology demo
 

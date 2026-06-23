@@ -15,6 +15,11 @@ BASE_PORT="${BASE_PORT:-23000}"
 IMAGE="${IMAGE:-alpine}"
 MTU="${MTU:-1500}"
 CONTAINER_IF_PREFIX="${CONTAINER_IF_PREFIX:-tx}"
+WAIT_ATTEMPTS="${WAIT_ATTEMPTS:-20}"
+WAIT_INTERVAL="${WAIT_INTERVAL:-0.1}"
+PING_COUNT="${PING_COUNT:-2}"
+PING_TIMEOUT="${PING_TIMEOUT:-1}"
+PARALLEL_JOBS="${PARALLEL_JOBS:-16}"
 
 if [[ "$RUNTIME" != "podman" && "$RUNTIME" != "docker" ]]; then
   usage
@@ -28,6 +33,11 @@ fi
 
 if (( ${#CONTAINER_IF_PREFIX} > 13 )); then
   echo "CONTAINER_IF_PREFIX must be 13 characters or fewer" >&2
+  exit 2
+fi
+
+if (( PARALLEL_JOBS < 1 )); then
+  echo "PARALLEL_JOBS must be >= 1" >&2
   exit 2
 fi
 
@@ -48,8 +58,39 @@ GO_RUN=("$TETHUX_BIN")
 PIDS=()
 CONTAINERS=()
 
+wait_for_job_slot() {
+  while (( $(jobs -rp | wc -l) >= PARALLEL_JOBS )); do
+    wait -n
+  done
+}
+
+log_phase_done() {
+  local started="$1"
+  local label="$2"
+
+  echo "${label} completed in $(( SECONDS - started ))s"
+}
+
+remove_container() {
+  local name="$1"
+
+  case "$RUNTIME" in
+    podman)
+      "$RUNTIME" rm -f --time 0 "$name" >/dev/null 2>&1 || true
+      ;;
+    docker)
+      "$RUNTIME" rm -f "$name" >/dev/null 2>&1 || true
+      ;;
+  esac
+}
+
 cleanup() {
   set +e
+  local started="$SECONDS"
+
+  if (( ${#PIDS[@]} > 0 )); then
+    echo "cleanup: stopping ${#PIDS[@]} switch processes" >&2
+  fi
   for pid in "${PIDS[@]:-}"; do
     kill -TERM "$pid" 2>/dev/null || true
   done
@@ -60,10 +101,20 @@ cleanup() {
     fi
     wait "$pid" 2>/dev/null || true
   done
+
+  if (( ${#CONTAINERS[@]} > 0 )); then
+    echo "cleanup: removing ${#CONTAINERS[@]} containers" >&2
+  fi
   for name in "${CONTAINERS[@]:-}"; do
-    "$RUNTIME" rm -f "$name" >/dev/null 2>&1 || true
+    remove_container "$name" &
   done
+  wait
+
   rm -f "$TETHUX_BIN"
+
+  if (( SECONDS - started > 1 )); then
+    echo "cleanup: finished in $(( SECONDS - started ))s" >&2
+  fi
 }
 trap cleanup EXIT
 trap 'trap - EXIT; cleanup; exit 130' INT TERM
@@ -98,11 +149,11 @@ wait_for_container_if() {
   local name="$1"
   local ifname="$2"
 
-  for _ in $(seq 1 50); do
+  for _ in $(seq 1 "$WAIT_ATTEMPTS"); do
     if "$RUNTIME" exec "$name" ip link show "$ifname" >/dev/null 2>&1; then
       return 0
     fi
-    sleep 0.1
+    sleep "$WAIT_INTERVAL"
   done
 
   echo "timed out waiting for $ifname in $name" >&2
@@ -110,15 +161,20 @@ wait_for_container_if() {
 }
 
 echo "[1/5] starting ${N} ${RUNTIME} containers with no network"
+phase_started="$SECONDS"
 env GOCACHE="${GOCACHE:-/tmp/gocache}" go build -o "$TETHUX_BIN" ./cmd/tethux
 
 for i in $(seq 1 "$N"); do
   name="$(container_name "$i")"
   CONTAINERS+=("$name")
-  "$RUNTIME" run -d --name "$name" --rm --net=none --cap-add=NET_ADMIN "$IMAGE" sleep infinity >/dev/null
+  wait_for_job_slot
+  "$RUNTIME" run -d --name "$name" --rm --net=none --cap-add=NET_ADMIN "$IMAGE" sleep infinity >/dev/null &
 done
+wait
+log_phase_done "$phase_started" "[1/5]"
 
 echo "[2/5] starting ${N} Go switches; each switch creates its own container veth"
+phase_started="$SECONDS"
 for i in $(seq 1 "$N"); do
   name="$(container_name "$i")"
   host_if="$(host_if_name "$i")"
@@ -143,14 +199,17 @@ for i in $(seq 1 "$N"); do
   "${GO_RUN[@]}" "${args[@]}" >"/tmp/tethux-switch-${SUFFIX}-${i}.log" 2>&1 &
   PIDS+=("$!")
 done
+log_phase_done "$phase_started" "[2/5]"
 
 echo "[3/5] assigning container IPs after Go attaches deterministic interfaces"
+phase_started="$SECONDS"
 for i in $(seq 1 "$N"); do
   name="$(container_name "$i")"
   container_if="$(container_if_name "$i")"
   wait_for_container_if "$name" "$container_if"
   "$RUNTIME" exec "$name" ip addr add "10.77.0.${i}/24" dev "$container_if"
 done
+log_phase_done "$phase_started" "[3/5]"
 
 echo "[4/5] topology"
 for i in $(seq 1 "$N"); do
@@ -163,7 +222,7 @@ done
 
 echo "[5/5] proving container 1 reaches container ${N} through UDP switch links"
 EXIT_CODE=0
-"$RUNTIME" exec "$(container_name 1)" ping -c 3 -W 2 "10.77.0.${N}" || EXIT_CODE=$?
+"$RUNTIME" exec "$(container_name 1)" ping -c "$PING_COUNT" -W "$PING_TIMEOUT" "10.77.0.${N}" || EXIT_CODE=$?
 
 echo
 
