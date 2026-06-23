@@ -1,6 +1,7 @@
 package libtethux
 
 import (
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -230,7 +231,8 @@ func TestSwitchStopsIdleUDPReadersQuickly(t *testing.T) {
 
 func freeUDPAddr(t *testing.T) string {
 	t.Helper()
-	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	var listenConfig net.ListenConfig
+	conn, err := listenConfig.ListenPacket(context.Background(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("reserve udp port: %v", err)
 	}

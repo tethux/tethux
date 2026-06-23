@@ -16,6 +16,13 @@ type Link struct {
 	State     LinkState
 }
 
+type NamespaceInterfaceMode string
+
+const (
+	NamespaceInterfaceCreateVeth NamespaceInterfaceMode = "create-veth"
+	NamespaceInterfaceExisting   NamespaceInterfaceMode = "existing"
+)
+
 type SetupLinkParams struct {
 	SourcePID int
 	HostName  string

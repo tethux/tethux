@@ -121,6 +121,21 @@ Or through mise:
 RUNTIME=podman N=4 mise run demo-container-udp
 ```
 
+The shell wrapper is intentionally transparent and prints phase timings. For
+larger local tests, the Go runner does the same topology with parallel runtime
+operations and local UDP remote pairs:
+
+```bash
+sudo go run ./scripts/container-udp-topology.go --runtime podman --n 67
+```
+
+Each switch-to-switch link is still a local uBridge-style UDP pair: one switch
+listens on `127.0.0.1:<left-port>` and sends to the adjacent switch's
+`127.0.0.1:<right-port>`. That makes the remote endpoint behavior testable on
+one machine without a separate virtualizer. Increase or reduce runtime
+concurrency with `--parallel-jobs 32` or `PARALLEL_JOBS=32`; on slower
+container hosts, raise interface setup waiting with `--interface-timeout 30s`.
+
 Container interfaces are deterministic. The default names are `tx01`, `tx02`,
 and so on. Set `CONTAINER_IF_PREFIX` to choose another prefix:
 
@@ -143,10 +158,16 @@ interface setup and accepts UDP ports for emulator links:
 ```bash
 sudo go run ./cmd/tethux bridge container \
   --pid "$container_pid" \
+  --interface-mode create-veth \
   --host-if tx-demo-1 \
   --container-if tx01 \
   --port id=uplink,scheme=udp,listen=127.0.0.1:23000,remote=127.0.0.1:23001
 ```
+
+`--interface-mode=create-veth` is the default: the Go code creates the veth
+pair and moves the namespace side. Use `--interface-mode=existing` when an
+external virtualizer or setup tool already created the host interface and
+`tethux` should only open it as a switch port.
 
 ### Namespace test flow
 

@@ -84,6 +84,34 @@ remove_container() {
   esac
 }
 
+cleanup_stale_demo_state() {
+  echo "preflight: cleaning stale tethux demo state" >&2
+
+  pkill -TERM -f '/tmp/tethux-demo-[0-9]+ bridge container' 2>/dev/null || true
+  sleep 2
+  pkill -KILL -f '/tmp/tethux-demo-[0-9]+ bridge container' 2>/dev/null || true
+
+  while IFS= read -r name; do
+    remove_container "$name"
+  done < <("$RUNTIME" ps -a --format '{{.Names}}' 2>/dev/null | grep -E '^tethux-demo-' || true)
+
+  while IFS= read -r ifname; do
+    ip link delete "$ifname" 2>/dev/null || true
+  done < <(ip -o link show | sed -nE 's/^[0-9]+: (tx[0-9]{8})(@|:).*/\1/p')
+}
+
+ensure_udp_ports_available() {
+  local last_port=$(( BASE_PORT + (N - 2) * 2 + 1 ))
+  local port
+
+  for port in $(seq "$BASE_PORT" "$last_port"); do
+    if ss -H -lun "sport = :${port}" | grep -q .; then
+      echo "UDP port ${port} is still in use after stale cleanup" >&2
+      return 1
+    fi
+  done
+}
+
 cleanup() {
   set +e
   local started="$SECONDS"
@@ -160,6 +188,9 @@ wait_for_container_if() {
   return 1
 }
 
+cleanup_stale_demo_state
+ensure_udp_ports_available
+
 echo "[1/5] starting ${N} ${RUNTIME} containers with no network"
 phase_started="$SECONDS"
 env GOCACHE="${GOCACHE:-/tmp/gocache}" go build -o "$TETHUX_BIN" ./cmd/tethux
@@ -180,7 +211,7 @@ for i in $(seq 1 "$N"); do
   host_if="$(host_if_name "$i")"
   container_if="$(container_if_name "$i")"
   pid="$(container_pid "$name")"
-  args=(bridge container "--pid" "$pid" "--host-if" "$host_if" "--container-if" "$container_if" "--mtu" "$MTU")
+  args=(bridge container "--pid" "$pid" "--interface-mode" "create-veth" "--host-if" "$host_if" "--container-if" "$container_if" "--mtu" "$MTU")
 
   if (( i > 1 )); then
     left_link=$(( i - 1 ))

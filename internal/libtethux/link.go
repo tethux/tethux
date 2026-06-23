@@ -10,6 +10,25 @@ import (
 	"github.com/vishvananda/netns"
 )
 
+type NamespaceInterfaceOptions struct {
+	Mode              models.NamespaceInterfaceMode
+	PID               int
+	HostSideName      string
+	ContainerSideName string
+	MTU               int
+}
+
+func AttachNamespaceInterface(opts NamespaceInterfaceOptions) error {
+	switch opts.Mode {
+	case "", models.NamespaceInterfaceCreateVeth:
+		return AttachVethToNamespace(opts.PID, opts.HostSideName, opts.ContainerSideName, opts.MTU)
+	case models.NamespaceInterfaceExisting:
+		return PrepareExistingInterface(opts.HostSideName, opts.MTU)
+	default:
+		return fmt.Errorf("unsupported namespace interface mode %q", opts.Mode)
+	}
+}
+
 func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu int) error {
 	peerName := peerInterfaceName(hostSideName)
 	err := SetupLinkWithNames(models.SetupLinkParams{
@@ -33,8 +52,8 @@ func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu 
 		return errs.ErrLinkNotFound
 	}
 
-	if err := netlink.LinkSetName(link, containerSideName); err != nil {
-		return fmt.Errorf("%w: failed to rename %s to %s: %w", errs.ErrFailedToCreate, peerName, containerSideName, err)
+	if renameErr := netlink.LinkSetName(link, containerSideName); renameErr != nil {
+		return fmt.Errorf("%w: failed to rename %s to %s: %w", errs.ErrFailedToCreate, peerName, containerSideName, renameErr)
 	}
 
 	link, err = netlink.LinkByName(containerSideName)
@@ -48,6 +67,25 @@ func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu 
 	}
 
 	return netlink.LinkSetUp(link)
+}
+
+func PrepareExistingInterface(hostSideName string, mtu int) error {
+	link, err := netlink.LinkByName(hostSideName)
+	if err != nil {
+		return fmt.Errorf("%w: failed to find existing interface %s: %w", errs.ErrLinkNotFound, hostSideName, err)
+	}
+
+	if mtu > 0 {
+		if err := netlink.LinkSetMTU(link, mtu); err != nil {
+			return fmt.Errorf("%w: failed to set MTU for %s: %w", errs.ErrFailedToSetMTU, hostSideName, err)
+		}
+	}
+
+	if err := netlink.LinkSetUp(link); err != nil {
+		return fmt.Errorf("%w: failed to set up %s: %w", errs.ErrFailedToSetMTU, hostSideName, err)
+	}
+
+	return nil
 }
 
 func peerInterfaceName(hostSideName string) string {

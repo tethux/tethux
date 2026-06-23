@@ -9,6 +9,7 @@ import (
 )
 
 const readPollInterval = 100 * time.Millisecond
+const maxInt32 = 1<<31 - 1
 
 var errReadTimeout = errors.New("port read timeout")
 
@@ -28,8 +29,13 @@ func (r *RawSocketPort) MTU() int {
 }
 
 func (r *RawSocketPort) ReadFrame() (Frame, error) {
+	if r.fd > maxInt32 {
+		return nil, syscall.EINVAL
+	}
+
+	fd := int32(r.fd) // #nosec G115 guarded above for unix.PollFd.
 	pollFDs := []unix.PollFd{{
-		Fd:     int32(r.fd),
+		Fd:     fd,
 		Events: unix.POLLIN,
 	}}
 	ready, err := unix.Poll(pollFDs, int(readPollInterval/time.Millisecond))

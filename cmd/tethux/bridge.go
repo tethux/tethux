@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/0xveya/tethux/internal/libtethux"
+	"github.com/0xveya/tethux/internal/libtethux/models"
 	"github.com/spf13/cobra"
 )
 
@@ -98,13 +99,15 @@ func newBridgeContainerCmd() *cobra.Command {
 		usePcap                    bool
 		immediate                  bool
 		disableUnknownUnicastFlood bool
+		interfaceMode              string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "container",
 		Short: "Attach one namespace interface and optional UDP links to a switch",
-		Long: "Creates a veth pair in Go, moves one side into the target namespace, " +
-			"then runs a switch with the host side plus any repeated UDP --port specs.",
+		Long: "By default, tethux creates a veth pair in Go, moves one side into the target namespace, " +
+			"then runs a switch with the host side plus any repeated UDP --port specs. " +
+			"Use --interface-mode=existing when another runtime already prepared the host interface.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if pid <= 0 {
 				return fmt.Errorf("--pid must be a running container or namespace pid")
@@ -135,16 +138,30 @@ func newBridgeContainerCmd() *cobra.Command {
 				DisableUnknownUnicastFlood: disableUnknownUnicastFlood,
 			})
 
-			libtethux.CleanupLink(hostIf)
+			mode := models.NamespaceInterfaceMode(interfaceMode)
+			createVeth := mode == "" || mode == models.NamespaceInterfaceCreateVeth
+
+			if createVeth {
+				libtethux.CleanupLink(hostIf)
+			}
 			defer func() {
 				if stopErr := sw.Stop(); stopErr != nil {
 					log.Printf("switch shutdown error: %v", stopErr)
 				}
-				libtethux.CleanupLink(hostIf)
+				if createVeth {
+					libtethux.CleanupLink(hostIf)
+				}
 			}()
 
-			if err := libtethux.AttachVethToNamespace(pid, hostIf, containerIf, mtu); err != nil {
-				return fmt.Errorf("attach %s to pid %d as %s: %w", hostIf, pid, containerIf, err)
+			attachErr := libtethux.AttachNamespaceInterface(libtethux.NamespaceInterfaceOptions{
+				Mode:              mode,
+				PID:               pid,
+				HostSideName:      hostIf,
+				ContainerSideName: containerIf,
+				MTU:               mtu,
+			})
+			if attachErr != nil {
+				return fmt.Errorf("prepare %s with mode %s for pid %d as %s: %w", hostIf, mode, pid, containerIf, attachErr)
 			}
 
 			ports := append([]portSpec{{
@@ -176,6 +193,7 @@ func newBridgeContainerCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&usePcap, "pcap", false, "use pcap instead of raw sockets for the host-side veth")
 	cmd.Flags().BoolVar(&immediate, "immediate", true, "enable pcap immediate mode")
 	cmd.Flags().BoolVar(&disableUnknownUnicastFlood, "disable-unknown-unicast-flood", false, "drop unknown unicast instead of flooding")
+	cmd.Flags().StringVar(&interfaceMode, "interface-mode", string(models.NamespaceInterfaceCreateVeth), "namespace interface mode: create-veth or existing")
 
 	return cmd
 }
