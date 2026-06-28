@@ -12,7 +12,7 @@ import (
 type ContainerProvider interface {
 	virt.Provider
 
-	CreateContainer(ctx context.Context, cfg ContainerConfig) (*ContainerNode, error)
+	CreateContainer(ctx context.Context, cfg *ContainerConfig) (*ContainerNode, error)
 	Pull(ctx context.Context, ref string, opts *client.ImagePullOptions) error
 	Exec(ctx context.Context, id string, cmd []string, execOpts *client.ExecCreateOptions, attachOpts *client.ExecAttachOptions) (stdout, stderr []byte, err error)
 	Logs(ctx context.Context, id string, opts *client.ContainerLogsOptions) (io.ReadCloser, error)
@@ -24,6 +24,7 @@ type ContainerProvider interface {
 	RestartContainer(ctx context.Context, id string, opts *client.ContainerRestartOptions) error
 	SuspendContainer(ctx context.Context, id string, opts *client.ContainerPauseOptions) error
 	ResumeContainer(ctx context.Context, id string, opts *client.ContainerUnpauseOptions) error
+	// needs cleanup and prune funcs
 }
 
 type ContainerConfig struct {

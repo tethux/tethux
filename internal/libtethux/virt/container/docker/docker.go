@@ -70,7 +70,7 @@ func resolveSocket(cfg *config) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("docker: %w; tried %v — is docker running?", errs.ErrNoSockerFound, socketPaths())
+	return "", fmt.Errorf("docker: %w; tried %v - is docker running?", errs.ErrNoSockerFound, socketPaths())
 }
 
 func socketCandidates() []socketCandidate {

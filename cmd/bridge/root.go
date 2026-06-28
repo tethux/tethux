@@ -1,10 +1,10 @@
-package main
+package bridge
 
 import "github.com/spf13/cobra"
 
-func newRootCmd() *cobra.Command {
+func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "tethux",
+		Use:   "bridge",
 		Short: "CLI for testing the tethux switch library",
 	}
 

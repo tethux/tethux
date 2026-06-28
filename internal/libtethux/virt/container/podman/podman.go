@@ -48,8 +48,6 @@ func New(opts ...Option) (*Podman, error) {
 	return &Podman{Client: cli}, nil
 }
 
-// socket resolution only below, zero business logic
-
 type socketCandidate struct {
 	label  string
 	socket string
@@ -77,7 +75,7 @@ func resolveSocket(cfg *config) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("podman: %w; tried %v — is podman running? (try: podman system service --time=0)", errs.ErrNoSockerFound, socketPaths())
+	return "", fmt.Errorf("podman: %w; tried %v - is podman running? (try: podman system service --time=0)", errs.ErrNoSockerFound, socketPaths())
 }
 
 func socketCandidates() []socketCandidate {

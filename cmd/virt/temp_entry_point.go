@@ -1,33 +1,58 @@
-package main
+package virt
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"os"
+	osexec "os/exec"
+	"strings"
 
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
 	"github.com/0xveya/tethux/internal/libtethux/virt"
 	"github.com/0xveya/tethux/internal/libtethux/virt/container"
+	"github.com/0xveya/tethux/internal/libtethux/virt/container/docker"
 	"github.com/0xveya/tethux/internal/libtethux/virt/container/podman"
 )
 
-func newPodman(socketOverride string) (*podman.Podman, error) {
-	var opts []podman.Option
-	if socketOverride != "" {
-		opts = append(opts, podman.WithSocket(socketOverride))
+const testHostEnv = "TETHUX_VIRT_TEST_HOST"
+
+func newProvider(provider, socket string) (container.ContainerProvider, error) {
+	switch provider {
+	case "podman":
+		var opts []podman.Option
+		if socket != "" {
+			opts = append(opts, podman.WithSocket(socket))
+		}
+		return podman.New(opts...)
+	case "docker":
+		var opts []docker.Option
+		if socket != "" {
+			opts = append(opts, docker.WithSocket(socket))
+		}
+		return docker.New(opts...)
+	case "containerd":
+		return nil, fmt.Errorf("containerd provider not yet implemented")
+	default:
+		return nil, fmt.Errorf("unknown provider %q - choose podman, docker, or containerd", provider)
 	}
-	return podman.New(opts...)
+}
+
+func addProviderFlags(c *cobra.Command, provider, socket *string) {
+	c.Flags().StringVarP(provider, "provider", "p", "podman", "container provider: podman, docker, containerd")
+	c.Flags().StringVar(socket, "socket", "", "override provider socket path")
 }
 
 func smokeCmd() *cobra.Command {
 	var (
-		socket string
-		name   string
-		image  string
-		cmd    []string
+		provider string
+		socket   string
+		host     string
+		name     string
+		image    string
+		cmd      []string
 	)
 
 	c := &cobra.Command{
@@ -35,15 +60,18 @@ func smokeCmd() *cobra.Command {
 		Short: "spin up a container, exec into it, then clean up",
 		RunE: func(c *cobra.Command, args []string) error {
 			ctx := context.Background()
+			if host != "" {
+				return runRemoteSmoke(ctx, host, provider, socket, name, image, cmd)
+			}
 
-			p, err := newPodman(socket)
+			p, err := newProvider(provider, socket)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("pulling %s...\n", image)
-			if pullErr := p.Pull(ctx, image, &client.ImagePullOptions{}); pullErr != nil {
-				return pullErr
+			fmt.Printf("[%s] pulling %s...\n", provider, image)
+			if err := p.Pull(ctx, image, nil); err != nil {
+				return err
 			}
 			fmt.Println("pulled", image)
 
@@ -63,20 +91,20 @@ func smokeCmd() *cobra.Command {
 
 			defer func() {
 				fmt.Println("cleaning up...")
-				if deleteErr := p.DeleteContainer(ctx, node.ID, &client.ContainerRemoveOptions{Force: true}); deleteErr != nil {
-					fmt.Println("cleanup error:", deleteErr)
+				if err := p.DeleteContainer(ctx, node.ID, &client.ContainerRemoveOptions{Force: true}); err != nil {
+					fmt.Println("cleanup error:", err)
 				} else {
 					fmt.Println("deleted", node.ID[:12])
 				}
 			}()
 
-			if startErr := p.Start(ctx, node.ID); startErr != nil {
-				return startErr
+			if err := p.Start(ctx, node.ID); err != nil {
+				return err
 			}
 
-			state, statErr := p.State(ctx, node.ID)
-			if statErr != nil {
-				return statErr
+			state, err := p.State(ctx, node.ID)
+			if err != nil {
+				return err
 			}
 			fmt.Println("state:", state)
 
@@ -129,16 +157,64 @@ func smokeCmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&socket, "socket", "", "override podman socket path")
+	addProviderFlags(c, &provider, &socket)
+	c.Flags().StringVar(&host, "host", os.Getenv(testHostEnv), "SSH host for remote smoke test, or "+testHostEnv)
 	c.Flags().StringVar(&name, "name", "tethux-smoke", "container name")
 	c.Flags().StringVar(&image, "image", "alpine", "image to pull and run")
-	c.Flags().StringSliceVar(&cmd, "cmd", []string{"sh", "-c", "echo meow && sleep 30"}, "command to run in container")
+	c.Flags().StringSliceVar(&cmd, "cmd", []string{"sh", "-c", "echo meow && sleep 30"}, "command to run")
 
 	return c
 }
 
+func runRemoteSmoke(ctx context.Context, host, provider, socket, name, image string, cmd []string) error {
+	parts := []string{
+		"sudo",
+		"-n",
+		"env",
+		testHostEnv + "=",
+		"tethux",
+		"virt",
+		"smoke",
+		"--provider",
+		provider,
+		"--name",
+		name,
+		"--image",
+		image,
+	}
+	if socket != "" {
+		parts = append(parts, "--socket", socket)
+	}
+	for _, part := range cmd {
+		parts = append(parts, "--cmd", part)
+	}
+
+	remote := shellJoin(parts)
+	fmt.Printf("[%s] running remote smoke on %s\n", provider, host)
+	ssh := osexec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", host, remote)
+	ssh.Stdin = os.Stdin
+	ssh.Stdout = os.Stdout
+	ssh.Stderr = os.Stderr
+	return ssh.Run()
+}
+
+func shellJoin(parts []string) string {
+	quoted := make([]string, 0, len(parts))
+	for _, part := range parts {
+		quoted = append(quoted, shellQuote(part))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 func listCmd() *cobra.Command {
-	var socket string
+	var provider, socket string
 
 	c := &cobra.Command{
 		Use:   "list",
@@ -146,7 +222,7 @@ func listCmd() *cobra.Command {
 		RunE: func(c *cobra.Command, args []string) error {
 			ctx := context.Background()
 
-			p, err := newPodman(socket)
+			p, err := newProvider(provider, socket)
 			if err != nil {
 				return err
 			}
@@ -169,12 +245,12 @@ func listCmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&socket, "socket", "", "override podman socket path")
+	addProviderFlags(c, &provider, &socket)
 	return c
 }
 
 func pullCmd() *cobra.Command {
-	var socket string
+	var provider, socket string
 
 	c := &cobra.Command{
 		Use:   "pull <ref>",
@@ -183,12 +259,12 @@ func pullCmd() *cobra.Command {
 		RunE: func(c *cobra.Command, args []string) error {
 			ctx := context.Background()
 
-			p, err := newPodman(socket)
+			p, err := newProvider(provider, socket)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("pulling %s...\n", args[0])
+			fmt.Printf("[%s] pulling %s...\n", provider, args[0])
 			if err := p.Pull(ctx, args[0], nil); err != nil {
 				return err
 			}
@@ -197,12 +273,13 @@ func pullCmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&socket, "socket", "", "override podman socket path")
+	addProviderFlags(c, &provider, &socket)
 	return c
 }
 
 func logsCmd() *cobra.Command {
 	var (
+		provider   string
 		socket     string
 		follow     bool
 		timestamps bool
@@ -216,7 +293,7 @@ func logsCmd() *cobra.Command {
 		RunE: func(c *cobra.Command, args []string) error {
 			ctx := context.Background()
 
-			p, err := newPodman(socket)
+			p, err := newProvider(provider, socket)
 			if err != nil {
 				return err
 			}
@@ -236,7 +313,7 @@ func logsCmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&socket, "socket", "", "override podman socket path")
+	addProviderFlags(c, &provider, &socket)
 	c.Flags().BoolVarP(&follow, "follow", "f", false, "follow log output")
 	c.Flags().BoolVarP(&timestamps, "timestamps", "t", false, "show timestamps")
 	c.Flags().StringVar(&tail, "tail", "all", "number of lines from end")
