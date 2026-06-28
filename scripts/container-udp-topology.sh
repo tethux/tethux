@@ -52,7 +52,7 @@ if ! command -v "$RUNTIME" >/dev/null 2>&1; then
 fi
 
 SUFFIX="$(date +%s | tail -c 7)"
-TETHUX_BIN="/tmp/tethux-demo-${SUFFIX}"
+TETHUX_BIN="${TETHUX_DEMO_BIN:-/run/tethux-demo/tethux-demo-${SUFFIX}}"
 GO_RUN=("$TETHUX_BIN")
 
 PIDS=()
@@ -190,16 +190,17 @@ wait_for_container_if() {
 
 cleanup_stale_demo_state
 ensure_udp_ports_available
+mkdir -p "$(dirname "$TETHUX_BIN")"
 
 echo "[1/5] starting ${N} ${RUNTIME} containers with no network"
 phase_started="$SECONDS"
-env GOCACHE="${GOCACHE:-/tmp/gocache}" go build -o "$TETHUX_BIN" ./cmd/bridge
+env GOCACHE="${GOCACHE:-/tmp/gocache}" go build -o "$TETHUX_BIN" ./cmd/bridge/main
 
 for i in $(seq 1 "$N"); do
   name="$(container_name "$i")"
   CONTAINERS+=("$name")
   wait_for_job_slot
-  "$RUNTIME" run -d --name "$name" --rm --net=none --cap-add=NET_ADMIN "$IMAGE" sleep infinity >/dev/null &
+  "$RUNTIME" run -d --name "$name" --rm --net=none --cap-add=NET_ADMIN --cap-add=NET_RAW "$IMAGE" sleep infinity >/dev/null &
 done
 wait
 log_phase_done "$phase_started" "[1/5]"

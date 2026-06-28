@@ -1,0 +1,13 @@
+when:
+  - event: [push, pull_request, manual]
+
+labels:
+  tethux-canary: "true"
+  privileged: "true"
+
+steps:
+  topology-smoke:
+    image: nixos/nix
+    privileged: true
+    commands:
+      - nix develop --extra-experimental-features "nix-command flakes" -c sudo ./nix/scripts/topology-smoke.sh all

@@ -1,46 +1,170 @@
-# totally not copy pasted from gns3tuil
 [tools]
 go = "1.26.3"
 sqlite = "3.51.2"
+
 golangci-lint = "2.10.1"
 sqlc = "1.30.0"
 goreleaser = "2.14.1"
+
 protoc = "29.6"
 buf = "1.66.0"
+
 air = "1.62.0"
+
 "github:nrempel/sleek" = "v0.5.0"
+"github:tursodatabase/turso" = "0.5.3"
+
 "go:mvdan.cc/gofumpt" = "0.9.2"
 "go:golang.org/x/tools/cmd/goimports" = "0.42.0"
 "go:google.golang.org/protobuf/cmd/protoc-gen-go" = "v1.36.5"
 "go:storj.io/drpc/cmd/protoc-gen-go-drpc" = "v0.0.34"
 "go:github.com/swaggo/swag/cmd/swag" = "latest"
-"github:tursodatabase/turso" = "0.5.3"
+
+
+# dev
+
+[tasks.fmt]
+alias = "format"
+description = "Format all source code"
+depends = ["fmt:go"]
+
+[tasks."fmt:go"]
+description = "Format Go source"
+run = ["goimports -w .", "gofumpt -w .", "go mod tidy"]
+
+[tasks."dev:container-udp"]
+description = "Run UDP container topology"
+run = "sudo ./scripts/container-udp-topology.sh ${RUNTIME:-podman} ${N:-4}"
+
+# running
+
+[tasks.run]
+description = "Run the last executed run task"
+run = """
+if [ -f .last_run ]; then
+    TASK=$(cat .last_run)
+    echo "Running: $TASK"
+    mise run "$TASK"
+else
+    echo "No previous run task."
+    exit 1
+fi
+"""
+
+[tasks."run:tethux"]
+description = "Run multicall help"
+run = """
+echo "$MISE_TASK_NAME" > .last_run
+go run ./cmd/tethux
+"""
+
+[tasks."run:bridge-multicall"]
+alias = "run:bridgem"
+description = "Run bridge through multicall"
+run = """
+echo "$MISE_TASK_NAME" > .last_run
+go run ./cmd/tethux bridge
+"""
+
+[tasks."run:virt-multicall"]
+alias = "run:virtm"
+description = "Run virt through multicall"
+run = """
+echo "$MISE_TASK_NAME" > .last_run
+go run ./cmd/tethux virt
+"""
+
+[tasks."run:bridge"]
+alias = "run:bridge-standalone"
+description = "Run standalone bridge"
+run = """
+echo "$MISE_TASK_NAME" > .last_run
+go run ./cmd/bridge/main
+"""
+
+[tasks."run:virt"]
+alias = "run:virt-standalone"
+description = "Run standalone virt"
+run = """
+echo "$MISE_TASK_NAME" > .last_run
+go run ./cmd/virt/main
+"""
+
+# build
+
+[tasks.build]
+description = "Build all binaries"
+depends = [
+	"build:create-bin-dir",
+	"build:go",
+	"build:standalone",
+	"build:symlinks",
+]
+
+[tasks."build:create-bin-dir"]
+hide = true
+run = "mkdir -p ./bin"
+
+[tasks."build:go"]
+description = "Build multicall binary"
+depends = ["build:create-bin-dir"]
+run = "go build -o ./bin/tethux ./cmd/tethux"
+
+[tasks."build:standalone"]
+description = "Build standalone binaries"
+depends = ["build:create-bin-dir"]
+run = """
+go build -o ./bin/tethux-bridge ./cmd/bridge/main
+go build -o ./bin/tethux-virt ./cmd/virt/main
+"""
+
+[tasks."build:symlinks"]
+description = "Create multicall symlinks"
+depends = ["build:go"]
+run = """
+cd ./bin
+ln -sf tethux bridge
+ln -sf tethux virt
+"""
+
+# ci
 
 [tasks.lint]
 description = "Run all linters"
-depends = ["lint-go"]
+depends = ["lint:go"]
 
-[tasks.test]
-description = "Run all tests"
-depends = ["test-go"]
-
-[tasks."test-go"]
-description = "Run Go tests"
-run = "go test ./..."
-
-[tasks."lint-go"]
+[tasks."lint:go"]
 description = "Run Go linter"
 run = "golangci-lint run -c .golangci.yml"
 
-[tasks."demo-container-udp"]
-description = "Run N containers connected by N Go switches over UDP tunnels"
-run = "sudo ./scripts/container-udp-topology.sh ${RUNTIME:-podman} ${N:-4}"
+[tasks.test]
+description = "Run all tests"
+depends = ["test:go"]
 
-[tasks.format]
-alias = "fmt"
-description = "Run all formatters ( only go for now)"
-depends = ["format-go"]
+[tasks."test:go"]
+description = "Run Go tests"
+run = "go test ./..."
 
-[tasks."format-go"]
-description = "Format Go code with goimports and gofumpt"
-run = ["goimports -w .", "gofumpt -w .", "go mod tidy"]
+[tasks."ci:normal"]
+description = "Run the unprivileged CI path"
+depends = ["lint", "test", "build"]
+
+[tasks."ci:canary:providers"]
+description = "Run privileged container provider smoke tests"
+run = "sudo ./nix/scripts/provider-smoke.sh all"
+
+[tasks."ci:canary:topology"]
+description = "Run privileged bridge topology smoke tests"
+run = "sudo ./nix/scripts/topology-smoke.sh all"
+
+[tasks."ci:canary:hypervisors"]
+description = "Run privileged network and hypervisor smoke tests"
+run = "sudo ./nix/scripts/hypervisor-smoke.sh"
+
+[tasks."host:discover"]
+description = "Discover known tethux canary hosts on the LAN"
+run = "./nix/scripts/discover-hosts.sh ${SUBNET:-}"
+
+[tasks."host:audit"]
+description = "Audit a canary host over SSH, e.g. HOST=veya@10.0.0.11 mise run host:audit"
+run = "./nix/scripts/audit-host.sh ${HOST:?set HOST=user@host}"

@@ -1,0 +1,14 @@
+when:
+  - event: [push, pull_request, manual]
+
+labels:
+  tethux-canary: "true"
+  privileged: "true"
+
+steps:
+  provider-smoke:
+    image: nixos/nix
+    privileged: true
+    commands:
+      - nix develop --extra-experimental-features "nix-command flakes" -c mise run build
+      - nix develop --extra-experimental-features "nix-command flakes" -c sudo ./nix/scripts/provider-smoke.sh all

@@ -66,7 +66,7 @@ func main() {
 	}
 
 	suffix := fmt.Sprintf("%d", time.Now().Unix()%1000000)
-	bin := filepath.Join(os.TempDir(), "tethux-demo-"+suffix)
+	bin := filepath.Join(getenv("TETHUX_DEMO_BIN_DIR", "/run/tethux-demo"), "tethux-demo-"+suffix)
 	nodes := makeNodes(cfg, suffix)
 
 	exitCode := 0
@@ -87,12 +87,15 @@ func main() {
 	}()
 
 	if err := phase("[1/5] building tethux and starting containers", func() error {
-		if err := run(root, map[string]string{"GOCACHE": getenv("GOCACHE", filepath.Join(os.TempDir(), "gocache"))}, "go", "build", "-o", bin, "./cmd/tethux"); err != nil {
+		if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
+			return err
+		}
+		if err := run(root, map[string]string{"GOCACHE": getenv("GOCACHE", filepath.Join(os.TempDir(), "gocache"))}, "go", "build", "-o", bin, "./cmd/bridge/main"); err != nil {
 			return err
 		}
 		return parallel(cfg.parallelJobs, len(nodes), func(i int) error {
 			n := &nodes[i]
-			return runQuiet(root, nil, cfg.runtime, "run", "-d", "--name", n.container, "--rm", "--net=none", "--cap-add=NET_ADMIN", cfg.image, "sleep", "infinity")
+			return runQuiet(root, nil, cfg.runtime, "run", "-d", "--name", n.container, "--rm", "--net=none", "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", cfg.image, "sleep", "infinity")
 		})
 	}); err != nil {
 		log.Printf("ERROR: %v", err)
