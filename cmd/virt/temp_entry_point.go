@@ -70,8 +70,8 @@ func smokeCmd() *cobra.Command {
 			}
 
 			fmt.Printf("[%s] pulling %s...\n", provider, image)
-			if err := p.Pull(ctx, image, nil); err != nil {
-				return err
+			if pullErr := p.Pull(ctx, image, nil); pullErr != nil {
+				return pullErr
 			}
 			fmt.Println("pulled", image)
 
@@ -91,15 +91,15 @@ func smokeCmd() *cobra.Command {
 
 			defer func() {
 				fmt.Println("cleaning up...")
-				if err := p.DeleteContainer(ctx, node.ID, &client.ContainerRemoveOptions{Force: true}); err != nil {
-					fmt.Println("cleanup error:", err)
+				if deleteErr := p.DeleteContainer(ctx, node.ID, &client.ContainerRemoveOptions{Force: true}); deleteErr != nil {
+					fmt.Println("cleanup error:", deleteErr)
 				} else {
 					fmt.Println("deleted", node.ID[:12])
 				}
 			}()
 
-			if err := p.Start(ctx, node.ID); err != nil {
-				return err
+			if startErr := p.Start(ctx, node.ID); startErr != nil {
+				return startErr
 			}
 
 			state, err := p.State(ctx, node.ID)
@@ -191,6 +191,7 @@ func runRemoteSmoke(ctx context.Context, host, provider, socket, name, image str
 
 	remote := shellJoin(parts)
 	fmt.Printf("[%s] running remote smoke on %s\n", provider, host)
+	// #nosec G204 -- this command is the explicit SSH transport for the --host smoke-test flag.
 	ssh := osexec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", host, remote)
 	ssh.Stdin = os.Stdin
 	ssh.Stdout = os.Stdout

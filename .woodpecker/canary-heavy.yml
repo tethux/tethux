@@ -1,5 +1,8 @@
 when:
-  - event: [cron, manual]
+  - event: push
+    branch: master
+  - event: cron
+  - event: manual
 
 labels:
   tethux-canary: "true"

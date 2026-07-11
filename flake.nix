@@ -74,7 +74,7 @@
         };
         goInputs = {
           src = ./.;
-          vendorHash = "sha256-rTm+K9i0sGHXZRltdWKPLN4cqQ8HMH7kTZc48TRinhc=";
+          vendorHash = "sha256-zo8OVMOf3TC5lbZfsE2wSi5N8xa+tnMcOuAg40DjFrI=";
           nativeBuildInputs = [ pkgs.pkg-config ];
           buildInputs = [ pkgs.libpcap ];
         };
@@ -109,6 +109,7 @@
                   go
                   golangci-lint
                   libpcap
+                  openssh
                   pkg-config
                 ];
               }

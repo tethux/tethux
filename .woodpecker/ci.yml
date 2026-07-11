@@ -1,5 +1,8 @@
 when:
-  - event: [push, pull_request, manual]
+  - event: push
+    branch: master
+  - event: pull_request
+  - event: manual
 
 steps:
   test:

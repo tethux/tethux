@@ -1,5 +1,7 @@
 when:
-  - event: [manual]
+  - event: push
+    branch: master
+  - event: manual
 
 labels:
   tethux-canary: "true"
@@ -9,6 +11,8 @@ steps:
   provider-smoke:
     image: nixos/nix
     privileged: true
+    environment:
+      TETHUX_VIRT_TEST_HOST: ci@10.0.0.78
     commands:
-      - nix develop --extra-experimental-features "nix-command flakes" -c mise run build
-      - nix develop --extra-experimental-features "nix-command flakes" -c ./nix/scripts/provider-smoke.sh all
+      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c go build ./cmd/tethux
+      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c ./nix/scripts/provider-smoke.sh all
