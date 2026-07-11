@@ -90,38 +90,62 @@
           default = tethux;
         };
 
-        devShells.default = pkgs.mkShell {
-          packages = with pkgs; [
-            bashInteractive
-            bridge-utils
-            curl
-            dynamips
-            git
-            go
-            golangci-lint
-            gofumpt
-            gotools
-            iproute2
-            jq
-            libpcap
-            mise
-            nmap
-            pkg-config
-            qemu_kvm
-            socat
-            tcpdump
-          ];
+        devShells =
+          let
+            cgoPcapEnv = {
+              CGO_ENABLED = "1";
+              CGO_CFLAGS = "-I${pkgs.libpcap}/include";
+              CGO_LDFLAGS = "-L${pkgs.libpcap.lib}/lib -lpcap";
+              LD_LIBRARY_PATH = "${pkgs.libpcap.lib}/lib";
+            };
+          in
+          {
+            ci = pkgs.mkShell (
+              cgoPcapEnv
+              // {
+                packages = with pkgs; [
+                  bashInteractive
+                  git
+                  go
+                  golangci-lint
+                  libpcap
+                  pkg-config
+                ];
+              }
+            );
 
-          CGO_ENABLED = "1";
-          CGO_CFLAGS = "-I${pkgs.libpcap}/include";
-          CGO_LDFLAGS = "-L${pkgs.libpcap.lib}/lib -lpcap";
-          LD_LIBRARY_PATH = "${pkgs.libpcap.lib}/lib";
-          shellHook = ''
-            export DOCKER_HOST="''${DOCKER_HOST:-unix:///var/run/docker.sock}"
-            export CONTAINER_HOST="''${CONTAINER_HOST:-unix:///run/podman/podman.sock}"
-            export CONTAINERD_ADDRESS="''${CONTAINERD_ADDRESS:-/run/containerd/containerd.sock}"
-          '';
-        };
+            default = pkgs.mkShell (
+              cgoPcapEnv
+              // {
+                packages = with pkgs; [
+                  bashInteractive
+                  bridge-utils
+                  curl
+                  dynamips
+                  git
+                  go
+                  golangci-lint
+                  gofumpt
+                  gotools
+                  iproute2
+                  jq
+                  libpcap
+                  mise
+                  nmap
+                  pkg-config
+                  qemu_kvm
+                  socat
+                  tcpdump
+                ];
+
+                shellHook = ''
+                  export DOCKER_HOST="''${DOCKER_HOST:-unix:///var/run/docker.sock}"
+                  export CONTAINER_HOST="''${CONTAINER_HOST:-unix:///run/podman/podman.sock}"
+                  export CONTAINERD_ADDRESS="''${CONTAINERD_ADDRESS:-/run/containerd/containerd.sock}"
+                '';
+              }
+            );
+          };
 
         checks = {
           unit = pkgs.buildGoModule (goInputs // {
