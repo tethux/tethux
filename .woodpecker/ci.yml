@@ -1,0 +1,9 @@
+when:
+  - event: [push, pull_request, manual]
+
+steps:
+  test:
+    image: nixos/nix
+    commands:
+      - nix develop --extra-experimental-features "nix-command flakes" -c mise run ci:normal
+

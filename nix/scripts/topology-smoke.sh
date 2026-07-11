@@ -6,8 +6,7 @@ runtime="${1:-all}"
 small_n="${TETHUX_TOPOLOGY_SMALL_N:-4}"
 large_n="${TETHUX_TOPOLOGY_LARGE_N:-16}"
 parallel_jobs="${TETHUX_TOPOLOGY_PARALLEL_JOBS:-8}"
-sudo_env=(
-  sudo
+root_env=(
   env
   "PATH=${PATH}"
   "PKG_CONFIG_PATH=${PKG_CONFIG_PATH:-}"
@@ -16,6 +15,9 @@ sudo_env=(
   "CGO_LDFLAGS=${CGO_LDFLAGS:-}"
   "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}"
 )
+if [[ "$(id -u)" -ne 0 ]]; then
+  root_env=(sudo "${root_env[@]}")
+fi
 
 run_runtime() {
   local name="$1"
@@ -23,12 +25,26 @@ run_runtime() {
     echo "skip $name topology: runtime binary missing"
     return 0
   fi
+  case "$name" in
+    docker)
+      if [[ ! -S /var/run/docker.sock && ! -S /run/docker.sock ]]; then
+        echo "skip docker topology: socket not found"
+        return 0
+      fi
+      ;;
+    podman)
+      if [[ ! -S /run/podman/podman.sock && ! -S /var/run/podman/podman.sock ]]; then
+        echo "skip podman topology: rootful socket not found"
+        return 0
+      fi
+      ;;
+  esac
 
   echo "topology smoke: $name n=$small_n"
-  "${sudo_env[@]}" "$repo_root/scripts/container-udp-topology.sh" "$name" "$small_n"
+  "${root_env[@]}" "$repo_root/scripts/container-udp-topology.sh" "$name" "$small_n"
 
   echo "topology smoke: $name n=$large_n"
-  "${sudo_env[@]}" go run "$repo_root/scripts/container-udp-topology.go" \
+  "${root_env[@]}" go run "$repo_root/scripts/container-udp-topology.go" \
     --runtime "$name" \
     --n "$large_n" \
     --parallel-jobs "$parallel_jobs"

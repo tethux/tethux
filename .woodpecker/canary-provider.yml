@@ -1,5 +1,5 @@
 when:
-  - event: [push, pull_request, manual]
+  - event: [manual]
 
 labels:
   tethux-canary: "true"
@@ -11,4 +11,4 @@ steps:
     privileged: true
     commands:
       - nix develop --extra-experimental-features "nix-command flakes" -c mise run build
-      - nix develop --extra-experimental-features "nix-command flakes" -c sudo ./nix/scripts/provider-smoke.sh all
+      - nix develop --extra-experimental-features "nix-command flakes" -c ./nix/scripts/provider-smoke.sh all
