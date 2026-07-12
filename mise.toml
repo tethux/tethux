@@ -153,6 +153,10 @@ depends = ["lint", "test", "build"]
 description = "Run privileged container provider smoke tests"
 run = "sudo ./nix/scripts/provider-smoke.sh all"
 
+[tasks."ci:laptop"]
+description = "Run lint, unit tests, all provider operations, and one bridge topology"
+run = "./nix/scripts/laptop-integration.sh ${RUNTIME:?set RUNTIME=docker or podman}"
+
 [tasks."ci:canary:topology"]
 description = "Run privileged bridge topology smoke tests"
 run = "sudo ./nix/scripts/topology-smoke.sh all"

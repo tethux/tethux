@@ -115,6 +115,31 @@
               }
             );
 
+            integration = pkgs.mkShell (
+              cgoPcapEnv
+              // {
+                packages = with pkgs; [
+                  bashInteractive
+                  bridge-utils
+                  containerd
+                  docker-client
+                  git
+                  go
+                  golangci-lint
+                  iproute2
+                  jq
+                  libpcap
+                  openssh
+                  pkg-config
+                  podman
+                  procps
+                  runc
+                  socat
+                  tcpdump
+                ];
+              }
+            );
+
             default = pkgs.mkShell (
               cgoPcapEnv
               // {

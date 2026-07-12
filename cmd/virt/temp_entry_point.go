@@ -13,6 +13,7 @@ import (
 
 	"github.com/0xveya/tethux/internal/libtethux/virt"
 	"github.com/0xveya/tethux/internal/libtethux/virt/container"
+	containerdimpl "github.com/0xveya/tethux/internal/libtethux/virt/container/containerd"
 	"github.com/0xveya/tethux/internal/libtethux/virt/container/docker"
 	"github.com/0xveya/tethux/internal/libtethux/virt/container/podman"
 )
@@ -34,7 +35,11 @@ func newProvider(provider, socket string) (container.ContainerProvider, error) {
 		}
 		return docker.New(opts...)
 	case "containerd":
-		return nil, fmt.Errorf("containerd provider not yet implemented")
+		var opts []containerdimpl.Option
+		if socket != "" {
+			opts = append(opts, containerdimpl.WithSocket(socket))
+		}
+		return containerdimpl.New(opts...)
 	default:
 		return nil, fmt.Errorf("unknown provider %q - choose podman, docker, or containerd", provider)
 	}
@@ -80,7 +85,7 @@ func smokeCmd() *cobra.Command {
 			node, err := p.CreateContainer(ctx, &container.ContainerConfig{
 				NodeConfig: virt.NodeConfig{
 					Name:  name,
-					Image: image + ":latest",
+					Image: image,
 				},
 				Cmd: cmd,
 			})
@@ -160,7 +165,7 @@ func smokeCmd() *cobra.Command {
 	addProviderFlags(c, &provider, &socket)
 	c.Flags().StringVar(&host, "host", os.Getenv(testHostEnv), "SSH host for remote smoke test, or "+testHostEnv)
 	c.Flags().StringVar(&name, "name", "tethux-smoke", "container name")
-	c.Flags().StringVar(&image, "image", "alpine", "image to pull and run")
+	c.Flags().StringVar(&image, "image", "docker.io/library/alpine:latest", "image to pull and run")
 	c.Flags().StringSliceVar(&cmd, "cmd", []string{"sh", "-c", "echo meow && sleep 30"}, "command to run")
 
 	return c

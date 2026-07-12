@@ -62,36 +62,40 @@ mise run ci:canary:topology
 mise run ci:canary:hypervisors
 ```
 
-Containerd is skipped by `provider-smoke.sh` until the CLI provider is wired.
-VirtualBox and VMware are optional checks and do not block hosts where those
-tools are absent.
-
-The virt smoke CLI can target a canary over SSH:
+The provider suite is available directly as structured JSON Lines. It tests
+Docker, Podman, and containerd with Alpine and BusyBox and covers the complete
+base-provider and container-provider lifecycles:
 
 ```bash
-tethux virt smoke --host ci@10.0.0.78 --provider docker
-TETHUX_VIRT_TEST_HOST=ci@10.0.0.78 tethux virt smoke --provider podman
+sudo tethux virt test --provider all --output json
+```
+
+VirtualBox and VMware remain optional checks and do not block hosts where those
+tools are absent.
+
+The full provider CLI can target a canary over SSH:
+
+```bash
+tethux virt test --host ci@10.0.0.78 --provider all --output json
 ```
 
 The remote host needs the `tethux` package in its NixOS profile and passwordless
 sudo for the canary user.
 
-## Woodpecker Agent Notes
+## Woodpecker Topology
 
-Keep the Woodpecker server on the existing control-plane machine. Register these
-laptops as privileged agents/runners with labels similar to:
+The Woodpecker agent remains on `nas` and reaches each laptop over SSH. Every
+push, pull request, and manual run has three required workflows:
 
-```text
-tethux-canary=true
-linux=true
-privileged=true
-baremetal=true
-host=canary-former-10-0-0-12
-current-ip=10.0.0.78
-```
+- normal lint, tests, build, both deployable NixOS evaluations, and flake checks
+  on the NAS runner;
+- all provider operations plus a Docker bridge topology on `ci@10.0.0.11`;
+- all provider operations plus a Podman bridge topology on `ci@10.0.0.78`.
 
-The canary pipelines in `.woodpecker/` match those labels and assume they run on
-the host with passwordless sudo available.
+`remote-laptop-integration.sh` copies the exact checkout into a revision-scoped
+temporary directory, enters the flake's `integration` shell, and removes it
+afterward. The canary users need passwordless sudo. A sleeping/offline laptop
+intentionally fails its required workflow instead of silently skipping tests.
 
 ## Codeberg
 

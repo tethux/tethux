@@ -1,12 +1,11 @@
 when:
-  - event: push
-    branch: master
   - event: cron
   - event: manual
 
 labels:
   tethux-canary: "true"
   privileged: "true"
+  host: nas
 
 steps:
   hypervisor-smoke:

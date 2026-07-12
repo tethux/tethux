@@ -42,7 +42,7 @@ func (c *Client) StartContainer(ctx context.Context, id string, opts *mobyclient
 	}
 	_, err := c.cli.ContainerStart(ctx, id, o)
 	if err != nil {
-		return fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToStartContainer, id, err)
+		return fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToStartContainer, id, err)
 	}
 	return nil
 }
@@ -54,7 +54,7 @@ func (c *Client) StopContainer(ctx context.Context, id string, opts *mobyclient.
 	}
 	_, err := c.cli.ContainerStop(ctx, id, o)
 	if err != nil {
-		return fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToStopContainer, id, err)
+		return fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToStopContainer, id, err)
 	}
 	return nil
 }
@@ -66,7 +66,7 @@ func (c *Client) SuspendContainer(ctx context.Context, id string, opts *mobyclie
 	}
 	_, err := c.cli.ContainerPause(ctx, id, o)
 	if err != nil {
-		return fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToSuspendContainer, id, err)
+		return fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToSuspendContainer, id, err)
 	}
 	return nil
 }
@@ -78,7 +78,7 @@ func (c *Client) ResumeContainer(ctx context.Context, id string, opts *mobyclien
 	}
 	_, err := c.cli.ContainerUnpause(ctx, id, o)
 	if err != nil {
-		return fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToResumeContainer, id, err)
+		return fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToResumeContainer, id, err)
 	}
 	return nil
 }
@@ -90,7 +90,7 @@ func (c *Client) DeleteContainer(ctx context.Context, id string, opts *mobyclien
 	}
 	_, err := c.cli.ContainerRemove(ctx, id, o)
 	if err != nil {
-		return fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToDeleteContainer, id, err)
+		return fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToDeleteContainer, id, err)
 	}
 	return nil
 }
@@ -98,7 +98,7 @@ func (c *Client) DeleteContainer(ctx context.Context, id string, opts *mobyclien
 func (c *Client) State(ctx context.Context, id string) (virt.NodeState, error) {
 	resp, err := c.cli.ContainerInspect(ctx, id, mobyclient.ContainerInspectOptions{})
 	if err != nil {
-		return "", fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToInspectContainer, id, err)
+		return "", fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToInspectContainer, id, err)
 	}
 
 	s := resp.Container.State
@@ -158,7 +158,7 @@ func (c *Client) CreateContainer(ctx context.Context, cfg *container.ContainerCo
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToCreateContainer, cfg.Name, err)
+		return nil, fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToCreateContainer, cfg.Name, err)
 	}
 
 	return &container.ContainerNode{
@@ -187,7 +187,7 @@ func (c *Client) Pull(ctx context.Context, ref string, opts *mobyclient.ImagePul
 		Platforms:     o.Platforms,
 	})
 	if err != nil {
-		return fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToPullImage, ref, err)
+		return fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToPullImage, ref, err)
 	}
 	return resp.Wait(ctx)
 }
@@ -212,18 +212,18 @@ func (c *Client) Exec(ctx context.Context, id string, cmd []string, execOpts *mo
 
 	exec, err := c.cli.ExecCreate(ctx, id, eo)
 	if err != nil {
-		return nil, nil, fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToCreateExec, id, err)
+		return nil, nil, fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToCreateExec, id, err)
 	}
 
 	resp, err := c.cli.ExecAttach(ctx, exec.ID, ao)
 	if err != nil {
-		return nil, nil, fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToAttachExec, id, err)
+		return nil, nil, fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToAttachExec, id, err)
 	}
 	defer resp.Close()
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	if _, err := stdcopy.StdCopy(&stdoutBuf, &stderrBuf, resp.Conn); err != nil {
-		return nil, nil, fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToStdCopy, id, err)
+		return nil, nil, fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToStdCopy, id, err)
 	}
 
 	stdout = stdoutBuf.Bytes()
@@ -244,7 +244,7 @@ func (c *Client) Logs(ctx context.Context, id string, opts *mobyclient.Container
 	}
 	resp, err := c.cli.ContainerLogs(ctx, id, o)
 	if err != nil {
-		return nil, fmt.Errorf("podman: logs %q: %w", id, err)
+		return nil, fmt.Errorf("%s: logs %q: %w", c.name, id, err)
 	}
 	return resp, nil
 }
@@ -256,7 +256,7 @@ func (c *Client) Inspect(ctx context.Context, id string, opts *mobyclient.Contai
 	}
 	resp, err := c.cli.ContainerInspect(ctx, id, o)
 	if err != nil {
-		return nil, fmt.Errorf("podman: %w %q: %w", errs.ErrFailedToInspectContainer, id, err)
+		return nil, fmt.Errorf("%s: %w %q: %w", c.name, errs.ErrFailedToInspectContainer, id, err)
 	}
 
 	var networks []string
@@ -281,7 +281,7 @@ func (c *Client) Inspect(ctx context.Context, id string, opts *mobyclient.Contai
 
 func (c *Client) Create(ctx context.Context, cfg *virt.NodeConfig) (*virt.Node, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("podman: create: cfg is nil")
+		return nil, fmt.Errorf("%s: create: cfg is nil", c.name)
 	}
 	node, err := c.CreateContainer(ctx, &container.ContainerConfig{
 		NodeConfig: *cfg,
@@ -317,14 +317,14 @@ func (c *Client) Restart(ctx context.Context, id string) error {
 }
 
 func (c *Client) Name() string {
-	return "podman"
+	return c.name
 }
 
 func (c *Client) List(ctx context.Context) ([]*virt.Node, error) {
 	result, err := c.cli.ContainerList(ctx, mobyclient.ContainerListOptions{All: true})
 	if err != nil {
 		// idk if i should have here a err type form the contianer spakcage bc this is a method of the virt provider enot the container provider
-		return nil, fmt.Errorf("podman: list: %w", err)
+		return nil, fmt.Errorf("%s: list: %w", c.name, err)
 	}
 	var nodes []*virt.Node
 	for i := range result.Items {

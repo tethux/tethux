@@ -58,6 +58,19 @@ Run the automated tests:
 go test ./...
 ```
 
+Run the structured two-image integration suite against every container
+provider (this requires the three rootful runtime sockets):
+
+```bash
+sudo go run ./cmd/tethux virt test --provider all --output json
+```
+
+Each JSON Lines record has schema `tethux.provider-test/v1` and identifies the
+host, provider, image, API surface, operation, status, and duration. The suite
+tests create/delete through the generic provider interface and then pull,
+create, start, state, reload, list, inspect, exec, logs, suspend, resume,
+restart, stop, and cleanup through both lifecycle APIs.
+
 If you want just the switch behavior tests:
 
 ```bash

@@ -11,6 +11,7 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(
+		testCmd(),
 		smokeCmd(),
 		listCmd(),
 		pullCmd(),
