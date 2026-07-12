@@ -12,7 +12,7 @@ func TestEventWriterJSONSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writer.emit(testEvent{Provider: "containerd", Operation: "exec", Status: "passed"}); err != nil {
+	if err := writer.emit(&testEvent{Provider: "containerd", Operation: "exec", Status: "passed"}); err != nil {
 		t.Fatal(err)
 	}
 

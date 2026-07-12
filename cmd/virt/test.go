@@ -69,10 +69,7 @@ func newEventWriterTo(format, host string, out io.Writer) (*eventWriter, error) 
 	return &eventWriter{format: format, host: host, out: out, enc: enc}, nil
 }
 
-// The value form keeps call sites readable when emitting one-off event literals.
-//
-//nolint:gocritic // testEvent is bounded and immediately serialized.
-func (w *eventWriter) emit(event testEvent) error {
+func (w *eventWriter) emit(event *testEvent) error {
 	event.Schema = "tethux.provider-test/v1"
 	if event.FinishedAt.IsZero() {
 		event.FinishedAt = time.Now().UTC()
@@ -139,11 +136,11 @@ func runProviderTest(ctx context.Context, writer *eventWriter, provider, socket 
 	p, err := newProvider(provider, socket)
 	if err != nil {
 		finished := time.Now().UTC()
-		_ = writer.emit(testEvent{Provider: provider, Operation: "connect", Status: "failed", Error: err.Error(), StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds()})
+		_ = writer.emit(&testEvent{Provider: provider, Operation: "connect", Status: "failed", Error: err.Error(), StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds()})
 		return err
 	}
 	finished := time.Now().UTC()
-	if err := writer.emit(testEvent{Provider: provider, Operation: "connect", Status: "passed", StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds(), Details: map[string]any{"images": len(images)}}); err != nil {
+	if err := writer.emit(&testEvent{Provider: provider, Operation: "connect", Status: "passed", StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds(), Details: map[string]any{"images": len(images)}}); err != nil {
 		return err
 	}
 
@@ -156,7 +153,7 @@ func runProviderTest(ctx context.Context, writer *eventWriter, provider, socket 
 			return err
 		}
 	}
-	return writer.emit(testEvent{Provider: provider, Operation: "summary", Status: "passed", Details: map[string]any{"images": len(images)}})
+	return writer.emit(&testEvent{Provider: provider, Operation: "summary", Status: "passed", Details: map[string]any{"images": len(images)}})
 }
 
 func runImageTest(ctx context.Context, writer *eventWriter, p container.ContainerProvider, provider, image, api string, index int) (resultErr error) {
@@ -170,7 +167,7 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 			event.Status = "failed"
 			event.Error = err.Error()
 		}
-		if emitErr := writer.emit(event); emitErr != nil {
+		if emitErr := writer.emit(&event); emitErr != nil {
 			return emitErr
 		}
 		return err
