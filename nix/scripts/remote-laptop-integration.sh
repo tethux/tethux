@@ -25,7 +25,7 @@ trap cleanup EXIT
 
 set +e
 ssh "${ssh_opts[@]}" "$host" \
-  "cd '$remote_dir' && TETHUX_DEVICE_ID='${TETHUX_DEVICE_ID:-$host}' nix develop .#integration --extra-experimental-features 'nix-command flakes' -c ./nix/scripts/laptop-integration.sh '$runtime'"
+  "cd '$remote_dir' && TETHUX_DEVICE_ID='${TETHUX_DEVICE_ID:-$host}' TETHUX_TOPOLOGY_SMALL_N='${TETHUX_TOPOLOGY_SMALL_N:-2}' TETHUX_TOPOLOGY_LARGE_N='${TETHUX_TOPOLOGY_LARGE_N:-4}' TETHUX_TOPOLOGY_PARALLEL_JOBS='${TETHUX_TOPOLOGY_PARALLEL_JOBS:-4}' nix develop .#integration --extra-experimental-features 'nix-command flakes' -c ./nix/scripts/laptop-integration.sh '$runtime'"
 status=$?
 set -e
 

@@ -10,16 +10,28 @@ labels:
 steps:
   hypervisor-smoke:
     image: nixos/nix
+    pull: false
     privileged: true
+    volumes:
+      - tethux-ci-nix:/nix
+      - /var/cache/tethux-ci/go-build:/root/.cache/go-build
+      - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
+      - /var/cache/tethux-ci/archive:/var/lib/tethux-ci/archive
     commands:
-      - nix develop --extra-experimental-features "nix-command flakes" -c ./nix/scripts/hypervisor-smoke.sh
+      - nix develop --extra-experimental-features "nix-command flakes" -c env TETHUX_DEVICE_ID=nas-runner-1 ./nix/scripts/test-archive-run.sh heavy-hypervisor ./nix/scripts/hypervisor-smoke.sh
 
   large-topology:
     image: nixos/nix
+    pull: false
     privileged: true
+    volumes:
+      - tethux-ci-nix:/nix
+      - /var/cache/tethux-ci/go-build:/root/.cache/go-build
+      - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
+      - /var/cache/tethux-ci/archive:/var/lib/tethux-ci/archive
     environment:
       TETHUX_TOPOLOGY_SMALL_N: "4"
       TETHUX_TOPOLOGY_LARGE_N: "32"
       TETHUX_TOPOLOGY_PARALLEL_JOBS: "8"
     commands:
-      - nix develop --extra-experimental-features "nix-command flakes" -c ./nix/scripts/topology-smoke.sh all
+      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c env TETHUX_DEVICE_ID=laptop-100 TETHUX_CONTAINER_RUNTIME=docker ./nix/scripts/test-archive-run.sh heavy-topology ./nix/scripts/remote-laptop-integration.sh ci@10.0.0.100 docker

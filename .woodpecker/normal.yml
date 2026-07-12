@@ -11,6 +11,7 @@ labels:
 steps:
   lint-test-build-and-nix:
     image: nixos/nix
+    pull: false
     volumes:
       - tethux-ci-nix:/nix
       - /var/cache/tethux-ci/go-build:/root/.cache/go-build

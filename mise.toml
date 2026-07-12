@@ -157,6 +157,26 @@ run = "sudo ./nix/scripts/provider-smoke.sh all"
 description = "Run lint, unit tests, all provider operations, and one bridge topology"
 run = "./nix/scripts/laptop-integration.sh ${RUNTIME:?set RUNTIME=docker or podman}"
 
+[tasks."test:integration:local"]
+description = "Opt-in archived provider, bridge-backend, and topology integration run"
+run = "./nix/scripts/local-integration.sh ${RUNTIME:?set RUNTIME=docker or podman}"
+
+[tasks."test:bridge-backends:local"]
+description = "Opt-in archived UDP/raw/pcap/TAP exact-frame tests"
+run = "./nix/scripts/local-integration.sh bridge-backends"
+
+[tasks."test:integration:nas"]
+description = "Opt-in local integration run, atomically published to the NAS"
+run = "TETHUX_ARCHIVE_NAS_HOST=${NAS_HOST:-nas} ./nix/scripts/local-integration.sh ${RUNTIME:?set RUNTIME=docker or podman}"
+
+[tasks."test:bridge-backends:nas"]
+description = "Opt-in backend packet tests, atomically published to the NAS"
+run = "TETHUX_ARCHIVE_NAS_HOST=${NAS_HOST:-nas} ./nix/scripts/local-integration.sh bridge-backends"
+
+[tasks."archive:nas:inventory"]
+description = "Write a local ignored inventory of NAS test archives and schemas"
+run = "./nix/scripts/nas-archive-inventory.sh ${NAS_HOST:-nas}"
+
 [tasks."ci:canary:topology"]
 description = "Run privileged bridge topology smoke tests"
 run = "sudo ./nix/scripts/topology-smoke.sh all"

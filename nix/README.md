@@ -6,11 +6,11 @@ profiles are only for privileged canary runners.
 
 Disclaimer: this Nix setup was shamelessly vibed in with GPT-5.5 in T3 Code.
 T3's local state records the current work as `Expand CI integration coverage`
-(thread `1a388d12-4db4-466d-828a-9ed8d127e24a`). At the pre-push completion
-audit (`2026-07-12T21:04:22Z`), its user requests had processed 101,867,661
-tokens: 101,688,542 input tokens, 99,969,280 of them cached, 179,119 output
-tokens, and 49,013 reasoning-output tokens. The active context at that event
-was 72,692 of 353,400 tokens.
+(thread `1a388d12-4db4-466d-828a-9ed8d127e24a`). At the completion audit
+(`2026-07-12T21:40:27Z`), T3 recorded 8 user prompts and 127,461,959 processed
+tokens: 127,225,013 input tokens, 125,225,472 of them cached, 236,946 output
+tokens, and 65,180 reasoning-output tokens. The active context at that event
+was 241,929 of 353,400 tokens.
 
 ## Hosts
 
@@ -76,6 +76,10 @@ Each NixOS canary runs a loopback-only OCI registry on `127.0.0.1:5000`.
 registry during activation, and exports their references through
 `TETHUX_TEST_IMAGES`. Provider and topology CI therefore exercise real pull
 operations without depending on Docker Hub, ECR, or another public registry.
+The registry persists blobs in `/var/lib/docker-registry`; Docker, Podman, and
+containerd keep their normal image caches too. Integration scripts require
+these fixture variables and registry health rather than silently falling back
+to a public image. Woodpecker's bootstrap image is cache-only (`pull: false`).
 
 VirtualBox and VMware remain optional checks and do not block hosts where those
 tools are absent.
@@ -101,6 +105,10 @@ web UI reports each concern independently without exhausting Docker networks:
 - `laptop-78`: all provider operations plus a Podman bridge topology;
 - `cross-laptop`: provider-managed containers connected across both machines
   through tethux UDP bridges.
+
+Both laptop workflows also run byte-exact UDP, raw-socket, pcap, and TAP
+forwarding tests. Libpcap independently observes the frames; structured
+packet metrics and a pcap artifact are included in each archive.
 
 The NAS runner persists `/nix` in the Docker-managed `tethux-ci-nix` volume;
 Docker seeds it from the Nix image on first use instead of hiding that image's
@@ -137,6 +145,34 @@ TETHUX_TEST_ARCHIVE_ROOT=/var/cache/tethux-ci/archive \
   ./nix/scripts/test-archive-run.sh local-normal \
   nix develop .#ci -c ./nix/scripts/normal-ci.sh
 ```
+
+Privileged local integration is opt-in and intended for a disposable NixOS
+canary. The full run verifies both registry fixtures before doing anything and
+never substitutes a public image:
+
+```bash
+TETHUX_RUN_INTEGRATION=1 RUNTIME=podman mise run test:integration:local
+TETHUX_RUN_INTEGRATION=1 mise run test:bridge-backends:local
+```
+
+To atomically publish the resulting archive to the same NAS hierarchy used by
+CI, use the `:nas` variants. They upload a `.partial` file and rename it only
+after a complete transfer:
+
+```bash
+TETHUX_RUN_INTEGRATION=1 RUNTIME=podman mise run test:integration:nas
+TETHUX_RUN_INTEGRATION=1 mise run test:bridge-backends:nas
+```
+
+Local archives default to the ignored `results/archive` directory. Generate
+an ignored, editable inventory of the NAS paths and schemas with:
+
+```bash
+mise run archive:nas:inventory
+```
+
+That writes `.local/nas-test-archive.md` with current counts, recent archive
+paths, contract locations, inspection commands, and space for future notes.
 
 On `nas`, list or inspect an archived commit with:
 

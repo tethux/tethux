@@ -28,3 +28,10 @@ Configuration is available through `IMAGE`, `CONTAINER_IF_PREFIX`,
 `PARALLEL_JOBS`, and the corresponding Go flags. The canary CI sets `IMAGE` to
 its Nix-built local-registry fixture, so topology runs do not depend on an
 external registry.
+
+## Bridge backend conformance
+
+`bridge-backend-smoke.go` tests UDP, raw sockets, pcap, and TAP with exact
+Ethernet frames. It uses libpcap to inject and independently observe packets,
+emits structured metrics, and writes the pcap retained by CI. Run it through
+the opt-in Mise task documented in `cmd/bridge/README.md`.

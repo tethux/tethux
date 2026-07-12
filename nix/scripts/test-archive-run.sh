@@ -52,4 +52,9 @@ duration_ms="$((finished_ms - started_ms))"
   "$workflow" "$revision" "$run_id" "$status" \
   "$started_at" "$finished_at" "$duration_ms"
 
+if [[ -n "${TETHUX_ARCHIVE_NAS_HOST:-}" ]]; then
+  "$repo_root/nix/scripts/publish-test-archive.sh" \
+    "$archive_final" "$TETHUX_ARCHIVE_NAS_HOST" "$revision" "$workflow"
+fi
+
 exit "$status"

@@ -16,6 +16,11 @@ and every archive entry with its media type, byte size, SHA-256, and publicity
 flag. `results.json` contains one normalized record per Go test, provider
 operation, topology run, or cross-host endpoint.
 
+Laptop archives also include `artifacts/bridge-backends.jsonl` and
+`artifacts/bridge-backends.pcap`. Their stable result IDs use
+`bridge/backend/<backend>/exact-frame-forwarding` and expose packet, byte,
+loss, and timing metrics. Packet captures are marked `public: false`.
+
 The schemas in this directory are the machine-readable v1 contract. Stable
 test IDs use lowercase path syntax. Allowed statuses are `passed`, `failed`,
 `skipped`, `error`, and `cancelled`; infrastructure exits are `error`, not an
@@ -32,6 +37,10 @@ TETHUX_TEST_ARCHIVE_ROOT=./results/archive \
   ./nix/scripts/test-archive-run.sh local-go \
   sh -c 'go test ./... -json | tee "$TETHUX_CI_ARCHIVE_DIR/artifacts/go-test.jsonl"'
 ```
+
+Set `TETHUX_ARCHIVE_NAS_HOST=nas` to publish a development archive. Uploads use
+the final commit/workflow/UUID path with an additional `.partial` suffix and
+are renamed remotely only after `scp` completes.
 
 Only allowlisted metadata is collected. Environment dumps, credentials, SSH
 material, authorization headers, cookies, and private process environments are

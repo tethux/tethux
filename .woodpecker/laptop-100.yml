@@ -14,6 +14,7 @@ depends_on:
 steps:
   docker-bridge-and-all-providers:
     image: nixos/nix
+    pull: false
     volumes:
       - tethux-ci-nix:/nix
       - /var/cache/tethux-ci/go-build:/root/.cache/go-build

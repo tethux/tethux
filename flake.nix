@@ -127,6 +127,7 @@
                   bashInteractive
                   bridge-utils
                   containerd
+                  curl
                   docker-client
                   git
                   go

@@ -31,6 +31,22 @@ sudo tethux bridge ports \
   --port id=uplink,scheme=udp,listen=0.0.0.0:12000,remote=10.0.0.78:12000
 ```
 
+## Packet-level backend tests
+
+The privileged backend suite exercises every transport with byte-identical
+Ethernet frames. Libpcap is an independent injector/observer on isolated veth
+endpoints; TAP is verified in both directions through a Linux bridge, and UDP
+uses separate sockets. The run emits JSON Lines with packet/byte/loss metrics
+and a standard pcap file:
+
+```bash
+TETHUX_RUN_INTEGRATION=1 mise run test:bridge-backends:local
+```
+
+This is deliberately opt-in because it creates temporary veth, TAP, and Linux
+bridge interfaces and requires root. CI executes it on both disposable NixOS
+canaries and stores the pcap as a non-public test-archive artifact.
+
 ## Container and namespace attachment
 
 `bridge container` creates a veth pair, moves one end into the target network

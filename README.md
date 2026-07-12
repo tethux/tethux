@@ -29,6 +29,7 @@ the closest README.
 - provider-managed container links between physical hosts over UDP;
 - reproducible NixOS canaries with a local OCI fixture registry;
 - commit-addressed CI reports archived on the NAS.
+- byte-exact libpcap-observed tests for every bridge transport backend.
 
 ## Quick start
 
@@ -56,3 +57,6 @@ recovery, and CI archives, follow the subsystem README from the map above.
 tethux is pre-release research software. Privileged bridge and provider tests
 create real containers, veth devices, namespaces, and UDP listeners; use the
 NixOS canaries or another disposable lab host for integration work.
+Local privileged integration is never automatic: opt in with
+`TETHUX_RUN_INTEGRATION=1` and the Mise tasks documented in
+[`nix/README.md`](nix/README.md).

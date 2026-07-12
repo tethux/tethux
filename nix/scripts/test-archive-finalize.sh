@@ -58,6 +58,29 @@ while IFS= read -r file; do
 done < <(find "$stage_dir/artifacts" -type f -name 'providers.jsonl' -print)
 
 while IFS= read -r file; do
+  capture="$(find "$(dirname "$file")" -maxdepth 1 -type f -name 'bridge-backends.pcap' -print -quit)"
+  capture_artifact="${capture#"$stage_dir/"}"
+  jq -c '
+    select(.schema == "tethux.bridge-backend/v1") |
+    {
+      test_id: ("bridge/backend/" + .backend + "/exact-frame-forwarding"),
+      name: ("Exact Ethernet frame forwarding through " + .backend),
+      suite: "bridge-backend",
+      status: (if .status == "passed" then "passed" else "failed" end),
+      timing: {started_at:(.started_at // null),finished_at:(.finished_at // null),duration_ms:(.duration_ms // 0)},
+      attempt: 1,
+      source: {file:"scripts/bridge-backend-smoke.go",symbol:null,line:null},
+      features: ["bridge.frame-forwarding", "bridge.transport." + .backend, "packet-capture.libpcap"],
+      parameters: (.parameters // {}),
+      metrics: (.metrics // {}),
+      message: (.message // null),
+      failure: (if .status == "passed" then null else {kind:"network",phase:"frame-forwarding",expected:"byte-identical Ethernet frame",actual:(.message // "frame not observed"),error_code:"BRIDGE_FRAME_NOT_OBSERVED",stack_trace:null} end),
+      artifacts: [$artifact, $capture],
+      labels: {level:"integration",network:"ethernet",priority:"critical"}
+    }' --arg artifact "${file#"$stage_dir/"}" --arg capture "$capture_artifact" "$file" >>"$events"
+done < <(find "$stage_dir/artifacts" -type f -name 'bridge-backends.jsonl' -print)
+
+while IFS= read -r file; do
   jq -c '
     select(.schema == "tethux.laptop-integration/v1") |
     {
@@ -88,8 +111,12 @@ while IFS= read -r file; do
 done < <(find "$stage_dir/artifacts" -type f -name 'cross-link.jsonl' -print)
 
 if [[ "$command_status" -ne 0 ]]; then
-  jq -nc --arg workflow "$workflow" --argjson code "$command_status" '
-    {test_id:("workflow/"+$workflow+"/execution"),name:("Workflow "+$workflow),suite:"infrastructure",status:"error",timing:{duration_ms:0},attempt:1,source:null,features:[],parameters:{},metrics:{exit_code:$code},message:"workflow command exited unsuccessfully",failure:{kind:"process_exit",phase:"runner",expected:"exit code 0",actual:("exit code "+($code|tostring)),error_code:"WORKFLOW_COMMAND_FAILED",stack_trace:null},artifacts:["logs/runner.log"],labels:{level:"infrastructure"}}' \
+  jq -nc --arg workflow "$workflow" --argjson code "$command_status" --arg started "$started_at" --arg finished "$finished_at" --argjson duration "$duration_ms" '
+    {test_id:("workflow/"+$workflow+"/execution"),name:("Workflow "+$workflow),suite:"infrastructure",status:"error",timing:{started_at:$started,finished_at:$finished,duration_ms:$duration},attempt:1,source:null,features:[],parameters:{},metrics:{exit_code:$code},message:"workflow command exited unsuccessfully",failure:{kind:"process_exit",phase:"runner",expected:"exit code 0",actual:("exit code "+($code|tostring)),error_code:"WORKFLOW_COMMAND_FAILED",stack_trace:null},artifacts:["logs/runner.log"],labels:{level:"infrastructure"}}' \
+    >>"$events"
+elif [[ ! -s "$events" ]]; then
+  jq -nc --arg workflow "$workflow" --arg started "$started_at" --arg finished "$finished_at" --argjson duration "$duration_ms" '
+    {test_id:("workflow/"+$workflow+"/execution"),name:("Workflow "+$workflow),suite:"infrastructure",status:"passed",timing:{started_at:$started,finished_at:$finished,duration_ms:$duration},attempt:1,source:null,features:[],parameters:{},metrics:{exit_code:0},message:null,failure:null,artifacts:["logs/runner.log"],labels:{level:"infrastructure"}}' \
     >>"$events"
 fi
 
@@ -153,12 +180,20 @@ source_type=local
 source_provider=null
 if [[ -n "${CI:-}" ]]; then source_type=ci; source_provider=woodpecker; fi
 git_dirty=false
-if ! git diff --quiet || ! git diff --cached --quiet; then git_dirty=true; fi
+git_branch="${CI_COMMIT_BRANCH:-}"
+commit_time="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if ! git diff --quiet || ! git diff --cached --quiet; then git_dirty=true; fi
+  if [[ -z "$git_branch" ]]; then git_branch="$(git branch --show-current)"; fi
+  if git cat-file -e "$revision^{commit}" 2>/dev/null; then
+    commit_time="$(date -u -d "$(git show -s --format=%cI "$revision")" +%Y-%m-%dT%H:%M:%S.%3NZ)"
+  fi
+fi
 
 jq -n \
   --arg run_id "$run_id" --arg workflow "$workflow" --arg commit "$revision" \
-  --arg branch "${CI_COMMIT_BRANCH:-$(git branch --show-current)}" --arg tag "${CI_COMMIT_TAG:-}" \
-  --arg commit_time "$(date -u -d "$(git show -s --format=%cI "$revision" 2>/dev/null || date -u +%FT%TZ)" +%Y-%m-%dT%H:%M:%S.%3NZ)" \
+  --arg branch "$git_branch" --arg tag "${CI_COMMIT_TAG:-}" \
+  --arg commit_time "$commit_time" \
   --arg started "$started_at" --arg finished "$finished_at" --argjson duration "$duration_ms" \
   --arg source_type "$source_type" --arg source_provider "$source_provider" \
   --arg trigger "${CI_PIPELINE_EVENT:-manual}" --argjson attempt "${CI_PIPELINE_ATTEMPT:-1}" \
