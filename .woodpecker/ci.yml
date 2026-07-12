@@ -9,25 +9,7 @@ labels:
   privileged: "true"
 
 steps:
-  normal:
+  full-ci:
     image: nixos/nix
-    depends_on: []
     commands:
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c golangci-lint run -c .golangci.yml
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c sh -c 'go test ./... -json | tee go-test.jsonl'
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c go build ./cmd/tethux
-      - nix eval .#nixosConfigurations.canary-10-0-0-11.config.system.build.toplevel.drvPath --extra-experimental-features "nix-command flakes"
-      - nix eval .#nixosConfigurations.canary-former-10-0-0-12.config.system.build.toplevel.drvPath --extra-experimental-features "nix-command flakes"
-      - nix build .#checks.x86_64-linux.unit .#checks.x86_64-linux.build --extra-experimental-features "nix-command flakes"
-
-  laptop-11-docker-bridge-and-providers:
-    image: nixos/nix
-    depends_on: []
-    commands:
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c ./nix/scripts/remote-laptop-integration.sh ci@10.0.0.11 docker
-
-  laptop-78-podman-bridge-and-providers:
-    image: nixos/nix
-    depends_on: []
-    commands:
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c ./nix/scripts/remote-laptop-integration.sh ci@10.0.0.78 podman
+      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c ./nix/scripts/ci.sh
