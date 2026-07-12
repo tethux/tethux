@@ -165,7 +165,7 @@ func smokeCmd() *cobra.Command {
 	addProviderFlags(c, &provider, &socket)
 	c.Flags().StringVar(&host, "host", os.Getenv(testHostEnv), "SSH host for remote smoke test, or "+testHostEnv)
 	c.Flags().StringVar(&name, "name", "tethux-smoke", "container name")
-	c.Flags().StringVar(&image, "image", "docker.io/library/alpine:latest", "image to pull and run")
+	c.Flags().StringVar(&image, "image", "public.ecr.aws/docker/library/alpine:3.20", "image to pull and run")
 	c.Flags().StringSliceVar(&cmd, "cmd", []string{"sh", "-c", "echo meow && sleep 30"}, "command to run")
 
 	return c

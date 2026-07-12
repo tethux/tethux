@@ -125,7 +125,7 @@ func linkEndpointCmd() *cobra.Command {
 	}
 	addProviderFlags(c, &provider, &socket)
 	c.Flags().StringVar(&name, "name", "tethux-cross-link", "container name")
-	c.Flags().StringVar(&image, "image", "docker.io/library/alpine:3.20", "container image")
+	c.Flags().StringVar(&image, "image", "public.ecr.aws/docker/library/alpine:3.20", "container image")
 	c.Flags().StringVar(&listen, "listen", "0.0.0.0:24000", "local UDP bridge address")
 	c.Flags().StringVar(&remote, "remote", "", "remote UDP bridge address")
 	c.Flags().StringVar(&address, "address", "10.88.0.1/24", "container interface address")
@@ -197,7 +197,7 @@ func linkTestCmd() *cobra.Command {
 	c.Flags().StringVar(&providerA, "provider-a", "docker", "container provider on host A")
 	c.Flags().StringVar(&providerB, "provider-b", "podman", "container provider on host B")
 	c.Flags().StringVar(&binary, "remote-binary", "tethux", "tethux binary path on both hosts")
-	c.Flags().StringVar(&image, "image", "docker.io/library/alpine:3.20", "container image")
+	c.Flags().StringVar(&image, "image", "public.ecr.aws/docker/library/alpine:3.20", "container image")
 	return c
 }
 

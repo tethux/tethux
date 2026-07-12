@@ -12,7 +12,7 @@ usage() {
 RUNTIME="${1:-${RUNTIME:-podman}}"
 N="${2:-${N:-2}}"
 BASE_PORT="${BASE_PORT:-23000}"
-IMAGE="${IMAGE:-alpine}"
+IMAGE="${IMAGE:-public.ecr.aws/docker/library/alpine:3.20}"
 MTU="${MTU:-1500}"
 CONTAINER_IF_PREFIX="${CONTAINER_IF_PREFIX:-tx}"
 WAIT_ATTEMPTS="${WAIT_ATTEMPTS:-20}"

@@ -7,7 +7,7 @@ Provider sockets are discovered automatically or selected with `--socket`.
 
 ```bash
 tethux virt list --provider docker
-tethux virt pull --provider containerd docker.io/library/alpine:3.20
+tethux virt pull --provider containerd public.ecr.aws/docker/library/alpine:3.20
 tethux virt logs --provider podman CONTAINER_ID
 ```
 

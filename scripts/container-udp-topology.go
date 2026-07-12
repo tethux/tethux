@@ -162,7 +162,7 @@ func parseFlags() config {
 	flag.StringVar(&cfg.runtime, "runtime", getenv("RUNTIME", "podman"), "container runtime: podman or docker")
 	flag.IntVar(&cfg.n, "n", getenvInt("N", 2), "switch and container count")
 	flag.IntVar(&cfg.basePort, "base-port", getenvInt("BASE_PORT", 23000), "first local UDP link port")
-	flag.StringVar(&cfg.image, "image", getenv("IMAGE", "alpine"), "container image")
+	flag.StringVar(&cfg.image, "image", getenv("IMAGE", "public.ecr.aws/docker/library/alpine:3.20"), "container image")
 	flag.IntVar(&cfg.mtu, "mtu", getenvInt("MTU", 1500), "link MTU")
 	flag.StringVar(&cfg.ifPrefix, "container-if-prefix", getenv("CONTAINER_IF_PREFIX", "tx"), "container interface prefix")
 	flag.IntVar(&cfg.parallelJobs, "parallel-jobs", getenvInt("PARALLEL_JOBS", 16), "max concurrent runtime operations")

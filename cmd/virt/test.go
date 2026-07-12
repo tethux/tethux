@@ -20,8 +20,8 @@ import (
 )
 
 var defaultTestImages = []string{
-	"docker.io/library/alpine:3.20",
-	"docker.io/library/busybox:1.36",
+	"public.ecr.aws/docker/library/alpine:3.20",
+	"public.ecr.aws/docker/library/busybox:1.36",
 }
 
 type testOptions struct {

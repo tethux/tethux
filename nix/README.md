@@ -71,6 +71,9 @@ base-provider and container-provider lifecycles:
 sudo tethux virt test --provider all --output json
 ```
 
+The default fixtures use Docker's public ECR mirror to avoid anonymous Docker
+Hub pull limits making hardware CI flaky.
+
 VirtualBox and VMware remain optional checks and do not block hosts where those
 tools are absent.
 
