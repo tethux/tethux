@@ -12,7 +12,7 @@ steps:
   lint-test-build-and-nix:
     image: nixos/nix
     volumes:
-      - /var/cache/tethux-ci/nix:/nix
+      - tethux-ci-nix:/nix
       - /var/cache/tethux-ci/go-build:/root/.cache/go-build
       - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
     commands:

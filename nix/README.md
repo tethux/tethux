@@ -96,7 +96,9 @@ web UI reports each concern independently without exhausting Docker networks:
 - `cross-laptop`: provider-managed containers connected across both machines
   through tethux UDP bridges.
 
-The NAS runner persists `/nix`, Go build, and module caches below
+The NAS runner persists `/nix` in the Docker-managed `tethux-ci-nix` volume;
+Docker seeds it from the Nix image on first use instead of hiding that image's
+store with an empty bind mount. Go build and module caches remain below
 `/var/cache/tethux-ci`, so later workflows and commits reuse downloads and
 build products.
 
