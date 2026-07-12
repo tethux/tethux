@@ -9,6 +9,8 @@ let
   ];
 in
 {
+  users.groups.ci = { };
+
   users.users.veya = {
     isNormalUser = true;
     extraGroups = [
@@ -25,6 +27,7 @@ in
 
   users.users.ci = {
     isNormalUser = true;
+    group = "ci";
     description = "tethux canary test runner";
     extraGroups = [
       "wheel"

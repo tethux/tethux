@@ -53,7 +53,7 @@ type socketCandidate struct {
 func resolveSocket(cfg *config) (string, error) {
 	if cfg.socketOverride != "" {
 		if err := checkSocket(cfg.socketOverride); err != nil {
-			return "", fmt.Errorf("docker: %w: %q err: %w", errs.ErrOverrideSocketNotAccessible, cfg.socketOverride, err)
+			return "", errs.Wrap("docker", errs.ErrOverrideSocketNotAccessible, cfg.socketOverride, err)
 		}
 		return cfg.socketOverride, nil
 	}
@@ -70,7 +70,7 @@ func resolveSocket(cfg *config) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("docker: %w; tried %v - is docker running?", errs.ErrNoSockerFound, socketPaths())
+	return "", errs.New("docker", errs.ErrNoSocketFound, strings.Join(socketPaths(), ", "))
 }
 
 func socketCandidates() []socketCandidate {
@@ -121,7 +121,7 @@ func checkSocket(addr string) error {
 		return err
 	}
 	if info.Mode()&os.ModeSocket == 0 {
-		return fmt.Errorf("%q exists but is %w", path, errs.ErrNotASocket)
+		return errs.New("docker", errs.ErrNotASocket, path)
 	}
 	return nil
 }

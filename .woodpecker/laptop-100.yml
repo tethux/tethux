@@ -1,0 +1,22 @@
+when:
+  - event: push
+  - event: pull_request
+  - event: manual
+
+labels:
+  host: nas
+  tethux-canary: "true"
+  privileged: "true"
+
+depends_on:
+  - normal
+
+steps:
+  docker-bridge-and-all-providers:
+    image: nixos/nix
+    volumes:
+      - /var/cache/tethux-ci/nix:/nix
+      - /var/cache/tethux-ci/go-build:/root/.cache/go-build
+      - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
+    commands:
+      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c ./nix/scripts/remote-laptop-integration.sh ci@10.0.0.100 docker

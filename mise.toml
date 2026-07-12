@@ -170,5 +170,5 @@ description = "Discover known tethux canary hosts on the LAN"
 run = "./nix/scripts/discover-hosts.sh ${SUBNET:-}"
 
 [tasks."host:audit"]
-description = "Audit a canary host over SSH, e.g. HOST=veya@10.0.0.11 mise run host:audit"
+description = "Audit a canary host over SSH, e.g. HOST=veya@10.0.0.100 mise run host:audit"
 run = "./nix/scripts/audit-host.sh ${HOST:?set HOST=user@host}"

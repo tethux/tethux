@@ -59,7 +59,7 @@ go test ./...
 ```
 
 Run the structured two-image integration suite against every container
-provider (this requires the three rootful runtime sockets):
+provider (all three rootful runtime sockets are used when running with sudo):
 
 ```bash
 sudo go run ./cmd/tethux virt test --provider all --output json
@@ -70,6 +70,27 @@ host, provider, image, API surface, operation, status, and duration. The suite
 tests create/delete through the generic provider interface and then pull,
 create, start, state, reload, list, inspect, exec, logs, suspend, resume,
 restart, stop, and cleanup through both lifecycle APIs.
+
+Containerd socket discovery also supports a local rootless daemon at
+`$XDG_RUNTIME_DIR/containerd/containerd.sock`. The provider reads image
+metadata without mounting a RootlessKit snapshot in the caller namespace,
+uses the delegated user cgroup, and keeps exec FIFOs under
+`$XDG_RUNTIME_DIR/tethux`, so its suite runs without sudo:
+
+```bash
+tethux virt test --provider containerd --output json
+```
+
+To test a real cross-laptop data path managed through the provider API:
+
+```bash
+tethux virt link test \
+  --host-a ci@10.0.0.100 --provider-a docker \
+  --host-b ci@10.0.0.78 --provider-b podman
+```
+
+This creates one isolated container per laptop and carries their Ethernet
+frames over a UDP link between two tethux bridge instances.
 
 If you want just the switch behavior tests:
 

@@ -16,6 +16,8 @@ in
 {
   nixpkgs.config.allowUnfree = true;
 
+  hardware.enableRedistributableFirmware = true;
+
   nix = {
     settings = {
       experimental-features = [
@@ -45,12 +47,19 @@ in
 
   fileSystems = {
     "/" = {
-      device = lib.mkDefault "/dev/disk/by-label/nixos";
+      # These names are created by nix/installers/disko-laptop.nix. Using
+      # filesystem labels here broke live configuration switches because the
+      # installed ESP/root filesystems intentionally have no filesystem label.
+      device = lib.mkDefault "/dev/disk/by-partlabel/disk-main-root";
       fsType = lib.mkDefault "ext4";
     };
     "/boot" = {
-      device = lib.mkDefault "/dev/disk/by-label/boot";
+      device = lib.mkDefault "/dev/disk/by-partlabel/disk-main-ESP";
       fsType = lib.mkDefault "vfat";
+      options = lib.mkDefault [
+        "nofail"
+        "x-systemd.device-timeout=10s"
+      ];
     };
   };
 

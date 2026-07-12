@@ -39,7 +39,7 @@ for ip in "${hosts[@]}"; do
   keys="$(ssh-keyscan -T 3 -t ed25519,rsa,ecdsa "$ip" 2>/dev/null || true)"
   identity="unknown"
   if grep -q 'AAAAC3NzaC1lZDI1NTE5AAAAIBg+v7UlTDPKr6xr3z3rWzcqqmOvpDhsR8azUwuNqnd8' <<<"$keys"; then
-    identity="known-10.0.0.11"
+    identity="known-current-10.0.0.100"
   elif grep -q 'AAAAC3NzaC1lZDI1NTE5AAAAIImGiLYuTDj8NDgM6UpsU5C8zKNe0xuYZ3DQA1+VIrFI' <<<"$keys"; then
     identity="known-former-10.0.0.12"
   fi

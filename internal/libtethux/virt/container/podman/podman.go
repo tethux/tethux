@@ -56,7 +56,7 @@ type socketCandidate struct {
 func resolveSocket(cfg *config) (string, error) {
 	if cfg.socketOverride != "" {
 		if err := checkSocket(cfg.socketOverride); err != nil {
-			return "", fmt.Errorf("podman: %w: %q err: %w", errs.ErrOverrideSocketNotAccessible, cfg.socketOverride, err)
+			return "", errs.Wrap("podman", errs.ErrOverrideSocketNotAccessible, cfg.socketOverride, err)
 		}
 		return cfg.socketOverride, nil
 	}
@@ -75,7 +75,7 @@ func resolveSocket(cfg *config) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("podman: %w; tried %v - is podman running? (try: podman system service --time=0)", errs.ErrNoSockerFound, socketPaths())
+	return "", errs.New("podman", errs.ErrNoSocketFound, strings.Join(socketPaths(), ", "))
 }
 
 func socketCandidates() []socketCandidate {
@@ -126,7 +126,7 @@ func checkSocket(addr string) error {
 		return err
 	}
 	if info.Mode()&os.ModeSocket == 0 {
-		return fmt.Errorf("%q exists but is %w", path, errs.ErrNotASocket)
+		return errs.New("podman", errs.ErrNotASocket, path)
 	}
 	return nil
 }

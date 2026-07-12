@@ -3,11 +3,13 @@ package containerd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -17,11 +19,13 @@ import (
 	"github.com/0xveya/tethux/internal/libtethux/virt/container"
 	"github.com/0xveya/tethux/internal/libtethux/virt/container/errs"
 	containersspecs "github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/defaults"
 	"github.com/containerd/containerd/v2/pkg/cio"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/errdefs"
+	imagespecs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runtime-spec/specs-go"
 
 	containerd "github.com/containerd/containerd/v2/client"
@@ -61,7 +65,7 @@ func checkSocket(addr string) error {
 		return err
 	}
 	if info.Mode()&os.ModeSocket == 0 {
-		return fmt.Errorf("%q exists but is not a socket", path)
+		return errs.New("containerd", errs.ErrNotASocket, path)
 	}
 	return nil
 }
@@ -79,7 +83,7 @@ func New(opts ...Option) (*Containerd, error) {
 
 	cli, err := containerd.New(socket)
 	if err != nil {
-		return nil, fmt.Errorf("containerd: %w: %q: %w", errs.ErrFailedToCreateClent, socket, err)
+		return nil, errs.Wrap("containerd", errs.ErrFailedToCreateClient, socket, err)
 	}
 
 	return &Containerd{cli: cli, socket: socket}, nil
@@ -88,7 +92,7 @@ func New(opts ...Option) (*Containerd, error) {
 func resolveSocket(cfg *config) (string, error) {
 	if cfg.socketOverride != "" {
 		if err := checkSocket(cfg.socketOverride); err != nil {
-			return "", fmt.Errorf("containerd: %w: %q err: %w", errs.ErrOverrideSocketNotAccessible, cfg.socketOverride, err)
+			return "", errs.Wrap("containerd", errs.ErrOverrideSocketNotAccessible, cfg.socketOverride, err)
 		}
 		return cfg.socketOverride, nil
 	}
@@ -105,7 +109,7 @@ func resolveSocket(cfg *config) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("containerd: %w; tried %v — is containerd running?", errs.ErrNoSockerFound, socketPaths())
+	return "", errs.New("containerd", errs.ErrNoSocketFound, strings.Join(socketPaths(), ", "))
 }
 
 type socketCandidate struct {
@@ -163,27 +167,35 @@ func (c *Containerd) Pull(ctx context.Context, ref string, _ *mobyclient.ImagePu
 	ctx = withNamespace(ctx)
 	_, err := c.cli.Pull(ctx, ref, containerd.WithPullUnpack)
 	if err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToPullImage, ref, err)
+		return errs.Wrap("containerd", errs.ErrFailedToPullImage, ref, err)
 	}
 	return nil
 }
 
 func (c *Containerd) CreateContainer(ctx context.Context, cfg *container.ContainerConfig) (*container.ContainerNode, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("containerd: create: cfg is nil")
+		return nil, errs.New("containerd", errs.ErrInvalidConfig, "config is nil")
 	}
 	if cfg.Name == "" {
-		return nil, fmt.Errorf("containerd: create: name is required")
+		return nil, errs.New("containerd", errs.ErrInvalidConfig, "name is required")
 	}
 	ctx = withNamespace(ctx)
 
 	img, err := c.cli.GetImage(ctx, cfg.Image)
 	if err != nil {
-		return nil, fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToCreateContainer, cfg.Image, err)
+		return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Image, err)
 	}
 
-	specOpts := []oci.SpecOpts{
-		oci.WithImageConfig(img),
+	specOpts := []oci.SpecOpts{oci.WithImageConfig(img)}
+	if isRootlessSocket(c.socket) {
+		specOpts, err = rootlessImageSpecOpts(ctx, img)
+		if err != nil {
+			return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Name, err)
+		}
+		specOpts = append(specOpts,
+			oci.WithCgroup("user.slice:tethux:"+cfg.Name),
+			oci.WithLinuxNamespace(specs.LinuxNamespace{Type: specs.CgroupNamespace}),
+		)
 	}
 
 	if len(cfg.Entrypoint) > 0 {
@@ -264,7 +276,7 @@ func (c *Containerd) CreateContainer(ctx context.Context, cfg *container.Contain
 		containerd.WithContainerLabels(cfg.Labels),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToCreateContainer, cfg.Name, err)
+		return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Name, err)
 	}
 
 	return &container.ContainerNode{
@@ -278,11 +290,63 @@ func (c *Containerd) CreateContainer(ctx context.Context, cfg *container.Contain
 	}, nil
 }
 
+// containerd's standard WithImageConfig option resolves supplementary groups
+// by mounting the snapshot in the client mount namespace. That cannot work
+// when this client talks to a rootless daemon living in RootlessKit's mount
+// namespace. Read the OCI config from the content store instead; runc applies
+// the rootless UID/GID mapping when it creates the task.
+func rootlessImageSpecOpts(ctx context.Context, img containerd.Image) ([]oci.SpecOpts, error) {
+	descriptor, err := img.Config(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := content.ReadBlob(ctx, img.ContentStore(), descriptor)
+	if err != nil {
+		return nil, err
+	}
+
+	var image imagespecs.Image
+	if err := json.Unmarshal(data, &image); err != nil {
+		return nil, err
+	}
+
+	config := image.Config
+	opts := []oci.SpecOpts{
+		oci.WithEnv(config.Env),
+		oci.WithProcessArgs(append(config.Entrypoint, config.Cmd...)...),
+	}
+	if config.WorkingDir != "" {
+		opts = append(opts, oci.WithProcessCwd(config.WorkingDir))
+	}
+	if config.User != "" {
+		user, group, hasGroup := strings.Cut(config.User, ":")
+		uid, parseErr := strconv.ParseUint(user, 10, 32)
+		if parseErr != nil {
+			return nil, errs.New("containerd", errs.ErrInvalidConfig, "rootless image user must be numeric: "+config.User)
+		}
+		gid := uint64(0)
+		if hasGroup && group != "" {
+			gid, parseErr = strconv.ParseUint(group, 10, 32)
+			if parseErr != nil {
+				return nil, errs.New("containerd", errs.ErrInvalidConfig, "rootless image group must be numeric: "+config.User)
+			}
+		}
+		opts = append(opts, oci.WithUIDGID(uint32(uid), uint32(gid)))
+	}
+
+	return opts, nil
+}
+
+func isRootlessSocket(socket string) bool {
+	return strings.Contains(socket, "/run/user/")
+}
+
 func (c *Containerd) Name() string { return "containerd" }
 
 func (c *Containerd) Create(ctx context.Context, cfg *virt.NodeConfig) (*virt.Node, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("containerd: create: cfg is nil")
+		return nil, errs.New("containerd", errs.ErrInvalidConfig, "config is nil")
 	}
 	node, err := c.CreateContainer(ctx, &container.ContainerConfig{NodeConfig: *cfg})
 	if err != nil {
@@ -319,37 +383,37 @@ func (c *Containerd) StartContainer(ctx context.Context, id string, _ *mobyclien
 	ctx = withNamespace(ctx)
 	ctr, err := c.cli.LoadContainer(ctx, id)
 	if err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToStartContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToStartContainer, id, err)
 	}
 
 	task, err := ctr.Task(ctx, nil)
 	if errdefs.IsNotFound(err) {
 		if mkdirErr := os.MkdirAll(filepath.Dir(logPath(id)), 0o700); mkdirErr != nil {
-			return fmt.Errorf("containerd: prepare logs %q: %w", id, mkdirErr)
+			return errs.Wrap("containerd", errs.ErrFailedToPrepareIO, id, mkdirErr)
 		}
 		task, err = ctr.NewTask(ctx, cio.LogFile(logPath(id)))
 	}
 	if err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToStartContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToStartContainer, id, err)
 	}
 	status, err := task.Status(ctx)
 	if err != nil {
-		return fmt.Errorf("containerd: status before start %q: %w", id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToReadState, id, err)
 	}
 	if status.Status == containerd.Running {
 		return nil
 	}
 	if status.Status != containerd.Created {
 		if _, deleteErr := task.Delete(ctx); deleteErr != nil && !errdefs.IsNotFound(deleteErr) {
-			return fmt.Errorf("containerd: replace stopped task %q: %w", id, deleteErr)
+			return errs.Wrap("containerd", errs.ErrFailedToStartContainer, id, deleteErr)
 		}
 		task, err = ctr.NewTask(ctx, cio.LogFile(logPath(id)))
 		if err != nil {
-			return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToStartContainer, id, err)
+			return errs.Wrap("containerd", errs.ErrFailedToStartContainer, id, err)
 		}
 	}
 	if err := task.Start(ctx); err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToStartContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToStartContainer, id, err)
 	}
 	return nil
 }
@@ -358,38 +422,38 @@ func (c *Containerd) StopContainer(ctx context.Context, id string, _ *mobyclient
 	ctx = withNamespace(ctx)
 	ctr, err := c.cli.LoadContainer(ctx, id)
 	if err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToStopContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToStopContainer, id, err)
 	}
 	task, err := ctr.Task(ctx, nil)
 	if errdefs.IsNotFound(err) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToStopContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToStopContainer, id, err)
 	}
 
 	status, err := task.Status(ctx)
 	if err != nil {
-		return fmt.Errorf("containerd: status before stop %q: %w", id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToReadState, id, err)
 	}
 	if status.Status == containerd.Paused {
 		if err := task.Resume(ctx); err != nil {
-			return fmt.Errorf("containerd: resume before stop %q: %w", id, err)
+			return errs.Wrap("containerd", errs.ErrFailedToStopContainer, id, err)
 		}
 	}
 	if status.Status == containerd.Running {
 		wait, waitErr := task.Wait(ctx)
 		if waitErr != nil {
-			return fmt.Errorf("containerd: wait before stop %q: %w", id, waitErr)
+			return errs.Wrap("containerd", errs.ErrFailedToStopContainer, id, waitErr)
 		}
 		if err := task.Kill(ctx, syscall.SIGTERM); err != nil {
-			return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToStopContainer, id, err)
+			return errs.Wrap("containerd", errs.ErrFailedToStopContainer, id, err)
 		}
 		select {
 		case <-wait:
 		case <-time.After(10 * time.Second):
 			if err := task.Kill(ctx, syscall.SIGKILL); err != nil {
-				return fmt.Errorf("containerd: force stop %q: %w", id, err)
+				return errs.Wrap("containerd", errs.ErrFailedToStopContainer, id, err)
 			}
 			<-wait
 		case <-ctx.Done():
@@ -397,7 +461,7 @@ func (c *Containerd) StopContainer(ctx context.Context, id string, _ *mobyclient
 		}
 	}
 	if _, err := task.Delete(ctx); err != nil && !errdefs.IsNotFound(err) {
-		return fmt.Errorf("containerd: delete stopped task %q: %w", id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToStopContainer, id, err)
 	}
 	return nil
 }
@@ -405,10 +469,10 @@ func (c *Containerd) StopContainer(ctx context.Context, id string, _ *mobyclient
 func (c *Containerd) SuspendContainer(ctx context.Context, id string, _ *mobyclient.ContainerPauseOptions) error {
 	task, err := c.loadTask(ctx, id)
 	if err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToSuspendContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToSuspendContainer, id, err)
 	}
 	if err := task.Pause(withNamespace(ctx)); err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToSuspendContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToSuspendContainer, id, err)
 	}
 	return nil
 }
@@ -416,10 +480,10 @@ func (c *Containerd) SuspendContainer(ctx context.Context, id string, _ *mobycli
 func (c *Containerd) ResumeContainer(ctx context.Context, id string, _ *mobyclient.ContainerUnpauseOptions) error {
 	task, err := c.loadTask(ctx, id)
 	if err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToResumeContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToResumeContainer, id, err)
 	}
 	if err := task.Resume(withNamespace(ctx)); err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToResumeContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToResumeContainer, id, err)
 	}
 	return nil
 }
@@ -438,15 +502,15 @@ func (c *Containerd) DeleteContainer(ctx context.Context, id string, _ *mobyclie
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToDeleteContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToDeleteContainer, id, err)
 	}
 	if task, taskErr := ctr.Task(ctx, nil); taskErr == nil {
 		_, _ = task.Delete(ctx, containerd.WithProcessKill)
 	} else if !errdefs.IsNotFound(taskErr) {
-		return fmt.Errorf("containerd: load task for delete %q: %w", id, taskErr)
+		return errs.Wrap("containerd", errs.ErrFailedToDeleteContainer, id, taskErr)
 	}
 	if err := ctr.Delete(ctx, containerd.WithSnapshotCleanup); err != nil {
-		return fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToDeleteContainer, id, err)
+		return errs.Wrap("containerd", errs.ErrFailedToDeleteContainer, id, err)
 	}
 	_ = os.Remove(logPath(id))
 	_ = os.RemoveAll(configPath(id))
@@ -459,11 +523,11 @@ func (c *Containerd) State(ctx context.Context, id string) (virt.NodeState, erro
 		return virt.NodeStopped, nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("containerd: state %q: %w", id, err)
+		return "", errs.Wrap("containerd", errs.ErrFailedToReadState, id, err)
 	}
 	status, err := task.Status(withNamespace(ctx))
 	if err != nil {
-		return "", fmt.Errorf("containerd: state %q: %w", id, err)
+		return "", errs.Wrap("containerd", errs.ErrFailedToReadState, id, err)
 	}
 	return mapState(status.Status), nil
 }
@@ -480,7 +544,7 @@ func (c *Containerd) List(ctx context.Context) ([]*virt.Node, error) {
 	ctx = withNamespace(ctx)
 	containers, err := c.cli.Containers(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("containerd: list: %w", err)
+		return nil, errs.Wrap("containerd", errs.ErrFailedToListContainers, "", err)
 	}
 	nodes := make([]*virt.Node, 0, len(containers))
 	for _, ctr := range containers {
@@ -497,22 +561,27 @@ func (c *Containerd) Inspect(ctx context.Context, id string, _ *mobyclient.Conta
 	ctx = withNamespace(ctx)
 	ctr, err := c.cli.LoadContainer(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToInspectContainer, id, err)
+		return nil, errs.Wrap("containerd", errs.ErrFailedToInspectContainer, id, err)
 	}
 	info, err := ctr.Info(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToInspectContainer, id, err)
+		return nil, errs.Wrap("containerd", errs.ErrFailedToInspectContainer, id, err)
 	}
 	state, err := c.State(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	imageID := ""
+	var pid uint32
 	if image, imageErr := ctr.Image(ctx); imageErr == nil {
 		imageID = image.Target().Digest.String()
 	}
+	if task, taskErr := ctr.Task(ctx, nil); taskErr == nil {
+		pid = task.Pid()
+	}
 	return &container.ContainerNode{
 		Node:      virt.Node{ID: id, Name: id, State: state},
+		PID:       pid,
 		ImageID:   imageID,
 		ImageName: info.Image,
 		Labels:    info.Labels,
@@ -523,11 +592,11 @@ func (c *Containerd) Exec(ctx context.Context, id string, cmd []string, _ *mobyc
 	ctx = withNamespace(ctx)
 	task, err := c.loadTask(ctx, id)
 	if err != nil {
-		return nil, nil, fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToCreateExec, id, err)
+		return nil, nil, errs.Wrap("containerd", errs.ErrFailedToCreateExec, id, err)
 	}
 	taskSpec, err := task.Spec(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("containerd: exec spec %q: %w", id, err)
+		return nil, nil, errs.Wrap("containerd", errs.ErrFailedToCreateExec, id, err)
 	}
 	process := *taskSpec.Process
 	process.Args = slices.Clone(cmd)
@@ -537,28 +606,35 @@ func (c *Containerd) Exec(ctx context.Context, id string, cmd []string, _ *mobyc
 	}
 	var stdout, stderr bytes.Buffer
 	execID := fmt.Sprintf("tethux-%d-%d", time.Now().UnixNano(), execSequence.Add(1))
-	proc, err := task.Exec(ctx, execID, &process, cio.NewCreator(cio.WithStreams(nil, &stdout, &stderr)))
+	fifoDir := filepath.Join(stateDir(), "fifo")
+	if mkdirErr := os.MkdirAll(fifoDir, 0o700); mkdirErr != nil {
+		return nil, nil, errs.Wrap("containerd", errs.ErrFailedToPrepareIO, id, mkdirErr)
+	}
+	proc, err := task.Exec(ctx, execID, &process, cio.NewCreator(
+		cio.WithFIFODir(fifoDir),
+		cio.WithStreams(nil, &stdout, &stderr),
+	))
 	if err != nil {
-		return nil, nil, fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToCreateExec, id, err)
+		return nil, nil, errs.Wrap("containerd", errs.ErrFailedToCreateExec, id, err)
 	}
 	wait, err := proc.Wait(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("containerd: exec wait %q: %w", id, err)
+		return nil, nil, errs.Wrap("containerd", errs.ErrFailedToCreateExec, id, err)
 	}
 	if err := proc.Start(ctx); err != nil {
-		return nil, nil, fmt.Errorf("containerd: %w %q: %w", errs.ErrFailedToAttachExec, id, err)
+		return nil, nil, errs.Wrap("containerd", errs.ErrFailedToAttachExec, id, err)
 	}
 	status := <-wait
 	_, deleteErr := proc.Delete(ctx)
 	if deleteErr != nil {
-		return stdout.Bytes(), stderr.Bytes(), fmt.Errorf("containerd: delete exec %q: %w", id, deleteErr)
+		return stdout.Bytes(), stderr.Bytes(), errs.Wrap("containerd", errs.ErrExecFailed, id, deleteErr)
 	}
 	code, _, resultErr := status.Result()
 	if resultErr != nil {
 		return stdout.Bytes(), stderr.Bytes(), resultErr
 	}
 	if code != 0 {
-		return stdout.Bytes(), stderr.Bytes(), fmt.Errorf("containerd: exec %q exited with status %d", id, code)
+		return stdout.Bytes(), stderr.Bytes(), errs.New("containerd", errs.ErrExecFailed, id+" exited with status "+strconv.FormatUint(uint64(code), 10))
 	}
 	return stdout.Bytes(), stderr.Bytes(), nil
 }
@@ -566,7 +642,7 @@ func (c *Containerd) Exec(ctx context.Context, id string, cmd []string, _ *mobyc
 func (c *Containerd) Logs(_ context.Context, id string, _ *mobyclient.ContainerLogsOptions) (io.ReadCloser, error) {
 	f, err := os.Open(logPath(id))
 	if err != nil {
-		return nil, fmt.Errorf("containerd: logs %q: %w", id, err)
+		return nil, errs.Wrap("containerd", errs.ErrFailedToLogs, id, err)
 	}
 	return f, nil
 }
@@ -613,33 +689,33 @@ func writeNetworkFiles(cfg *container.ContainerConfig) ([]specs.Mount, error) {
 	dir := configPath(cfg.Name)
 	if len(cfg.ExtraHosts) > 0 {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return nil, fmt.Errorf("containerd: create host config: %w", err)
+			return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Name, err)
 		}
-		content := "127.0.0.1 localhost\n::1 localhost\n"
+		configText := "127.0.0.1 localhost\n::1 localhost\n"
 		for _, entry := range cfg.ExtraHosts {
 			host, address, ok := strings.Cut(entry, ":")
 			if !ok {
-				return nil, fmt.Errorf("containerd: invalid extra host %q (expected host:address)", entry)
+				return nil, errs.New("containerd", errs.ErrInvalidConfig, "extra host "+entry+" must be host:address")
 			}
-			content += address + " " + host + "\n"
+			configText += address + " " + host + "\n"
 		}
 		path := filepath.Join(dir, "hosts")
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			return nil, fmt.Errorf("containerd: write hosts: %w", err)
+		if err := os.WriteFile(path, []byte(configText), 0o600); err != nil {
+			return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Name, err)
 		}
 		mounts = append(mounts, specs.Mount{Source: path, Destination: "/etc/hosts", Type: "bind", Options: []string{"rbind", "ro"}})
 	}
 	if len(cfg.DNS) > 0 {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return nil, fmt.Errorf("containerd: create DNS config: %w", err)
+			return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Name, err)
 		}
-		var content strings.Builder
+		var configText strings.Builder
 		for _, address := range cfg.DNS {
-			fmt.Fprintf(&content, "nameserver %s\n", address)
+			fmt.Fprintf(&configText, "nameserver %s\n", address)
 		}
 		path := filepath.Join(dir, "resolv.conf")
-		if err := os.WriteFile(path, []byte(content.String()), 0o600); err != nil {
-			return nil, fmt.Errorf("containerd: write resolv.conf: %w", err)
+		if err := os.WriteFile(path, []byte(configText.String()), 0o600); err != nil {
+			return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Name, err)
 		}
 		mounts = append(mounts, specs.Mount{Source: path, Destination: "/etc/resolv.conf", Type: "bind", Options: []string{"rbind", "ro"}})
 	}

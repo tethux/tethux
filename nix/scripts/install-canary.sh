@@ -7,7 +7,7 @@ usage:
   TETHUX_INSTALL_DISK=/dev/nvme0n1 nix/scripts/install-canary.sh root@HOST FLAKE_HOST
 
 examples:
-  TETHUX_INSTALL_DISK=/dev/sda nix/scripts/install-canary.sh veya@10.0.0.11 canary-10-0-0-11
+  TETHUX_INSTALL_DISK=/dev/sda nix/scripts/install-canary.sh veya@10.0.0.100 canary-10-0-0-100
   TETHUX_INSTALL_DISK=/dev/nvme0n1 nix/scripts/install-canary.sh veya@10.0.0.78 canary-former-10-0-0-12
 
 This is destructive. It runs nixos-anywhere and overwrites TETHUX_INSTALL_DISK.

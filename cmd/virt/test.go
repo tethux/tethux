@@ -252,6 +252,9 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 		if err == nil && inspected.ImageName == "" {
 			return errors.New("inspect returned an empty image name")
 		}
+		if err == nil && inspected.PID == 0 {
+			return errors.New("inspect returned an empty runtime PID")
+		}
 		return err
 	}); err != nil {
 		return err

@@ -59,9 +59,9 @@
     in
     {
       nixosConfigurations = {
-        canary-10-0-0-11 = nixosSystem ./nix/hosts/canary-10-0-0-11.nix;
+        canary-10-0-0-100 = nixosSystem ./nix/hosts/canary-10-0-0-100.nix;
         canary-former-10-0-0-12 = nixosSystem ./nix/hosts/canary-former-10-0-0-12.nix;
-        canary-10-0-0-11-install = nixosInstallSystem ./nix/hosts/canary-10-0-0-11.nix;
+        canary-10-0-0-100-install = nixosInstallSystem ./nix/hosts/canary-10-0-0-100.nix;
         canary-former-10-0-0-12-install = nixosInstallSystem ./nix/hosts/canary-former-10-0-0-12.nix;
       };
     }

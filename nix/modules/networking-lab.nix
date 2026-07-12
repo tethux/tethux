@@ -10,6 +10,8 @@
 
   networking.nftables.enable = lib.mkDefault true;
 
+  networking.firewall.allowedUDPPorts = [ 24000 ];
+
   systemd.tmpfiles.rules = [
     "d /var/lib/tethux-ci 0755 ci ci -"
     "d /var/cache/tethux-ci 0755 ci ci -"

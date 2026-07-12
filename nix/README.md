@@ -5,15 +5,16 @@ monorepo. Forgejo and Woodpecker server components live elsewhere; these
 profiles are only for privileged canary runners.
 
 Disclaimer: this Nix setup was shamelessly vibed in with GPT-5.5 in T3 Code.
-T3's local state recorded this thread as `NixOS CI Test VM Plan`, starting at
-`2026-07-11T02:04:47Z`. At the last checked token event
-(`2026-07-11T15:44:59Z`), the thread had 19 user messages, 17 turns, and
-23,230,282 total processed tokens: 23,138,942 input tokens, 21,801,344 cached
-input tokens, 91,340 output tokens, and 18,446 reasoning output tokens.
+T3's local state records the current work as `Expand CI integration coverage`
+(thread `1a388d12-4db4-466d-828a-9ed8d127e24a`). At the completion-audit token
+event (`2026-07-12T18:01:37Z`), its five user requests had processed 54,911,358
+tokens: 54,800,575 input tokens, 53,699,840 of them cached, 110,783 output
+tokens, and 30,655 reasoning-output tokens. The active context at that event
+was 109,111 of 353,400 tokens.
 
 ## Hosts
 
-- `canary-10-0-0-11`: known current SSH host at `10.0.0.11`.
+- `canary-10-0-0-100`: current SSH host at `10.0.0.100`.
 - `canary-former-10-0-0-12`: old `10.0.0.12`, currently discovered as `10.0.0.78`.
 
 Run host discovery:
@@ -25,7 +26,7 @@ mise run host:discover
 Audit a host after SSH access works:
 
 ```bash
-HOST=veya@10.0.0.11 mise run host:audit
+HOST=veya@10.0.0.100 mise run host:audit
 HOST=veya@10.0.0.78 mise run host:audit
 ```
 
@@ -42,8 +43,8 @@ Then run the installer from a trusted checkout:
 
 ```bash
 TETHUX_INSTALL_DISK=/dev/nvme0n1 nix/scripts/install-canary.sh \
-  veya@10.0.0.11 \
-  canary-10-0-0-11
+  veya@10.0.0.100 \
+  canary-10-0-0-100
 ```
 
 ## Tests
@@ -85,24 +86,43 @@ sudo for the canary user.
 ## Woodpecker Topology
 
 The Woodpecker agent remains on `nas` and reaches each laptop over SSH. Every
-push, pull request, and manual run has three required workflows:
+push, pull request, and manual run has four required, ordered workflows so the
+web UI reports each concern independently without exhausting Docker networks:
 
-- normal lint, tests, build, both deployable NixOS evaluations, and flake checks
-  on the NAS runner;
-- all provider operations plus a Docker bridge topology on `ci@10.0.0.11`;
-- all provider operations plus a Podman bridge topology on `ci@10.0.0.78`.
+- `normal`: lint, tests, build, both deployable NixOS evaluations, and flake
+  checks on the NAS runner;
+- `laptop-100`: all provider operations plus a Docker bridge topology;
+- `laptop-78`: all provider operations plus a Podman bridge topology;
+- `cross-laptop`: provider-managed containers connected across both machines
+  through tethux UDP bridges.
+
+The NAS runner persists `/nix`, Go build, and module caches below
+`/var/cache/tethux-ci`, so later workflows and commits reuse downloads and
+build products.
 
 `remote-laptop-integration.sh` copies the exact checkout into a revision-scoped
 temporary directory, enters the flake's `integration` shell, and removes it
 afterward. The canary users need passwordless sudo. A sleeping/offline laptop
 intentionally fails its required workflow instead of silently skipping tests.
 
+## Recovery and disk mounts
+
+The disko installer names partitions `disk-main-root` and `disk-main-ESP`; it
+does not assign filesystem labels. Runtime configurations must therefore use
+`/dev/disk/by-partlabel/...`. Using `/dev/disk/by-label/nixos` and
+`/dev/disk/by-label/boot` caused a live switch to unmount `/boot` and enter
+emergency mode while waiting for labels that did not exist.
+
+If a canary reaches the emergency password prompt, choose the previous NixOS
+generation from systemd-boot. The repository does not define a root password,
+so there is no repository password to enter or recover. Once SSH is restored,
+deploy the corrected generation and verify a reboot.
+
 ## Codeberg
 
-This repo currently has only the GitHub `origin`. Add a Codeberg remote only
-when the private target URL is known:
+The `master` branch is mirrored to both configured SSH remotes:
 
 ```bash
-git remote add codeberg git@codeberg.org:<owner>/<private-repo>.git
-git push codeberg HEAD:refs/heads/nixos-canary-ci
+git push codeberg master
+git push origin master
 ```
