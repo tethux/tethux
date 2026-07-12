@@ -108,7 +108,12 @@ runner_file="$(find "$stage_dir/artifacts" -type f -name runner.json -print -qui
 if [[ -n "$runner_file" ]]; then
   runner="$(jq -c . "$runner_file")"
 else
-  os_version="$(. /etc/os-release 2>/dev/null && printf '%s' "${PRETTY_NAME:-Linux}")"
+  os_version=Linux
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    os_version="${PRETTY_NAME:-Linux}"
+  fi
   architecture="$(uname -m)"
   case "$architecture" in x86_64) architecture=amd64 ;; aarch64) architecture=arm64 ;; esac
   runner="$(jq -nc \
