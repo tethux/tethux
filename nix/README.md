@@ -7,10 +7,10 @@ profiles are only for privileged canary runners.
 Disclaimer: this Nix setup was shamelessly vibed in with GPT-5.5 in T3 Code.
 T3's local state records the current work as `Expand CI integration coverage`
 (thread `1a388d12-4db4-466d-828a-9ed8d127e24a`). At the completion audit
-(`2026-07-12T21:40:27Z`), T3 recorded 8 user prompts and 127,461,959 processed
-tokens: 127,225,013 input tokens, 125,225,472 of them cached, 236,946 output
-tokens, and 65,180 reasoning-output tokens. The active context at that event
-was 241,929 of 353,400 tokens.
+(`2026-07-12T21:47:33Z`), T3 recorded 8 user prompts and 136,449,583 processed
+tokens: 136,207,027 input tokens, 134,170,112 of them cached, 242,556 output
+tokens, and 66,399 reasoning-output tokens. The active context at that event
+was 256,582 of 353,400 tokens.
 
 ## Hosts
 

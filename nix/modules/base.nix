@@ -10,7 +10,7 @@ let
     if self == null then
       null
     else
-      self.packages.${pkgs.system}.tethux or null;
+      self.packages.${pkgs.stdenv.hostPlatform.system}.tethux or null;
 in
 
 {

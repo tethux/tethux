@@ -143,8 +143,13 @@ else
   fi
   architecture="$(uname -m)"
   case "$architecture" in x86_64) architecture=amd64 ;; aarch64) architecture=arm64 ;; esac
+  runner_hostname="${HOSTNAME:-}"
+  if [[ -z "$runner_hostname" && -r /proc/sys/kernel/hostname ]]; then
+    read -r runner_hostname </proc/sys/kernel/hostname
+  fi
+  runner_hostname="${runner_hostname:-unknown}"
   runner="$(jq -nc \
-    --arg device "${TETHUX_DEVICE_ID:-$(hostname)}" --arg hostname "$(hostname)" \
+    --arg device "${TETHUX_DEVICE_ID:-$runner_hostname}" --arg hostname "$runner_hostname" \
     --arg os_version "$os_version" --arg kernel "$(uname -r)" --arg arch "$architecture" \
     --arg cpu "$(lscpu | awk -F: '/Model name/{sub(/^[[:space:]]+/,"",$2); print $2; exit}')" \
     --argjson memory "$(awk '/MemTotal/{print $2*1024}' /proc/meminfo | cut -d. -f1)" \

@@ -42,6 +42,7 @@ jq -n \
   '{device_id:$device_id,display_name:$device_id,hostname:$hostname,os:"linux",os_version:$os_version,kernel:$kernel,architecture:$architecture,cpu:$cpu,memory_bytes:$memory_bytes,container_runtime:$runtime,container_runtime_version:$runtime_version,fixture_images:[$image_a,$image_b]}' \
   >"$results_dir/runner.json"
 
+golangci-lint cache clean
 golangci-lint run -c .golangci.yml
 go test ./... -json | tee "$results_dir/go-test.jsonl"
 go build -o "$repo_root/bin/tethux" ./cmd/tethux
