@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tethux.dev/schemas/test-archive/results-v1.json",
+  "title": "tethux Test Archive Results v1",
+  "type": "object",
+  "required": ["schema_version", "run_id", "tests"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "run_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["test_id", "name", "suite", "status", "timing", "attempt", "artifacts"],
+        "properties": {
+          "test_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9./-]*$"},
+          "name": {"type": "string"},
+          "suite": {"type": "string"},
+          "status": {"enum": ["passed", "failed", "skipped", "error", "cancelled"]},
+          "timing": {"type": "object", "required": ["duration_ms"], "properties": {"started_at": {"type": ["string", "null"], "format": "date-time"}, "finished_at": {"type": ["string", "null"], "format": "date-time"}, "duration_ms": {"type": "integer", "minimum": 0}}},
+          "attempt": {"type": "integer", "minimum": 1},
+          "features": {"type": "array", "items": {"type": "string"}},
+          "parameters": {"type": "object"},
+          "metrics": {"type": "object"},
+          "message": {"type": ["string", "null"]},
+          "failure": {"type": ["object", "null"]},
+          "artifacts": {"type": "array", "items": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.).+$"}},
+          "labels": {"type": "object"}
+        }
+      }
+    }
+  }
+}

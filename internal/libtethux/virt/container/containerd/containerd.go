@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,6 +22,7 @@ import (
 	"github.com/0xveya/tethux/internal/libtethux/virt/container/errs"
 	containersspecs "github.com/containerd/containerd/v2/core/containers"
 	"github.com/containerd/containerd/v2/core/content"
+	dockerremotes "github.com/containerd/containerd/v2/core/remotes/docker"
 	"github.com/containerd/containerd/v2/defaults"
 	"github.com/containerd/containerd/v2/pkg/cio"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
@@ -165,11 +168,33 @@ func socketPaths() []string {
 
 func (c *Containerd) Pull(ctx context.Context, ref string, _ *mobyclient.ImagePullOptions) error {
 	ctx = withNamespace(ctx)
-	_, err := c.cli.Pull(ctx, ref, containerd.WithPullUnpack)
+	pullOpts := []containerd.RemoteOpt{containerd.WithPullUnpack}
+	if isLoopbackRegistry(ref) {
+		pullOpts = append(pullOpts, containerd.WithResolver(dockerremotes.NewResolver(
+			dockerremotes.ResolverOptions{PlainHTTP: true},
+		)))
+	}
+	_, err := c.cli.Pull(ctx, ref, pullOpts...)
 	if err != nil {
 		return errs.Wrap("containerd", errs.ErrFailedToPullImage, ref, err)
 	}
 	return nil
+}
+
+func isLoopbackRegistry(ref string) bool {
+	host, _, ok := strings.Cut(ref, "/")
+	if !ok {
+		return false
+	}
+	hostname, _, splitErr := net.SplitHostPort(host)
+	if splitErr != nil {
+		hostname = host
+	}
+	if hostname == "localhost" {
+		return true
+	}
+	address, err := netip.ParseAddr(strings.Trim(hostname, "[]"))
+	return err == nil && address.IsLoopback()
 }
 
 func (c *Containerd) CreateContainer(ctx context.Context, cfg *container.ContainerConfig) (*container.ContainerNode, error) {

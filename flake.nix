@@ -31,6 +31,7 @@
             ./nix/modules/base.nix
             ./nix/modules/ci-canary-user.nix
             ./nix/modules/containers.nix
+            ./nix/modules/fixture-registry.nix
             ./nix/modules/networking-lab.nix
             ./nix/modules/virtualization.nix
             ./nix/modules/tethux-test-host.nix
@@ -50,6 +51,7 @@
             ./nix/modules/base.nix
             ./nix/modules/ci-canary-user.nix
             ./nix/modules/containers.nix
+            ./nix/modules/fixture-registry.nix
             ./nix/modules/networking-lab.nix
             ./nix/modules/virtualization.nix
             ./nix/modules/tethux-test-host.nix
@@ -108,9 +110,12 @@
                   git
                   go
                   golangci-lint
+                  jq
                   libpcap
                   openssh
                   pkg-config
+                  util-linux
+                  zstd
                 ];
               }
             );

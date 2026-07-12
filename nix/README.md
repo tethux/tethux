@@ -6,11 +6,11 @@ profiles are only for privileged canary runners.
 
 Disclaimer: this Nix setup was shamelessly vibed in with GPT-5.5 in T3 Code.
 T3's local state records the current work as `Expand CI integration coverage`
-(thread `1a388d12-4db4-466d-828a-9ed8d127e24a`). At the completion-audit token
-event (`2026-07-12T18:01:37Z`), its five user requests had processed 54,911,358
-tokens: 54,800,575 input tokens, 53,699,840 of them cached, 110,783 output
-tokens, and 30,655 reasoning-output tokens. The active context at that event
-was 109,111 of 353,400 tokens.
+(thread `1a388d12-4db4-466d-828a-9ed8d127e24a`). At the pre-push completion
+audit (`2026-07-12T21:04:22Z`), its user requests had processed 101,867,661
+tokens: 101,688,542 input tokens, 99,969,280 of them cached, 179,119 output
+tokens, and 49,013 reasoning-output tokens. The active context at that event
+was 72,692 of 353,400 tokens.
 
 ## Hosts
 
@@ -71,8 +71,11 @@ base-provider and container-provider lifecycles:
 sudo tethux virt test --provider all --output json
 ```
 
-The default fixtures use Docker's public ECR mirror to avoid anonymous Docker
-Hub pull limits making hardware CI flaky.
+Each NixOS canary runs a loopback-only OCI registry on `127.0.0.1:5000`.
+`fixture-registry.nix` builds two images entirely from Nix packages, seeds the
+registry during activation, and exports their references through
+`TETHUX_TEST_IMAGES`. Provider and topology CI therefore exercise real pull
+operations without depending on Docker Hub, ECR, or another public registry.
 
 VirtualBox and VMware remain optional checks and do not block hosts where those
 tools are absent.
@@ -104,6 +107,43 @@ Docker seeds it from the Nix image on first use instead of hiding that image's
 store with an empty bind mount. Go build and module caches remain below
 `/var/cache/tethux-ci`, so later workflows and commits reuse downloads and
 build products.
+
+## CI archive
+
+Every CI or developer execution wrapped by `test-archive-run.sh` produces one
+immutable archive below:
+
+```text
+/var/cache/tethux-ci/archive/<full-commit-sha>/<workflow>/<uuidv7>.tar.zst
+```
+
+The archive implements Test Archive Format v1. It always contains versioned
+`manifest.json` and `results.json`, plus separate `logs/`, `configs/`, and
+`artifacts/` entries. The manifest records source/commit/timing, stable device
+identity, allowlisted hardware/software metadata, image references, result
+counts, file sizes, and SHA-256 checksums. Results normalize Go tests, every
+provider operation, topology summaries, and both cross-host endpoints into
+stable IDs with statuses, durations, features, parameters, metrics, and
+machine-readable failures.
+
+Archives are written as `.tar.zst.partial`, validated, and atomically renamed
+only after run IDs, counts, paths, statuses, artifacts, and checksums pass. CI
+and ingestion should ignore `.partial` files.
+
+Use the same contract during development:
+
+```bash
+TETHUX_TEST_ARCHIVE_ROOT=/var/cache/tethux-ci/archive \
+  ./nix/scripts/test-archive-run.sh local-normal \
+  nix develop .#ci -c ./nix/scripts/normal-ci.sh
+```
+
+On `nas`, list or inspect an archived commit with:
+
+```bash
+find /var/cache/tethux-ci/archive/COMMIT -type f -name '*.tar.zst' -print
+tar --zstd -xOf /var/cache/tethux-ci/archive/COMMIT/WORKFLOW/RUN.tar.zst manifest.json | jq .
+```
 
 `remote-laptop-integration.sh` copies the exact checkout into a revision-scoped
 temporary directory, enters the flake's `integration` shell, and removes it

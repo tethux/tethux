@@ -15,10 +15,6 @@ steps:
       - tethux-ci-nix:/nix
       - /var/cache/tethux-ci/go-build:/root/.cache/go-build
       - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
+      - /var/cache/tethux-ci/archive:/var/lib/tethux-ci/archive
     commands:
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c golangci-lint run -c .golangci.yml
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c sh -c 'go test ./... -json | tee go-test.jsonl'
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c go build ./cmd/tethux
-      - nix eval .#nixosConfigurations.canary-10-0-0-100.config.system.build.toplevel.drvPath --extra-experimental-features "nix-command flakes"
-      - nix eval .#nixosConfigurations.canary-former-10-0-0-12.config.system.build.toplevel.drvPath --extra-experimental-features "nix-command flakes"
-      - nix build .#checks.x86_64-linux.unit .#checks.x86_64-linux.build --extra-experimental-features "nix-command flakes"
+      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c env TETHUX_DEVICE_ID=nas-runner-1 ./nix/scripts/test-archive-run.sh normal ./nix/scripts/normal-ci.sh

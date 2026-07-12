@@ -35,6 +35,8 @@ type testOptions struct {
 type testEvent struct {
 	Schema     string         `json:"schema"`
 	Timestamp  time.Time      `json:"timestamp"`
+	StartedAt  time.Time      `json:"started_at"`
+	FinishedAt time.Time      `json:"finished_at"`
 	Host       string         `json:"host,omitempty"`
 	Provider   string         `json:"provider"`
 	Image      string         `json:"image,omitempty"`
@@ -72,7 +74,13 @@ func newEventWriterTo(format, host string, out io.Writer) (*eventWriter, error) 
 //nolint:gocritic // testEvent is bounded and immediately serialized.
 func (w *eventWriter) emit(event testEvent) error {
 	event.Schema = "tethux.provider-test/v1"
-	event.Timestamp = time.Now().UTC()
+	if event.FinishedAt.IsZero() {
+		event.FinishedAt = time.Now().UTC()
+	}
+	if event.StartedAt.IsZero() {
+		event.StartedAt = event.FinishedAt.Add(-time.Duration(event.DurationMS) * time.Millisecond)
+	}
+	event.Timestamp = event.FinishedAt
 	if event.Host == "" {
 		event.Host = w.host
 	}
@@ -127,13 +135,15 @@ func testCmd() *cobra.Command {
 }
 
 func runProviderTest(ctx context.Context, writer *eventWriter, provider, socket string, images []string) error {
+	started := time.Now().UTC()
 	p, err := newProvider(provider, socket)
 	if err != nil {
-		_ = writer.emit(testEvent{Provider: provider, Operation: "connect", Status: "failed", Error: err.Error()})
+		finished := time.Now().UTC()
+		_ = writer.emit(testEvent{Provider: provider, Operation: "connect", Status: "failed", Error: err.Error(), StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds()})
 		return err
 	}
-	started := time.Now()
-	if err := writer.emit(testEvent{Provider: provider, Operation: "connect", Status: "passed", DurationMS: time.Since(started).Milliseconds(), Details: map[string]any{"images": len(images)}}); err != nil {
+	finished := time.Now().UTC()
+	if err := writer.emit(testEvent{Provider: provider, Operation: "connect", Status: "passed", StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds(), Details: map[string]any{"images": len(images)}}); err != nil {
 		return err
 	}
 
@@ -152,9 +162,10 @@ func runProviderTest(ctx context.Context, writer *eventWriter, provider, socket 
 func runImageTest(ctx context.Context, writer *eventWriter, p container.ContainerProvider, provider, image, api string, index int) (resultErr error) {
 	name := fmt.Sprintf("tethux-ci-%s-%d", provider, index)
 	call := func(operation string, fn func() error) error {
-		started := time.Now()
+		started := time.Now().UTC()
 		err := fn()
-		event := testEvent{Provider: provider, Image: image, API: api, Operation: operation, Status: "passed", DurationMS: time.Since(started).Milliseconds()}
+		finished := time.Now().UTC()
+		event := testEvent{Provider: provider, Image: image, API: api, Operation: operation, Status: "passed", StartedAt: started, FinishedAt: finished, DurationMS: finished.Sub(started).Milliseconds()}
 		if err != nil {
 			event.Status = "failed"
 			event.Error = err.Error()

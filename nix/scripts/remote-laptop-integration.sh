@@ -23,5 +23,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
+set +e
 ssh "${ssh_opts[@]}" "$host" \
-  "cd '$remote_dir' && nix develop .#integration --extra-experimental-features 'nix-command flakes' -c ./nix/scripts/laptop-integration.sh '$runtime'"
+  "cd '$remote_dir' && TETHUX_DEVICE_ID='${TETHUX_DEVICE_ID:-$host}' nix develop .#integration --extra-experimental-features 'nix-command flakes' -c ./nix/scripts/laptop-integration.sh '$runtime'"
+status=$?
+set -e
+
+if [[ -n "${TETHUX_CI_ARCHIVE_DIR:-}" ]]; then
+  mkdir -p "$TETHUX_CI_ARCHIVE_DIR/artifacts/remote"
+  ssh "${ssh_opts[@]}" "$host" \
+    "test ! -d '$remote_dir/results' || tar -czf - -C '$remote_dir' results" | \
+    tar -xzf - -C "$TETHUX_CI_ARCHIVE_DIR/artifacts/remote"
+fi
+
+exit "$status"

@@ -22,14 +22,17 @@ import (
 )
 
 type linkEvent struct {
-	Schema   string `json:"schema"`
-	Host     string `json:"host"`
-	Provider string `json:"provider"`
-	Name     string `json:"name"`
-	Address  string `json:"address"`
-	Peer     string `json:"peer,omitempty"`
-	Status   string `json:"status"`
-	Error    string `json:"error,omitempty"`
+	Schema     string    `json:"schema"`
+	Host       string    `json:"host"`
+	Provider   string    `json:"provider"`
+	Name       string    `json:"name"`
+	Address    string    `json:"address"`
+	Peer       string    `json:"peer,omitempty"`
+	Status     string    `json:"status"`
+	StartedAt  time.Time `json:"started_at"`
+	FinishedAt time.Time `json:"finished_at"`
+	DurationMS int64     `json:"duration_ms"`
+	Error      string    `json:"error,omitempty"`
 }
 
 func linkCmd() *cobra.Command {
@@ -48,6 +51,7 @@ func linkEndpointCmd() *cobra.Command {
 		Use:   "endpoint",
 		Short: "run one provider-managed container and its host UDP bridge",
 		RunE: func(c *cobra.Command, _ []string) (resultErr error) {
+			startedAt := time.Now().UTC()
 			ctx, stop := signal.NotifyContext(c.Context(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 			defer stop()
 			p, providerErr := newProvider(provider, socket)
@@ -100,7 +104,8 @@ func linkEndpointCmd() *cobra.Command {
 				return fmt.Errorf("configure endpoint address (stderr %q): %w", stderr, err)
 			}
 
-			event := linkEvent{Schema: "tethux.cross-host-link/v1", Host: localHostname(), Provider: provider, Name: name, Address: address, Peer: peer, Status: "ready"}
+			finishedAt := time.Now().UTC()
+			event := linkEvent{Schema: "tethux.cross-host-link/v1", Host: localHostname(), Provider: provider, Name: name, Address: address, Peer: peer, Status: "ready", StartedAt: startedAt, FinishedAt: finishedAt, DurationMS: finishedAt.Sub(startedAt).Milliseconds()}
 			if err := json.NewEncoder(os.Stdout).Encode(event); err != nil {
 				return err
 			}
@@ -111,8 +116,11 @@ func linkEndpointCmd() *cobra.Command {
 			for attempt := 0; attempt < 20; attempt++ {
 				stdout, stderr, pingErr := p.Exec(ctx, node.ID, []string{"ping", "-c", "1", "-W", "1", peer}, nil, nil)
 				if pingErr == nil {
+					finishedAt = time.Now().UTC()
 					event.Status = "passed"
 					event.Peer = peer
+					event.FinishedAt = finishedAt
+					event.DurationMS = finishedAt.Sub(startedAt).Milliseconds()
 					return json.NewEncoder(os.Stdout).Encode(event)
 				}
 				if attempt == 19 {

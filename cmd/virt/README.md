@@ -23,7 +23,9 @@ CI contract:
 sudo tethux virt test --provider all --output json
 ```
 
-The default suite uses Alpine and BusyBox. It verifies image pull, generic
+The portable default suite uses public Alpine and BusyBox images. Canary CI
+overrides them with two Nix-built images from each host's loopback-only fixture
+registry. It verifies image pull, generic
 provider create/delete, container create/start, state, reload, list, inspect,
 exec, logs, suspend/resume, restart, stop, and cleanup. Lifecycle calls use the
 generic `Provider` API for one image and the extended `ContainerProvider` API
@@ -35,6 +37,13 @@ processing with `jq`:
 
 ```bash
 tethux virt test --provider docker --output json | jq -c 'select(.status == "failed")'
+```
+
+To select private or local fixtures explicitly:
+
+```bash
+tethux virt test --provider all \
+  --images 127.0.0.1:5000/tethux/fixture-a:1,127.0.0.1:5000/tethux/fixture-b:1
 ```
 
 ## Remote execution

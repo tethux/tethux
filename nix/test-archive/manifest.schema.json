@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tethux.dev/schemas/test-archive/manifest-v1.json",
+  "title": "tethux Test Archive Manifest v1",
+  "type": "object",
+  "required": ["schema_version", "run_id", "project", "git", "timing", "runner", "summary", "files"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "run_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "project": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "repository": {"type": "string"}}
+    },
+    "source": {"type": "object"},
+    "git": {
+      "type": "object",
+      "required": ["commit_sha"],
+      "properties": {"commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "branch": {"type": "string"}, "tag": {"type": ["string", "null"]}, "dirty": {"type": "boolean"}, "commit_timestamp": {"type": "string", "format": "date-time"}}
+    },
+    "timing": {
+      "type": "object",
+      "required": ["started_at", "finished_at", "duration_ms"],
+      "properties": {"started_at": {"type": "string", "format": "date-time"}, "finished_at": {"type": "string", "format": "date-time"}, "duration_ms": {"type": "integer", "minimum": 0}}
+    },
+    "runner": {
+      "type": "object",
+      "required": ["device_id", "os", "architecture"],
+      "properties": {"device_id": {"type": "string"}, "os": {"type": "string"}, "architecture": {"type": "string"}}
+    },
+    "summary": {
+      "type": "object",
+      "required": ["status", "total", "passed", "failed", "skipped", "errored"],
+      "properties": {"status": {"enum": ["passed", "failed", "error", "cancelled"]}, "total": {"type": "integer", "minimum": 0}, "passed": {"type": "integer", "minimum": 0}, "failed": {"type": "integer", "minimum": 0}, "skipped": {"type": "integer", "minimum": 0}, "errored": {"type": "integer", "minimum": 0}}
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "type", "media_type", "size_bytes", "sha256", "public"],
+        "properties": {"path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.).+$"}, "type": {"type": "string"}, "media_type": {"type": "string"}, "size_bytes": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "public": {"type": "boolean"}}
+      }
+    }
+  }
+}

@@ -2,6 +2,8 @@
 
 {
   virtualisation = {
+    containers.registries.insecure = [ "127.0.0.1:5000" ];
+
     docker = {
       enable = true;
       autoPrune.enable = true;

@@ -37,9 +37,29 @@ trap cleanup EXIT
 stage_host "$host_a"
 stage_host "$host_b"
 
+image="${TETHUX_FIXTURE_IMAGE_A:-127.0.0.1:5000/tethux/fixture-a:1}"
+cross_log="${TETHUX_CI_ARCHIVE_DIR:-/tmp}/logs/topology.log"
+if [[ -z "${TETHUX_CI_ARCHIVE_DIR:-}" ]]; then
+  cross_log=/tmp/tethux-cross-link.log
+fi
+
+if [[ -n "${TETHUX_CI_ARCHIVE_DIR:-}" ]]; then
+  jq -n \
+    --arg host_a "$host_a" --arg host_b "$host_b" \
+    --arg provider_a docker --arg provider_b podman --arg image "$image" \
+    '{schema_version:1,kind:"cross-laptop",endpoints:[{host:$host_a,provider:$provider_a,address:"10.88.0.1/24"},{host:$host_b,provider:$provider_b,address:"10.88.0.2/24"}],transport:{type:"udp",port:24000},image:$image}' \
+    >"$TETHUX_CI_ARCHIVE_DIR/configs/topology.json"
+fi
+
 go run ./cmd/tethux virt link test \
   --host-a "$host_a" \
   --host-b "$host_b" \
   --provider-a docker \
   --provider-b podman \
-  --remote-binary "$remote_dir/bin/tethux"
+  --remote-binary "$remote_dir/bin/tethux" \
+  --image "$image" | tee "$cross_log"
+
+if [[ -n "${TETHUX_CI_ARCHIVE_DIR:-}" ]]; then
+  sed -n -e '/^\[host-b\] /{s///;p;b;}' -e '/^{/p' "$cross_log" \
+    >"$TETHUX_CI_ARCHIVE_DIR/artifacts/cross-link.jsonl"
+fi

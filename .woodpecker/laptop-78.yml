@@ -18,5 +18,6 @@ steps:
       - tethux-ci-nix:/nix
       - /var/cache/tethux-ci/go-build:/root/.cache/go-build
       - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
+      - /var/cache/tethux-ci/archive:/var/lib/tethux-ci/archive
     commands:
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c ./nix/scripts/remote-laptop-integration.sh ci@10.0.0.78 podman
+      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c env TETHUX_DEVICE_ID=laptop-78 TETHUX_CONTAINER_RUNTIME=podman ./nix/scripts/test-archive-run.sh laptop-78 ./nix/scripts/remote-laptop-integration.sh ci@10.0.0.78 podman
