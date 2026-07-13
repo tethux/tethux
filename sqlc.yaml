@@ -1,0 +1,23 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    queries:
+      - "./internal/ciresults/db/queries/selects.sql"
+      - "./internal/ciresults/db/queries/archive_files.sql"
+      - "./internal/ciresults/db/queries/archives.sql"
+      - "./internal/ciresults/db/queries/devices.sql"
+      - "./internal/ciresults/db/queries/features.sql"
+      - "./internal/ciresults/db/queries/projects.sql"
+      - "./internal/ciresults/db/queries/result_files.sql"
+      - "./internal/ciresults/db/queries/runs.sql"
+      - "./internal/ciresults/db/queries/test_cases.sql"
+
+    schema: "./internal/ciresults/db/migrations/000001_initial.up.sql"
+    gen:
+      go:
+        package: "sqlc"
+        out: "./internal/ciresults/db/sqlc"
+        sql_package: "database/sql"
+        emit_interface: true
+        emit_empty_slices: true
+        emit_json_tags: true

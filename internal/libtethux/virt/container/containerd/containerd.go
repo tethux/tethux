@@ -716,16 +716,17 @@ func writeNetworkFiles(cfg *container.ContainerConfig) ([]specs.Mount, error) {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Name, err)
 		}
-		configText := "127.0.0.1 localhost\n::1 localhost\n"
+		var configText strings.Builder
+		configText.WriteString("127.0.0.1 localhost\n::1 localhost\n")
 		for _, entry := range cfg.ExtraHosts {
 			host, address, ok := strings.Cut(entry, ":")
 			if !ok {
 				return nil, errs.New("containerd", errs.ErrInvalidConfig, "extra host "+entry+" must be host:address")
 			}
-			configText += address + " " + host + "\n"
+			configText.WriteString(address + " " + host + "\n")
 		}
 		path := filepath.Join(dir, "hosts")
-		if err := os.WriteFile(path, []byte(configText), 0o600); err != nil {
+		if err := os.WriteFile(path, []byte(configText.String()), 0o600); err != nil {
 			return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Name, err)
 		}
 		mounts = append(mounts, specs.Mount{Source: path, Destination: "/etc/hosts", Type: "bind", Options: []string{"rbind", "ro"}})

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tethux.dev/schemas/cross-host-link/v1.json",
+  "title": "tethux Cross-Host Link Event v1",
+  "description": "A status event emitted while configuring or testing a cross-host container network link.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "host",
+    "provider",
+    "name",
+    "address",
+    "peer",
+    "status",
+    "started_at",
+    "finished_at",
+    "duration_ms"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tethux.cross-host-link/v1"
+    },
+    "host": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+    },
+    "provider": {
+      "type": "string",
+      "enum": [
+        "docker",
+        "podman",
+        "containerd"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+    },
+    "address": {
+      "type": "string",
+      "description": "IPv4 interface address in CIDR notation.",
+      "pattern": "^(?:(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\\.){3}(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})/(?:[0-9]|[12][0-9]|3[0-2])$"
+    },
+    "peer": {
+      "type": "string",
+      "format": "ipv4"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "passed",
+        "failed",
+        "error",
+        "cancelled"
+      ]
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

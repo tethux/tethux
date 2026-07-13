@@ -25,7 +25,22 @@
           "message": {"type": ["string", "null"]},
           "failure": {"type": ["object", "null"]},
           "artifacts": {"type": "array", "items": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.).+$"}},
-          "labels": {"type": "object"}
+          "labels": {"type": "object"},
+          "source": {
+            "type": ["object", "null"],
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "symbol": {
+                "type": ["string", "null"]
+              },
+              "line": {
+                "type": ["integer", "null"],
+                "minimum": 1
+              }
+            }
+          }
         }
       }
     }

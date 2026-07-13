@@ -1,0 +1,11 @@
+DROP VIEW IF EXISTS latest_test_status_by_device;
+DROP TABLE IF EXISTS test_features;
+DROP TABLE IF EXISTS features;
+DROP TABLE IF EXISTS result_files;
+DROP TABLE IF EXISTS archive_files;
+DROP TABLE IF EXISTS test_results;
+DROP TABLE IF EXISTS test_cases;
+DROP TABLE IF EXISTS runs;
+DROP TABLE IF EXISTS archives;
+DROP TABLE IF EXISTS devices;
+DROP TABLE IF EXISTS projects;

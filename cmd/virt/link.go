@@ -113,7 +113,7 @@ func linkEndpointCmd() *cobra.Command {
 				<-ctx.Done()
 				return nil
 			}
-			for attempt := 0; attempt < 20; attempt++ {
+			for attempt := range 20 {
 				stdout, stderr, pingErr := p.Exec(ctx, node.ID, []string{"ping", "-c", "1", "-W", "1", peer}, nil, nil)
 				if pingErr == nil {
 					finishedAt = time.Now().UTC()

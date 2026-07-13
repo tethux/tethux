@@ -3,11 +3,18 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/0xveya/tethux/cmd/bridge"
 	"github.com/0xveya/tethux/cmd/virt"
 )
+
+func init() {
+	if runtime.GOOS == "windows" {
+		panic("not supported os")
+	}
+}
 
 func main() {
 	switch argv0() {

@@ -170,12 +170,17 @@
                   tcpdump
                 ];
 
-                shellHook = ''
-                  export DOCKER_HOST="''${DOCKER_HOST:-unix:///var/run/docker.sock}"
-                  export CONTAINER_HOST="''${CONTAINER_HOST:-unix:///run/podman/podman.sock}"
-                  export CONTAINERD_ADDRESS="''${CONTAINERD_ADDRESS:-/run/containerd/containerd.sock}"
-                '';
-              }
+            shellHook = ''
+              export DOCKER_HOST="''${DOCKER_HOST:-unix:///var/run/docker.sock}"
+              export CONTAINER_HOST="''${CONTAINER_HOST:-unix:///run/podman/podman.sock}"
+              export CONTAINERD_ADDRESS="''${CONTAINERD_ADDRESS:-/run/containerd/containerd.sock}"
+
+              if command -v nu >/dev/null 2>&1 && [ -z "''${IN_NIX_NUSHELL:-}" ]; then
+                export IN_NIX_NUSHELL=1
+                  exec nu
+                  fi
+                  '';
+          }
             );
           };
 

@@ -31,3 +31,5 @@ bin/
 .last_run
 /results/
 /.local/
+ingestion/
+data/
