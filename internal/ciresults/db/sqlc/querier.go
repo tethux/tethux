@@ -66,6 +66,8 @@ type Querier interface {
 	ListTestHistory(ctx context.Context, arg ListTestHistoryParams) ([]ListTestHistoryRow, error)
 	ListTestHistoryForDevice(ctx context.Context, arg ListTestHistoryForDeviceParams) ([]ListTestHistoryForDeviceRow, error)
 	ListTestsForFeature(ctx context.Context, featureID int64) ([]TestCase, error)
+	ListViewerRuns(ctx context.Context) ([]ListViewerRunsRow, error)
+	ListViewerTests(ctx context.Context) ([]ListViewerTestsRow, error)
 	MarkArchiveFailed(ctx context.Context, arg MarkArchiveFailedParams) error
 	MarkArchiveIgnored(ctx context.Context, arg MarkArchiveIgnoredParams) error
 	MarkArchiveImported(ctx context.Context, id int64) error

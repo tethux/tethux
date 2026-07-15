@@ -18,6 +18,56 @@ SELECT
 FROM
     test_results;
 
+-- name: ListViewerTests :many
+SELECT
+    tc.id,
+    tc.test_key,
+    tc.name,
+    tc.suite,
+    tc.result_kind,
+    COUNT(tr.id) AS result_count,
+    COUNT(tr.id) FILTER (
+        WHERE
+            tr.status = 'passed'
+    ) AS passed_count,
+    COUNT(tr.id) FILTER (
+        WHERE
+            tr.status IN ('failed', 'error')
+    ) AS failed_count,
+    MAX(tr.finished_at) AS last_finished_at
+FROM
+    test_cases tc
+    LEFT JOIN test_results tr ON tr.test_case_id = tc.id
+GROUP BY
+    tc.id
+ORDER BY
+    tc.test_key;
+
+-- name: ListViewerRuns :many
+SELECT
+    r.run_uid,
+    r.status,
+    r.branch,
+    r.commit_sha,
+    r.started_at,
+    r.duration_ms,
+    r.total_count,
+    r.passed_count,
+    r.failed_count,
+    r.skipped_count,
+    r.errored_count,
+    p.project_key,
+    d.device_key
+FROM
+    runs r
+    JOIN projects p ON p.id = r.project_id
+    JOIN devices d ON d.id = r.device_id
+ORDER BY
+    r.started_at DESC,
+    r.id DESC
+LIMIT
+    1000;
+
 -- name: GetLatestTestStatusByDevice :many
 WITH ranked AS (
     SELECT

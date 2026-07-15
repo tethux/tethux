@@ -392,11 +392,23 @@ func (q *Queries) GetLatestTestStatusByDevice(ctx context.Context, arg GetLatest
 
 const getViewerSummary = `-- name: GetViewerSummary :one
 SELECT
-    (SELECT COUNT(*) FROM runs) AS run_count,
+    (
+        SELECT
+            COUNT(*)
+        FROM
+            runs
+    ) AS run_count,
     COUNT(*) AS test_count,
-    COUNT(*) FILTER (WHERE status = 'passed') AS passed_count,
-    COUNT(*) FILTER (WHERE status != 'passed') AS failed_count
-FROM test_results
+    COUNT(*) FILTER (
+        WHERE
+            STATUS = 'passed'
+    ) AS passed_count,
+    COUNT(*) FILTER (
+        WHERE
+            STATUS != 'passed'
+    ) AS failed_count
+FROM
+    test_results
 `
 
 type GetViewerSummaryRow struct {
@@ -903,6 +915,156 @@ func (q *Queries) ListSlowestResultsForRun(ctx context.Context, arg ListSlowestR
 			&i.TestKey,
 			&i.TestName,
 			&i.Suite,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listViewerRuns = `-- name: ListViewerRuns :many
+SELECT
+    r.run_uid,
+    r.status,
+    r.branch,
+    r.commit_sha,
+    r.started_at,
+    r.duration_ms,
+    r.total_count,
+    r.passed_count,
+    r.failed_count,
+    r.skipped_count,
+    r.errored_count,
+    p.project_key,
+    d.device_key
+FROM
+    runs r
+    JOIN projects p ON p.id = r.project_id
+    JOIN devices d ON d.id = r.device_id
+ORDER BY
+    r.started_at DESC,
+    r.id DESC
+LIMIT
+    1000
+`
+
+type ListViewerRunsRow struct {
+	RunUid       string         `json:"run_uid"`
+	Status       string         `json:"status"`
+	Branch       sql.NullString `json:"branch"`
+	CommitSha    string         `json:"commit_sha"`
+	StartedAt    string         `json:"started_at"`
+	DurationMs   int64          `json:"duration_ms"`
+	TotalCount   int64          `json:"total_count"`
+	PassedCount  int64          `json:"passed_count"`
+	FailedCount  int64          `json:"failed_count"`
+	SkippedCount int64          `json:"skipped_count"`
+	ErroredCount int64          `json:"errored_count"`
+	ProjectKey   string         `json:"project_key"`
+	DeviceKey    string         `json:"device_key"`
+}
+
+func (q *Queries) ListViewerRuns(ctx context.Context) ([]ListViewerRunsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listViewerRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListViewerRunsRow{}
+	for rows.Next() {
+		var i ListViewerRunsRow
+		if err := rows.Scan(
+			&i.RunUid,
+			&i.Status,
+			&i.Branch,
+			&i.CommitSha,
+			&i.StartedAt,
+			&i.DurationMs,
+			&i.TotalCount,
+			&i.PassedCount,
+			&i.FailedCount,
+			&i.SkippedCount,
+			&i.ErroredCount,
+			&i.ProjectKey,
+			&i.DeviceKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listViewerTests = `-- name: ListViewerTests :many
+SELECT
+    tc.id,
+    tc.test_key,
+    tc.name,
+    tc.suite,
+    tc.result_kind,
+    COUNT(tr.id) AS result_count,
+    COUNT(tr.id) FILTER (
+        WHERE
+            tr.status = 'passed'
+    ) AS passed_count,
+    COUNT(tr.id) FILTER (
+        WHERE
+            tr.status IN ('failed', 'error')
+    ) AS failed_count,
+    MAX(tr.finished_at) AS last_finished_at
+FROM
+    test_cases tc
+    LEFT JOIN test_results tr ON tr.test_case_id = tc.id
+GROUP BY
+    tc.id
+ORDER BY
+    tc.test_key
+`
+
+type ListViewerTestsRow struct {
+	ID             int64          `json:"id"`
+	TestKey        string         `json:"test_key"`
+	Name           string         `json:"name"`
+	Suite          sql.NullString `json:"suite"`
+	ResultKind     string         `json:"result_kind"`
+	ResultCount    int64          `json:"result_count"`
+	PassedCount    int64          `json:"passed_count"`
+	FailedCount    int64          `json:"failed_count"`
+	LastFinishedAt interface{}    `json:"last_finished_at"`
+}
+
+func (q *Queries) ListViewerTests(ctx context.Context) ([]ListViewerTestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listViewerTests)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListViewerTestsRow{}
+	for rows.Next() {
+		var i ListViewerTestsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TestKey,
+			&i.Name,
+			&i.Suite,
+			&i.ResultKind,
+			&i.ResultCount,
+			&i.PassedCount,
+			&i.FailedCount,
+			&i.LastFinishedAt,
 		); err != nil {
 			return nil, err
 		}

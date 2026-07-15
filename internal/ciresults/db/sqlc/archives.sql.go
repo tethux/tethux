@@ -103,15 +103,28 @@ func (q *Queries) CreateArchive(ctx context.Context, arg CreateArchiveParams) (A
 }
 
 const createImportingArchive = `-- name: CreateImportingArchive :one
-INSERT INTO archives (
-    relative_path, file_size_bytes, file_mtime_ns, archive_sha256,
-    import_status, import_attempts, import_started_at
-) VALUES (
-    ?1, ?2,
-    ?3, ?4,
-    'importing', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-)
-RETURNING id, relative_path, file_size_bytes, file_mtime_ns, archive_sha256, import_status, import_attempts, import_error, discovered_at, import_started_at, imported_at
+INSERT INTO
+    archives (
+        relative_path,
+        file_size_bytes,
+        file_mtime_ns,
+        archive_sha256,
+        import_status,
+        import_attempts,
+        import_started_at
+    )
+VALUES
+    (
+        ?1,
+        ?2,
+        ?3,
+        ?4,
+        'importing',
+        1,
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    )
+RETURNING
+    id, relative_path, file_size_bytes, file_mtime_ns, archive_sha256, import_status, import_attempts, import_error, discovered_at, import_started_at, imported_at
 `
 
 type CreateImportingArchiveParams struct {

@@ -890,21 +890,39 @@ func (q *Queries) ListTestHistoryForDevice(ctx context.Context, arg ListTestHist
 }
 
 const upsertTestCase = `-- name: UpsertTestCase :one
-INSERT INTO test_cases (
-    project_id, test_key, name, suite, result_kind, source_file,
-    source_symbol, first_seen_at, last_seen_at
-) VALUES (
-    ?1, ?2, ?3,
-    ?4, ?5, ?6,
-    ?7, ?8, ?9
-)
-ON CONFLICT(project_id, test_key) DO UPDATE SET
+INSERT INTO
+    test_cases (
+        project_id,
+        test_key,
+        name,
+        suite,
+        result_kind,
+        source_file,
+        source_symbol,
+        first_seen_at,
+        last_seen_at
+    )
+VALUES
+    (
+        ?1,
+        ?2,
+        ?3,
+        ?4,
+        ?5,
+        ?6,
+        ?7,
+        ?8,
+        ?9
+    ) ON CONFLICT(project_id, test_key) DO
+UPDATE
+SET
     name = excluded.name,
     suite = excluded.suite,
     source_file = excluded.source_file,
     source_symbol = excluded.source_symbol,
     last_seen_at = excluded.last_seen_at
-RETURNING id, project_id, test_key, name, suite, result_kind, source_file, source_symbol, first_seen_at, last_seen_at, metadata_json
+RETURNING
+    id, project_id, test_key, name, suite, result_kind, source_file, source_symbol, first_seen_at, last_seen_at, metadata_json
 `
 
 type UpsertTestCaseParams struct {

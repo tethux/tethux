@@ -51,6 +51,22 @@ func Serve(ctx context.Context, address, dbPath string) error {
 			slog.Error("encode summary", "error", err)
 		}
 	})
+	router.Get("/api/v1/tests", func(w http.ResponseWriter, r *http.Request) {
+		tests, err := store.ListViewerTests(r.Context())
+		if err != nil {
+			http.Error(w, "query tests", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, tests)
+	})
+	router.Get("/api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		runs, err := store.ListViewerRuns(r.Context())
+		if err != nil {
+			http.Error(w, "query runs", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, runs)
+	})
 	router.Handle("/*", spaHandler(assets))
 
 	server := &http.Server{Addr: address, Handler: router, ReadHeaderTimeout: 5 * time.Second}
@@ -68,6 +84,13 @@ func Serve(ctx context.Context, address, dbPath string) error {
 		return err
 	}
 	return nil
+}
+
+func writeJSON(w http.ResponseWriter, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		slog.Error("encode response", "error", err)
+	}
 }
 
 func spaHandler(assets fs.FS) http.Handler {

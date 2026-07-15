@@ -4,3 +4,6 @@ brige:
 [] - better testing and ux
 basic compute things:
 make interface for it
+
+ci-visulaizer:
+link git commits to gh or codegerg
