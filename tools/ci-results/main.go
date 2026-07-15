@@ -5,22 +5,45 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/0xveya/tethux/internal/ciresults/db"
 	"github.com/0xveya/tethux/internal/ciresults/ingest"
+	"github.com/0xveya/tethux/tools/ci-results/viewer"
 )
 
 func main() {
-	root := flag.String(
-		"path",
-		"./ingestion/archive",
-		"path containing the archived CI results",
-	)
-	dbPath := flag.String("db", "data/ci/ci-res.db", "SQLite database path")
-	verbose := flag.Bool("verbose", false, "print every decoded ingestion event")
+	if len(os.Args) < 2 {
+		printUsage()
+		os.Exit(2)
+	}
+	var err error
+	switch os.Args[1] {
+	case "ingest":
+		err = runIngestCommand(os.Args[2:])
+	case "serve":
+		err = runServeCommand(os.Args[2:])
+	case "help", "-h", "--help":
+		printUsage()
+		return
+	default:
+		err = fmt.Errorf("unknown command %q", os.Args[1])
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ci-results: %v\n", err)
+		os.Exit(1)
+	}
+}
 
-	flag.Parse()
+func runIngestCommand(args []string) error {
+	flags := flag.NewFlagSet("ingest", flag.ContinueOnError)
+	root := flags.String("path", "./ingestion/archive", "path containing archived CI results")
+	dbPath := flags.String("db", "data/ci/ci-res.db", "SQLite database path")
+	verbose := flags.Bool("verbose", false, "print every decoded ingestion event")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 
 	started := time.Now()
 	output := os.Stdout
@@ -34,19 +57,39 @@ func main() {
 		}
 		os.Stdout = discard
 	}
-	err := run(context.Background(), *root, *dbPath)
+	err := ingestPath(context.Background(), *root, *dbPath)
 	if discard != nil {
 		os.Stdout = output
 		_ = discard.Close()
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ci-results: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 	fmt.Fprintf(output, "ingestion complete path=%s db=%s elapsed=%s\n", *root, *dbPath, time.Since(started).Round(time.Millisecond))
+	return nil
 }
 
-func run(ctx context.Context, root, dbPath string) error {
+func runServeCommand(args []string) error {
+	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	port := flags.Int("port", 8080, "HTTP port")
+	dbPath := flags.String("db", "data/ci/ci-res.db", "SQLite database path")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *port < 1 || *port > 65535 {
+		return fmt.Errorf("port must be between 1 and 65535")
+	}
+	return viewer.Serve(context.Background(), "127.0.0.1:"+strconv.Itoa(*port), *dbPath)
+}
+
+func printUsage() {
+	fmt.Fprintln(os.Stderr, "usage: ci-results <command> [options]")
+	fmt.Fprintln(os.Stderr, "commands:")
+	fmt.Fprintln(os.Stderr, "  ingest   load archived CI results into SQLite")
+	fmt.Fprintln(os.Stderr, "  serve    serve the results API and web viewer")
+}
+
+func ingestPath(ctx context.Context, root, dbPath string) error {
 	store, err := db.NewStore(dbPath)
 	if err != nil {
 		return err
@@ -111,7 +154,8 @@ func processExtractedCandidate(
 ) error {
 	fmt.Printf("extracted into %s\n", extracted.TempDir)
 
-	for runIndex, extractedRun := range extracted.Runs {
+	for runIndex := range extracted.Runs {
+		extractedRun := &extracted.Runs[runIndex]
 		fmt.Printf(
 			"  [%d/%d] variant=%s\n",
 			runIndex+1,
@@ -125,7 +169,7 @@ func processExtractedCandidate(
 		fmt.Printf("    logs:      %s\n", extractedRun.LogsDir)
 		fmt.Printf("    artifacts: %s\n", extractedRun.ArtifactsDir)
 
-		record, err := ingest.GetData(ctx, extractedRun)
+		record, err := ingest.GetData(ctx, *extractedRun)
 		if err != nil {
 			return fmt.Errorf(
 				"get data for variant %s: %w",

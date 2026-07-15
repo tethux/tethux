@@ -1,3 +1,23 @@
+-- name: GetViewerSummary :one
+SELECT
+    (
+        SELECT
+            COUNT(*)
+        FROM
+            runs
+    ) AS run_count,
+    COUNT(*) AS test_count,
+    COUNT(*) FILTER (
+        WHERE
+            STATUS = 'passed'
+    ) AS passed_count,
+    COUNT(*) FILTER (
+        WHERE
+            STATUS != 'passed'
+    ) AS failed_count
+FROM
+    test_results;
+
 -- name: GetLatestTestStatusByDevice :many
 WITH ranked AS (
     SELECT

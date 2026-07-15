@@ -195,27 +195,32 @@ func marshalJSON(value any) (string, error) {
 	}
 	return string(data), nil
 }
+
 func nullString(value string) sql.NullString {
 	return sql.NullString{String: value, Valid: value != ""}
 }
+
 func nullStringPointer(value *string) sql.NullString {
 	if value == nil {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: *value, Valid: true}
 }
+
 func nullTime(value *time.Time) sql.NullString {
 	if value == nil {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: value.Format(timeFormat), Valid: true}
 }
+
 func nullInt64(value *int64) sql.NullInt64 {
 	if value == nil {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: *value, Valid: true}
 }
+
 func nullBool(value *bool) sql.NullInt64 {
 	if value == nil {
 		return sql.NullInt64{}
@@ -225,18 +230,21 @@ func nullBool(value *bool) sql.NullInt64 {
 	}
 	return sql.NullInt64{Valid: true}
 }
+
 func boolInt(value bool) int64 {
 	if value {
 		return 1
 	}
 	return 0
 }
+
 func resultSourceFile(value *archiveformat.ResultSource) sql.NullString {
 	if value == nil {
 		return sql.NullString{}
 	}
 	return nullString(value.File)
 }
+
 func resultSourceSymbol(value *archiveformat.ResultSource) sql.NullString {
 	if value == nil {
 		return sql.NullString{}

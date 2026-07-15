@@ -39,6 +39,7 @@ type Querier interface {
 	// Normally a duplicate run should make the import idempotently stop.
 	GetRunByUID(ctx context.Context, runUid string) (Run, error)
 	GetTestResultByID(ctx context.Context, id int64) (GetTestResultByIDRow, error)
+	GetViewerSummary(ctx context.Context) (GetViewerSummaryRow, error)
 	LinkResultFile(ctx context.Context, arg LinkResultFileParams) error
 	LinkTestFeature(ctx context.Context, arg LinkTestFeatureParams) error
 	ListArchiveFilesForRun(ctx context.Context, runID int64) ([]ArchiveFile, error)

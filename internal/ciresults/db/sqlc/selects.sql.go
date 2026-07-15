@@ -390,6 +390,34 @@ func (q *Queries) GetLatestTestStatusByDevice(ctx context.Context, arg GetLatest
 	return items, nil
 }
 
+const getViewerSummary = `-- name: GetViewerSummary :one
+SELECT
+    (SELECT COUNT(*) FROM runs) AS run_count,
+    COUNT(*) AS test_count,
+    COUNT(*) FILTER (WHERE status = 'passed') AS passed_count,
+    COUNT(*) FILTER (WHERE status != 'passed') AS failed_count
+FROM test_results
+`
+
+type GetViewerSummaryRow struct {
+	RunCount    int64 `json:"run_count"`
+	TestCount   int64 `json:"test_count"`
+	PassedCount int64 `json:"passed_count"`
+	FailedCount int64 `json:"failed_count"`
+}
+
+func (q *Queries) GetViewerSummary(ctx context.Context) (GetViewerSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getViewerSummary)
+	var i GetViewerSummaryRow
+	err := row.Scan(
+		&i.RunCount,
+		&i.TestCount,
+		&i.PassedCount,
+		&i.FailedCount,
+	)
+	return i, err
+}
+
 const listCurrentFailures = `-- name: ListCurrentFailures :many
 WITH latest_runs AS (
     SELECT

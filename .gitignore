@@ -27,9 +27,28 @@ go.work
 # End of https://www.toptal.com/developers/gitignore/api/go
 /snb
 /tethux
-bin/
-.last_run
-/results/
+
+# Local task and development state
+/.air/
+/.last_run
 /.local/
-ingestion/
-data/
+/bin/
+/data/
+/ingestion/
+/results/
+/tmp/
+
+# Logs, coverage, and local databases
+*.log
+*.pid
+*.prof
+*.sqlite
+*.sqlite3
+coverage/
+coverage.out
+
+# CI viewer generated frontend output and dependencies
+/tools/ci-results/viewer/frontend/.svelte-kit/
+/tools/ci-results/viewer/frontend/build/*
+!/tools/ci-results/viewer/frontend/build/.gitkeep
+/tools/ci-results/viewer/frontend/node_modules/

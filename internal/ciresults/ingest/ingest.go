@@ -276,14 +276,6 @@ var schemaHandlers = map[string]schemaHandler{
 	"tethux.bridge-backend/v1":     decodeSchema(handleBridgeBackend),
 }
 
-type structuredLogHandler func(
-	context.Context,
-	*db.Store,
-	IngestionRecord,
-	EventSource,
-	[]byte,
-) error
-
 func dispatchStructuredLogRecord(
 	ctx context.Context,
 	store *db.Store,

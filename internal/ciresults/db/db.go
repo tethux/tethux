@@ -76,7 +76,7 @@ PRAGMA busy_timeout = 5000;
 }
 
 func migrateUp(db *sql.DB) error {
-	legacy, err := prepareLegacyMigrationState(db)
+	legacy, err := prepareLegacyMigrationState(context.Background(), db)
 	if err != nil {
 		return err
 	}
@@ -104,8 +104,8 @@ func migrateUp(db *sql.DB) error {
 	return nil
 }
 
-func prepareLegacyMigrationState(db *sql.DB) (bool, error) {
-	rows, err := db.Query(`PRAGMA table_info(schema_migrations)`)
+func prepareLegacyMigrationState(ctx context.Context, db *sql.DB) (bool, error) {
+	rows, err := db.QueryContext(ctx, `PRAGMA table_info(schema_migrations)`)
 	if err != nil {
 		return false, fmt.Errorf("inspect migration table: %w", err)
 	}
@@ -130,7 +130,7 @@ func prepareLegacyMigrationState(db *sql.DB) (bool, error) {
 	if !found || hasDirty {
 		return false, nil
 	}
-	if _, err := db.Exec(`DROP TABLE schema_migrations`); err != nil {
+	if _, err := db.ExecContext(ctx, `DROP TABLE schema_migrations`); err != nil {
 		return false, fmt.Errorf("remove legacy migration table: %w", err)
 	}
 	return true, nil

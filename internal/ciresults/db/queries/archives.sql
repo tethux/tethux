@@ -39,15 +39,28 @@ RETURNING
     *;
 
 -- name: CreateImportingArchive :one
-INSERT INTO archives (
-    relative_path, file_size_bytes, file_mtime_ns, archive_sha256,
-    import_status, import_attempts, import_started_at
-) VALUES (
-    sqlc.arg(relative_path), sqlc.arg(file_size_bytes),
-    sqlc.narg(file_mtime_ns), sqlc.narg(archive_sha256),
-    'importing', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-)
-RETURNING *;
+INSERT INTO
+    archives (
+        relative_path,
+        file_size_bytes,
+        file_mtime_ns,
+        archive_sha256,
+        import_status,
+        import_attempts,
+        import_started_at
+    )
+VALUES
+    (
+        sqlc.arg(relative_path),
+        sqlc.arg(file_size_bytes),
+        sqlc.narg(file_mtime_ns),
+        sqlc.narg(archive_sha256),
+        'importing',
+        1,
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    )
+RETURNING
+    *;
 
 -- Use this when rescanning files that may already be known.
 -- It deliberately does not reset successfully imported archives.

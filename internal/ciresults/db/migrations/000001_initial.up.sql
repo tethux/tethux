@@ -229,7 +229,15 @@ CREATE TABLE archive_files (
     UNIQUE (run_id, archive_path),
     CHECK (size_bytes >= 0),
     CHECK (is_public IN (0, 1)),
-    CHECK (file_type IN ('artifact', 'config', 'log', 'packet_capture', 'results')),
+    CHECK (
+        file_type IN (
+            'artifact',
+            'config',
+            'log',
+            'packet_capture',
+            'results'
+        )
+    ),
     CHECK (length(sha256) = 64),
     CHECK (sha256 NOT GLOB '*[^0-9a-f]*'),
     CHECK (

@@ -1,19 +1,37 @@
 -- name: UpsertTestCase :one
-INSERT INTO test_cases (
-    project_id, test_key, name, suite, result_kind, source_file,
-    source_symbol, first_seen_at, last_seen_at
-) VALUES (
-    sqlc.arg(project_id), sqlc.arg(test_key), sqlc.arg(name),
-    sqlc.narg(suite), sqlc.arg(result_kind), sqlc.narg(source_file),
-    sqlc.narg(source_symbol), sqlc.narg(first_seen_at), sqlc.narg(last_seen_at)
-)
-ON CONFLICT(project_id, test_key) DO UPDATE SET
+INSERT INTO
+    test_cases (
+        project_id,
+        test_key,
+        name,
+        suite,
+        result_kind,
+        source_file,
+        source_symbol,
+        first_seen_at,
+        last_seen_at
+    )
+VALUES
+    (
+        sqlc.arg(project_id),
+        sqlc.arg(test_key),
+        sqlc.arg(name),
+        sqlc.narg(suite),
+        sqlc.arg(result_kind),
+        sqlc.narg(source_file),
+        sqlc.narg(source_symbol),
+        sqlc.narg(first_seen_at),
+        sqlc.narg(last_seen_at)
+    ) ON CONFLICT(project_id, test_key) DO
+UPDATE
+SET
     name = excluded.name,
     suite = excluded.suite,
     source_file = excluded.source_file,
     source_symbol = excluded.source_symbol,
     last_seen_at = excluded.last_seen_at
-RETURNING *;
+RETURNING
+    *;
 
 -- name: CreateTestResult :one
 INSERT INTO

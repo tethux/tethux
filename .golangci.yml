@@ -39,7 +39,22 @@ linters:
   exclusions:
     generated: strict
     presets: []
+    paths:
+      - tools/ci-results/viewer/frontend/node_modules
     rules:
+      # Ingestion handlers intentionally pass immutable record values through
+      # uniform dispatcher signatures; these are not hot-loop APIs.
+      - path: internal/ciresults/ingest/
+        linters:
+          - gocritic
+        text: "hugeParam|rangeValCopy|unnamedResult"
+
+      # Archive paths are constrained by safeArchivePath/artifactPath before
+      # opening, and extraction permissions come from the trusted CI archive.
+      - path: internal/ciresults/ingest/(extract|ingest|ingestConfig|ingestLog)\.go
+        linters:
+          - gosec
+
       # Allow password/access token fields in API schemas
       - linters:
           - gosec

@@ -1,0 +1,38 @@
+root = "."
+tmp_dir = ".air"
+
+[build]
+cmd = "mise run build:viewer-frontend && go build -o ./.air/ci-results ./tools/ci-results"
+full_bin = "./.air/ci-results serve -db ./data/ci/ci-res.db -port ${PORT:-8080}"
+delay = 500
+exclude_dir = [
+  "tools/ci-results/viewer/frontend/.svelte-kit",
+  "tools/ci-results/viewer/frontend/build",
+  "tools/ci-results/viewer/frontend/node_modules",
+]
+exclude_regex = ["_test\\.go$"]
+include_dir = ["internal/ciresults", "tools/ci-results"]
+include_ext = ["css", "go", "html", "js", "json", "sql", "svelte", "ts"]
+kill_delay = "2s"
+log = ".air/build-errors.log"
+send_interrupt = true
+stop_on_error = true
+
+[color]
+app = ""
+build = "yellow"
+main = "magenta"
+runner = "green"
+watcher = "cyan"
+
+[log]
+main_only = false
+silent = false
+time = true
+
+[misc]
+clean_on_exit = true
+
+[screen]
+clear_on_rebuild = false
+keep_scroll = true
