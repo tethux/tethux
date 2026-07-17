@@ -2,7 +2,7 @@
   import VirtualList from '@humanspeak/svelte-virtual-list';
   import CommitLink from '$lib/components/CommitLink.svelte';
   import { sourceRepositories } from '$lib/repositories';
-  import type { Run } from '$lib/api/types';
+  import { nullStringValue, type Run } from '$lib/api/types';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -55,7 +55,7 @@
               <span class="source">
                 <span>{run.device_key}</span>
                 <span>·</span>
-                <span>{run.branch.Valid ? run.branch.String : 'detached'}</span>
+                <span>{nullStringValue(run.branch) ?? 'detached'}</span>
               </span>
             </div>
 

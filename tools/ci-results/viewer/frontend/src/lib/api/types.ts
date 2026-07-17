@@ -1,9 +1,17 @@
-/** Shapes returned by the CI viewer API. */
+type NullString = {
+  String: string;
+  Valid: boolean;
+};
+
+export function nullStringValue(value: NullString): string | null {
+  return value.Valid ? value.String : null;
+}
+
 export type Test = {
   id: number;
   test_key: string;
   name: string;
-  suite: string | null;
+  suite: NullString;
   result_kind: string;
   result_count: number;
   passed_count: number;
@@ -14,14 +22,7 @@ export type Test = {
 export type Run = {
   run_uid: string;
   status: string;
-  /**
-   * `sql.NullString` is encoded by the Go API as an object rather than a JSON
-   * string. `Valid` distinguishes a detached run from an empty branch name.
-   */
-  branch: {
-    String: string;
-    Valid: boolean;
-  };
+  branch: NullString;
   commit_sha: string;
   started_at: string;
   duration_ms: number;

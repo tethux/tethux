@@ -1,6 +1,7 @@
 <script lang="ts">
   import VirtualList from '@humanspeak/svelte-virtual-list';
   import type { Test } from '$lib/api/types';
+  import { nullStringValue } from '$lib/api/types';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -8,11 +9,15 @@
 
   let shown = $derived(
     data.tests.filter((test) =>
-      `${test.test_key} ${test.name} ${test.suite ?? ''}`
+      `${test.test_key} ${test.name} ${nullStringValue(test.suite) ?? ''}`
         .toLowerCase()
         .includes(filter.trim().toLowerCase())
     )
   );
+  $effect(() => {
+    console.log('tests:', data.tests);
+    console.log('first suite:', data.tests[0]?.suite);
+  });
 </script>
 
 <svelte:head>
@@ -61,7 +66,7 @@
 
             <div>
               <span>{test.result_kind}</span>
-              <small>{test.suite ?? 'no suite'}</small>
+              <small>{nullStringValue(test.suite) ?? 'no suite'}</small>
             </div>
 
             <div>

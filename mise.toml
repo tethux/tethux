@@ -26,16 +26,16 @@ depends = ["fmt:go", "fmt:sql", "fmt:web"]
 [tasks."fmt:go"]
 description = "Format Go source"
 run = [
-    "rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**' | xargs goimports -w",
-    "rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**' | xargs gofumpt -w",
-    "go mod tidy",
+	"rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**' | xargs goimports -w",
+	"rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**' | xargs gofumpt -w",
+	"go mod tidy",
 ]
 
 [tasks."fmt:sql"]
 description = "Format SQL queries and migrations"
 run = [
-    "sleek 'internal/ciresults/db/queries/*.sql'",
-    "sleek 'internal/ciresults/db/migrations/*.sql'",
+	"sleek 'internal/ciresults/db/queries/*.sql'",
+	"sleek 'internal/ciresults/db/migrations/*.sql'",
 ]
 
 [tasks."fmt:web"]
@@ -196,7 +196,7 @@ cleanup_viewer() {
 trap cleanup_viewer EXIT INT TERM
 
 cd tools/ci-results/viewer/frontend
-bun run dev --host 127.0.0.1 --port "${PORT:-5173}"
+bun run dev --host localhost --port "${PORT:-5173}"
 '''
 
 [tasks."ci:normal"]
