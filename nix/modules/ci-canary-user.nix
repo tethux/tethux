@@ -9,10 +9,16 @@ let
   ];
 in
 {
+  # Fleet accounts and their key-only access are fully declarative. This also
+  # prevents stale account state from surviving a reinstall or reprovision.
+  users.mutableUsers = false;
   users.groups.ci = { };
 
   users.users.veya = {
     isNormalUser = true;
+    # A deliberately unknown password hash keeps PAM from treating this as a
+    # locked account while SSH password authentication stays disabled.
+    hashedPassword = "$6$7UaK2Hl5C/diNGDw$cXRY8FXz9GKuIww8/0WAZP81RznU2ckuGnXYtCsgPC2VL8xbWIJLFzodAcgHeJeF.3LqgfDZlsrccEzpBTNkO0";
     extraGroups = [
       "wheel"
       "networkmanager"
@@ -27,6 +33,7 @@ in
 
   users.users.ci = {
     isNormalUser = true;
+    hashedPassword = "$6$7UaK2Hl5C/diNGDw$cXRY8FXz9GKuIww8/0WAZP81RznU2ckuGnXYtCsgPC2VL8xbWIJLFzodAcgHeJeF.3LqgfDZlsrccEzpBTNkO0";
     group = "ci";
     description = "tethux canary test runner";
     extraGroups = [

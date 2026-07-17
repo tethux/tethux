@@ -63,8 +63,10 @@
       nixosConfigurations = {
         canary-10-0-0-100 = nixosSystem ./nix/hosts/canary-10-0-0-100.nix;
         canary-former-10-0-0-12 = nixosSystem ./nix/hosts/canary-former-10-0-0-12.nix;
+        canary-proxmox-vm-9901 = nixosSystem ./nix/hosts/canary-proxmox-vm-9901.nix;
         canary-10-0-0-100-install = nixosInstallSystem ./nix/hosts/canary-10-0-0-100.nix;
         canary-former-10-0-0-12-install = nixosInstallSystem ./nix/hosts/canary-former-10-0-0-12.nix;
+        canary-proxmox-vm-9901-install = nixosInstallSystem ./nix/hosts/canary-proxmox-vm-9901.nix;
       };
     }
     // flake-utils.lib.eachSystem [ system ] (
@@ -76,7 +78,10 @@
         };
         goInputs = {
           src = ./.;
-          vendorHash = "sha256-zo8OVMOf3TC5lbZfsE2wSi5N8xa+tnMcOuAg40DjFrI=";
+          postPatch = ''
+            rm -rf vendor
+          '';
+          vendorHash = "sha256-uvs9f03W88gZn6UgNJiLyxOdLtFlvsFaSxVw5Fkuc5c=";
           nativeBuildInputs = [ pkgs.pkg-config ];
           buildInputs = [ pkgs.libpcap ];
         };

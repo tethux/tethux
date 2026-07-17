@@ -1,0 +1,22 @@
+when:
+  - event: manual
+
+labels:
+  host: nas
+  tethux-canary: "true"
+  privileged: "true"
+
+depends_on:
+  - normal
+
+steps:
+  optional-proxmox-provider-and-networking:
+    image: nixos/nix
+    pull: false
+    volumes:
+      - tethux-ci-nix:/nix
+      - /var/cache/tethux-ci/go-build:/root/.cache/go-build
+      - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
+      - /var/cache/tethux-ci/archive:/var/lib/tethux-ci/archive
+    commands:
+      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c env TETHUX_DEVICE_ID=proxmox-vm-9901 TETHUX_CONTAINER_RUNTIME=docker TETHUX_SSH_JUMP=root@100.115.225.73 ./nix/scripts/test-archive-run.sh proxmlab-9901 ./nix/scripts/remote-laptop-integration.sh ci@192.168.0.107 docker

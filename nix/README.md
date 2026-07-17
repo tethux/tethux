@@ -16,6 +16,9 @@ was 256,582 of 353,400 tokens.
 
 - `canary-10-0-0-100`: current SSH host at `10.0.0.100`.
 - `canary-former-10-0-0-12`: old `10.0.0.12`, currently discovered as `10.0.0.78`.
+- `canary-proxmox-vm-9901`: optional KVM guest on a remote Proxmox host;
+  bootstrap access is `root@192.168.0.107` through the Tailscale jump host
+  `root@100.115.225.73`.
 
 Run host discovery:
 
@@ -28,6 +31,7 @@ Audit a host after SSH access works:
 ```bash
 HOST=veya@10.0.0.100 mise run host:audit
 HOST=veya@10.0.0.78 mise run host:audit
+mise run host:audit:proxmox-vm-9901
 ```
 
 ## Before Installing
@@ -46,6 +50,24 @@ TETHUX_INSTALL_DISK=/dev/nvme0n1 nix/scripts/install-canary.sh \
   veya@10.0.0.100 \
   canary-10-0-0-100
 ```
+
+For Proxmox VM 9901, the installer must target the guest's 80 GiB `/dev/sda`,
+never the Proxmox host's physical disk. The size and KVM assertions make a
+mistargeted install fail before the destructive countdown:
+
+```bash
+TETHUX_INSTALL_DISK=/dev/sda \
+TETHUX_SSH_JUMP=root@100.115.225.73 \
+TETHUX_EXPECT_VIRTUALIZATION=kvm \
+TETHUX_EXPECT_DISK_SIZE_BYTES=85899345920 \
+  nix/scripts/install-canary.sh \
+  root@192.168.0.107 canary-proxmox-vm-9901
+```
+
+The installed guest enables Tailscale but does not embed an auth key. Complete
+tailnet enrollment interactively with `sudo tailscale up`; once it has a stable
+Tailscale address, CI can replace the bootstrap ProxyJump route with that
+direct address.
 
 ## Tests
 
@@ -109,6 +131,12 @@ web UI reports each concern independently without exhausting Docker networks:
 Both laptop workflows also run byte-exact UDP, raw-socket, pcap, and TAP
 forwarding tests. Libpcap independently observes the frames; structured
 packet metrics and a pcap artifact are included in each archive.
+
+`proxmox-vm-9901` is a fifth, manual-only workflow. It runs the same provider
+and networking integration suite through the Proxmox SSH jump host and archives
+the result under stable device ID `proxmox-vm-9901`. It is deliberately absent
+from push and pull-request events so remote-site availability cannot block the
+required fleet.
 
 The NAS runner persists `/nix` in the Docker-managed `tethux-ci-nix` volume;
 Docker seeds it from the Nix image on first use instead of hiding that image's

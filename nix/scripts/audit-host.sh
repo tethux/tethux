@@ -2,8 +2,12 @@
 set -euo pipefail
 
 host="${1:?usage: nix/scripts/audit-host.sh user@host}"
+ssh_opts=(-o BatchMode=yes -o ConnectTimeout=8)
+if [[ -n "${TETHUX_SSH_JUMP:-}" ]]; then
+  ssh_opts+=(-J "$TETHUX_SSH_JUMP")
+fi
 
-ssh -o BatchMode=yes -o ConnectTimeout=8 "$host" '
+ssh "${ssh_opts[@]}" "$host" '
 set -eu
 echo "== identity =="
 hostname

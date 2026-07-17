@@ -1,6 +1,6 @@
 module github.com/0xveya/tethux
 
-go 1.26.5
+go 1.26.4
 
 require (
 	github.com/containerd/containerd/v2 v2.3.2

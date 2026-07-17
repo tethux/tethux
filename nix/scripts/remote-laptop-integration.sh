@@ -13,6 +13,9 @@ ssh_opts=(
   -o StrictHostKeyChecking=accept-new
   -o UserKnownHostsFile=/tmp/tethux-ci-known-hosts
 )
+if [[ -n "${TETHUX_SSH_JUMP:-}" ]]; then
+  ssh_opts+=(-J "$TETHUX_SSH_JUMP")
+fi
 
 ssh "${ssh_opts[@]}" "$host" "rm -rf '$remote_dir' && mkdir -p '$remote_dir'"
 tar --exclude=.git --exclude=.jj --exclude=bin --exclude=results -czf - . | \

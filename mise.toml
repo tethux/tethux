@@ -246,3 +246,7 @@ run = "./nix/scripts/discover-hosts.sh ${SUBNET:-}"
 [tasks."host:audit"]
 description = "Audit a canary host over SSH, e.g. HOST=veya@10.0.0.100 mise run host:audit"
 run = "./nix/scripts/audit-host.sh ${HOST:?set HOST=user@host}"
+
+[tasks."host:audit:proxmox-vm-9901"]
+description = "Audit optional Proxmox VM 9901 through its Tailscale-reachable jump host"
+run = "TETHUX_SSH_JUMP=${TETHUX_SSH_JUMP:-root@100.115.225.73} ./nix/scripts/audit-host.sh ${HOST:-ci@192.168.0.107}"
