@@ -41,7 +41,13 @@ run = [
 [tasks."fmt:web"]
 description = "Format the CI viewer frontend"
 dir = "tools/ci-results/viewer/frontend"
+depends = ["install:web"]
 run = "bun run format"
+
+[tasks."install:web"]
+description = "Install locked CI viewer frontend dependencies"
+dir = "tools/ci-results/viewer/frontend"
+run = "bun install --frozen-lockfile"
 
 [tasks."dev:container-udp"]
 description = "Run UDP container topology"
@@ -133,7 +139,8 @@ go build -o ./bin/tethux-virt ./cmd/virt/main
 [tasks."build:viewer-frontend"]
 description = "Build the SvelteKit SPA for embedding"
 dir = "tools/ci-results/viewer/frontend"
-run = ["bun install --frozen-lockfile", "bun run build", "touch build/.gitkeep"]
+depends = ["install:web"]
+run = ["bun run build", "touch build/.gitkeep"]
 
 [tasks."build:ci-results"]
 description = "Build the combined CI ingestion and viewer CLI"
@@ -162,7 +169,26 @@ run = "golangci-lint run -c .golangci.yml"
 [tasks."lint:web"]
 description = "Lint and type-check the CI viewer frontend"
 dir = "tools/ci-results/viewer/frontend"
-run = ["bun run lint", "bun run check", "bun run format:check"]
+depends = ["install:web"]
+run = "bun run lint"
+
+[tasks."check:format"]
+description = "Check Go and web formatting without changing files"
+depends = ["check:format:go", "check:format:web"]
+
+[tasks."check:format:go"]
+description = "Check Go formatting and module metadata"
+run = [
+	"test -z \"$(goimports -l $(rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**'))\"",
+	"test -z \"$(gofumpt -l $(rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**'))\"",
+	"go mod tidy -diff",
+]
+
+[tasks."check:format:web"]
+description = "Check CI viewer frontend formatting"
+dir = "tools/ci-results/viewer/frontend"
+depends = ["install:web"]
+run = "bun run format:check"
 
 [tasks.test]
 description = "Run all tests"
@@ -175,6 +201,7 @@ run = "go list ./... | rg -v '/node_modules/' | xargs go test"
 [tasks."test:web"]
 description = "Validate the CI viewer frontend"
 dir = "tools/ci-results/viewer/frontend"
+depends = ["install:web"]
 run = "bun run check"
 
 [tasks.sqlc]
@@ -201,7 +228,11 @@ bun run dev --host localhost --port "${PORT:-5173}"
 
 [tasks."ci:normal"]
 description = "Run the unprivileged CI path"
-depends = ["lint", "test", "build"]
+depends = ["check:format", "lint", "test", "build"]
+
+[tasks.ci]
+description = "Run every unprivileged Go and web CI check"
+depends = ["ci:normal"]
 
 [tasks."ci:canary:providers"]
 description = "Run privileged container provider smoke tests"

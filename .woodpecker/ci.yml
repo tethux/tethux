@@ -1,0 +1,14 @@
+when:
+  - event: push
+  - event: pull_request
+  - event: manual
+
+steps:
+  go-and-web-checks:
+    image: golang:1.26-alpine
+    commands:
+      - apk add --no-cache bash build-base curl git libpcap-dev
+      - curl https://mise.run | sh
+      - export PATH="$HOME/.local/bin:$PATH"
+      - mise install
+      - mise run ci

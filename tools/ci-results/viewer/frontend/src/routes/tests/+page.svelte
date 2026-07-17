@@ -65,8 +65,8 @@
             </div>
 
             <div>
-              <span>{test.result_kind}</span>
-              <small>{nullStringValue(test.suite) ?? 'no suite'}</small>
+              <span>{nullStringValue(test.suite) ?? 'no suite'}</span>
+              <!-- <small>{nullStringValue(test.suite) ?? 'no suite'}</small> -->
             </div>
 
             <div>

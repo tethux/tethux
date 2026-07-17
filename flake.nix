@@ -105,23 +105,34 @@
               CGO_LDFLAGS = "-L${pkgs.libpcap.lib}/lib -lpcap";
               LD_LIBRARY_PATH = "${pkgs.libpcap.lib}/lib";
             };
+            miseTaskTools = with pkgs; [
+              air
+              bun
+              go
+              gofumpt
+              golangci-lint
+              gotools
+              mise
+              ripgrep
+              sleek
+              sqlc
+              sqlite
+            ];
           in
           {
             ci = pkgs.mkShell (
               cgoPcapEnv
               // {
-                packages = with pkgs; [
+                packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   git
-                  go
-                  golangci-lint
                   jq
                   libpcap
                   openssh
                   pkg-config
                   util-linux
                   zstd
-                ];
+                ]);
               }
             );
 
@@ -154,26 +165,21 @@
             default = pkgs.mkShell (
               cgoPcapEnv
               // {
-                packages = with pkgs; [
+                packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   bridge-utils
                   curl
                   dynamips
                   git
-                  go
-                  golangci-lint
-                  gofumpt
-                  gotools
                   iproute2
                   jq
                   libpcap
-                  mise
                   nmap
                   pkg-config
                   qemu_kvm
                   socat
                   tcpdump
-                ];
+                ]);
 
             shellHook = ''
               export DOCKER_HOST="''${DOCKER_HOST:-unix:///var/run/docker.sock}"

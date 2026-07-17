@@ -1,5 +1,6 @@
 <script lang="ts">
   import VirtualList from '@humanspeak/svelte-virtual-list';
+  import { resolve } from '$app/paths';
   import CommitLink from '$lib/components/CommitLink.svelte';
   import { sourceRepositories } from '$lib/repositories';
   import { nullStringValue, type Run } from '$lib/api/types';
@@ -14,7 +15,10 @@
 
 <header class="page-header">
   <h1>Runs</h1>
-  <p class="lede">Virtualized history of {data.runs.length} ingested runs.</p>
+
+  <p class="lede">
+    Virtualized history of {data.runs.length} ingested runs.
+  </p>
 </header>
 
 {#if data.error}
@@ -40,7 +44,13 @@
         viewportLabel="Run history"
       >
         {#snippet renderItem(run: Run)}
-          <article>
+          <article class="run-row">
+            <a
+              class="row-link"
+              href={resolve(`/run/${run.run_uid}`)}
+              aria-label={`Open run ${run.run_uid}`}
+            ></a>
+
             <div>
               <b class:failed={run.status !== 'passed'}>
                 {run.status}
@@ -60,7 +70,9 @@
             </div>
 
             <div>
-              <strong>{run.passed_count}/{run.total_count}</strong>
+              <strong>
+                {run.passed_count}/{run.total_count}
+              </strong>
 
               <span>
                 {run.duration_ms} ms · {run.started_at}
@@ -79,7 +91,7 @@
   }
 
   .columns,
-  article {
+  .run-row {
     display: grid;
     grid-template-columns: 1.1fr 2fr 1.5fr;
     gap: 16px;
@@ -92,17 +104,14 @@
     font-size: 12px;
   }
 
-  /*
-   * The virtualizer must be inside an element with a real height.
-   * This replaces your old viewportHeight = 532.
-   */
   .virtual-list {
     width: 100%;
     height: 532px;
     overflow: hidden;
   }
 
-  article {
+  .run-row {
+    position: relative;
     box-sizing: border-box;
     width: 100%;
     min-height: 76px;
@@ -110,28 +119,60 @@
     padding: 10px 14px;
     border-bottom: 1px solid #ddd;
     background: #fff;
+    cursor: pointer;
   }
 
-  article div {
-    min-width: 0;
+  .run-row:hover {
+    background: #f8f8f8;
+  }
+
+  .row-link {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .run-row > div {
+    position: relative;
+    z-index: 1;
     display: grid;
+    min-width: 0;
     gap: 3px;
+    pointer-events: none;
   }
 
-  article span {
-    color: #777;
+  .run-row :global(a:not(.row-link)) {
+    position: relative;
+    z-index: 2;
+    pointer-events: auto;
+  }
+
+  .run-row:has(.row-link:focus-visible) {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+  }
+
+  .run-row span {
     overflow: hidden;
+    color: #777;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  article b {
+  .run-row b {
     width: max-content;
     color: #315c2b;
   }
 
-  article b.failed {
+  .run-row b.failed {
     color: #8a3028;
+  }
+
+  .source {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 5px;
   }
 
   .error {
@@ -153,15 +194,9 @@
       min-height: 400px;
     }
 
-    article {
+    .run-row {
       grid-template-columns: 1fr;
       min-height: 112px;
     }
-  }
-  .source {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    min-width: 0;
   }
 </style>

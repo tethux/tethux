@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -66,6 +67,75 @@ func Serve(ctx context.Context, address, dbPath string) error {
 			return
 		}
 		writeJSON(w, runs)
+	})
+	router.Get("/api/v1/run/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		run, err := store.GetRunByUID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "query run", http.StatusInternalServerError)
+			return
+		}
+		results, err := store.ListResultsForRun(r.Context(), run.ID)
+		if err != nil {
+			http.Error(w, "query test results", http.StatusInternalServerError)
+			return
+		}
+		files, err := store.ListArchiveFilesForRun(r.Context(), run.ID)
+		if err != nil {
+			http.Error(w, "query run files", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, struct {
+			Run   any `json:"run"`
+			Tests any `json:"tests"`
+			Files any `json:"files"`
+		}{run, results, files})
+	})
+	router.Get("/api/v1/file/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+		if err != nil {
+			http.Error(w, "invalid file id", http.StatusBadRequest)
+			return
+		}
+		file, err := store.GetArchiveFileByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
+
+		var manifest, software, environment string
+		if queryErr := store.DB.QueryRowContext(r.Context(), `SELECT manifest_json, software_json, environment_json FROM runs WHERE id = ?`, file.RunID).Scan(&manifest, &software, &environment); queryErr != nil {
+			http.Error(w, "query file data", http.StatusInternalServerError)
+			return
+		}
+		content := any(nil)
+		available := true
+		switch file.ArchivePath {
+		case "manifest.json":
+			content = json.RawMessage(manifest)
+		case "results.json":
+			results, resultsErr := store.ListResultsForRun(r.Context(), file.RunID)
+			err = resultsErr
+			content = map[string]any{"schema_version": 1, "run_id": file.RunUid, "tests": results}
+			if err != nil {
+				http.Error(w, "query result data", http.StatusInternalServerError)
+				return
+			}
+		default:
+			available = false
+			metadata := map[string]any{
+				"message":    "This archive entry is indexed, but its bytes are not retained in SQLite.",
+				"archive":    file.ArchiveRelativePath,
+				"sha256":     file.Sha256,
+				"media_type": file.MediaType,
+				"size_bytes": file.SizeBytes,
+			}
+			if file.FileType == "config" {
+				metadata["run_metadata"] = map[string]any{"software": json.RawMessage(software), "environment": json.RawMessage(environment)}
+			}
+			content = metadata
+		}
+		writeJSON(w, map[string]any{"file": file, "available": available, "content": content})
 	})
 	router.Handle("/*", spaHandler(assets))
 

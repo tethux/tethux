@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Test, Lint, and Build
+    name: Format, Lint, Test, and Build
     runs-on: ubuntu-latest
     steps:
       - name: Install system dependencies
@@ -25,11 +25,5 @@ jobs:
           install: true
           cache: true
 
-      - name: Run linter
-        run: mise run lint
-
-      - name: Run tests
-        run: mise run test
-
-      - name: Build test
-        run: mise run build
+      - name: Run all Go and web checks
+        run: mise run ci
