@@ -33,6 +33,32 @@ type ArchiveFile struct {
 	IsPublic    int64  `json:"is_public"`
 }
 
+type ArtifactExplorer struct {
+	ArchiveFileID int64          `json:"archive_file_id"`
+	RunID         int64          `json:"run_id"`
+	RunUid        string         `json:"run_uid"`
+	ProjectID     int64          `json:"project_id"`
+	ProjectKey    string         `json:"project_key"`
+	ProjectName   sql.NullString `json:"project_name"`
+	Repository    sql.NullString `json:"repository"`
+	DeviceID      int64          `json:"device_id"`
+	DeviceKey     string         `json:"device_key"`
+	DeviceName    sql.NullString `json:"device_name"`
+	Workflow      sql.NullString `json:"workflow"`
+	Job           sql.NullString `json:"job"`
+	CommitSha     string         `json:"commit_sha"`
+	Branch        sql.NullString `json:"branch"`
+	Tag           sql.NullString `json:"tag"`
+	RunStartedAt  string         `json:"run_started_at"`
+	RunStatus     string         `json:"run_status"`
+	ArchivePath   string         `json:"archive_path"`
+	FileType      string         `json:"file_type"`
+	MediaType     string         `json:"media_type"`
+	SizeBytes     int64          `json:"size_bytes"`
+	Sha256        string         `json:"sha256"`
+	IsPublic      int64          `json:"is_public"`
+}
+
 type Device struct {
 	ID              int64          `json:"id"`
 	DeviceKey       string         `json:"device_key"`
@@ -49,6 +75,61 @@ type Device struct {
 	CreatedAt       string         `json:"created_at"`
 }
 
+type FailureExplorer struct {
+	ResultID         int64          `json:"result_id"`
+	Attempt          int64          `json:"attempt"`
+	RunID            int64          `json:"run_id"`
+	RunUid           string         `json:"run_uid"`
+	SchemaVersion    int64          `json:"schema_version"`
+	ProjectID        int64          `json:"project_id"`
+	ProjectKey       string         `json:"project_key"`
+	ProjectName      sql.NullString `json:"project_name"`
+	Repository       sql.NullString `json:"repository"`
+	DeviceID         int64          `json:"device_id"`
+	DeviceKey        string         `json:"device_key"`
+	DeviceName       sql.NullString `json:"device_name"`
+	DeviceOs         sql.NullString `json:"device_os"`
+	DeviceOsVersion  sql.NullString `json:"device_os_version"`
+	DeviceArch       sql.NullString `json:"device_arch"`
+	SourceType       sql.NullString `json:"source_type"`
+	SourceProvider   sql.NullString `json:"source_provider"`
+	Workflow         sql.NullString `json:"workflow"`
+	Job              sql.NullString `json:"job"`
+	TriggerName      sql.NullString `json:"trigger_name"`
+	SourceAttempt    int64          `json:"source_attempt"`
+	CommitSha        string         `json:"commit_sha"`
+	Branch           sql.NullString `json:"branch"`
+	Tag              sql.NullString `json:"tag"`
+	GitDirty         sql.NullInt64  `json:"git_dirty"`
+	CommitTimestamp  sql.NullString `json:"commit_timestamp"`
+	RunStartedAt     string         `json:"run_started_at"`
+	RunFinishedAt    string         `json:"run_finished_at"`
+	RunDurationMs    int64          `json:"run_duration_ms"`
+	RunStatus        string         `json:"run_status"`
+	TestCaseID       int64          `json:"test_case_id"`
+	TestKey          string         `json:"test_key"`
+	TestName         string         `json:"test_name"`
+	Suite            sql.NullString `json:"suite"`
+	ResultKind       string         `json:"result_kind"`
+	SourceFile       sql.NullString `json:"source_file"`
+	SourceSymbol     sql.NullString `json:"source_symbol"`
+	ResultStatus     string         `json:"result_status"`
+	ResultStartedAt  sql.NullString `json:"result_started_at"`
+	ResultFinishedAt sql.NullString `json:"result_finished_at"`
+	DurationMs       sql.NullInt64  `json:"duration_ms"`
+	Message          sql.NullString `json:"message"`
+	FailureKind      sql.NullString `json:"failure_kind"`
+	FailurePhase     sql.NullString `json:"failure_phase"`
+	FailureCode      sql.NullString `json:"failure_code"`
+	ExpectedValue    sql.NullString `json:"expected_value"`
+	ActualValue      sql.NullString `json:"actual_value"`
+	StackTrace       sql.NullString `json:"stack_trace"`
+	ParametersJson   string         `json:"parameters_json"`
+	MetricsJson      string         `json:"metrics_json"`
+	LabelsJson       string         `json:"labels_json"`
+	DetailsJson      string         `json:"details_json"`
+}
+
 type Feature struct {
 	ID           int64          `json:"id"`
 	ProjectID    int64          `json:"project_id"`
@@ -57,6 +138,20 @@ type Feature struct {
 	Description  sql.NullString `json:"description"`
 	SourceFile   sql.NullString `json:"source_file"`
 	SourceSymbol sql.NullString `json:"source_symbol"`
+}
+
+type FeatureExplorer struct {
+	FeatureID           int64          `json:"feature_id"`
+	FeatureKey          string         `json:"feature_key"`
+	FeatureName         sql.NullString `json:"feature_name"`
+	FeatureDescription  sql.NullString `json:"feature_description"`
+	FeatureSourceFile   sql.NullString `json:"feature_source_file"`
+	FeatureSourceSymbol sql.NullString `json:"feature_source_symbol"`
+	ProjectID           int64          `json:"project_id"`
+	ProjectKey          string         `json:"project_key"`
+	ProjectName         sql.NullString `json:"project_name"`
+	Repository          sql.NullString `json:"repository"`
+	TestCount           int64          `json:"test_count"`
 }
 
 type LatestTestStatusByDevice struct {
@@ -82,6 +177,97 @@ type Project struct {
 	Name       sql.NullString `json:"name"`
 	Repository sql.NullString `json:"repository"`
 	CreatedAt  string         `json:"created_at"`
+}
+
+type ResultArtifactExplorer struct {
+	ResultID      int64          `json:"result_id"`
+	ResultStatus  string         `json:"result_status"`
+	Attempt       int64          `json:"attempt"`
+	Message       sql.NullString `json:"message"`
+	FailureKind   sql.NullString `json:"failure_kind"`
+	FailurePhase  sql.NullString `json:"failure_phase"`
+	FailureCode   sql.NullString `json:"failure_code"`
+	TestCaseID    int64          `json:"test_case_id"`
+	TestKey       string         `json:"test_key"`
+	TestName      string         `json:"test_name"`
+	Suite         sql.NullString `json:"suite"`
+	RunID         int64          `json:"run_id"`
+	RunUid        string         `json:"run_uid"`
+	Workflow      sql.NullString `json:"workflow"`
+	Job           sql.NullString `json:"job"`
+	CommitSha     string         `json:"commit_sha"`
+	Branch        sql.NullString `json:"branch"`
+	Tag           sql.NullString `json:"tag"`
+	RunStartedAt  string         `json:"run_started_at"`
+	ProjectID     int64          `json:"project_id"`
+	ProjectKey    string         `json:"project_key"`
+	ProjectName   sql.NullString `json:"project_name"`
+	DeviceID      int64          `json:"device_id"`
+	DeviceKey     string         `json:"device_key"`
+	DeviceName    sql.NullString `json:"device_name"`
+	Relationship  string         `json:"relationship"`
+	ArchiveFileID int64          `json:"archive_file_id"`
+	ArchivePath   string         `json:"archive_path"`
+	FileType      string         `json:"file_type"`
+	MediaType     string         `json:"media_type"`
+	SizeBytes     int64          `json:"size_bytes"`
+	Sha256        string         `json:"sha256"`
+	IsPublic      int64          `json:"is_public"`
+}
+
+type ResultExplorer struct {
+	ResultID         int64          `json:"result_id"`
+	Attempt          int64          `json:"attempt"`
+	RunID            int64          `json:"run_id"`
+	RunUid           string         `json:"run_uid"`
+	SchemaVersion    int64          `json:"schema_version"`
+	ProjectID        int64          `json:"project_id"`
+	ProjectKey       string         `json:"project_key"`
+	ProjectName      sql.NullString `json:"project_name"`
+	Repository       sql.NullString `json:"repository"`
+	DeviceID         int64          `json:"device_id"`
+	DeviceKey        string         `json:"device_key"`
+	DeviceName       sql.NullString `json:"device_name"`
+	DeviceOs         sql.NullString `json:"device_os"`
+	DeviceOsVersion  sql.NullString `json:"device_os_version"`
+	DeviceArch       sql.NullString `json:"device_arch"`
+	SourceType       sql.NullString `json:"source_type"`
+	SourceProvider   sql.NullString `json:"source_provider"`
+	Workflow         sql.NullString `json:"workflow"`
+	Job              sql.NullString `json:"job"`
+	TriggerName      sql.NullString `json:"trigger_name"`
+	SourceAttempt    int64          `json:"source_attempt"`
+	CommitSha        string         `json:"commit_sha"`
+	Branch           sql.NullString `json:"branch"`
+	Tag              sql.NullString `json:"tag"`
+	GitDirty         sql.NullInt64  `json:"git_dirty"`
+	CommitTimestamp  sql.NullString `json:"commit_timestamp"`
+	RunStartedAt     string         `json:"run_started_at"`
+	RunFinishedAt    string         `json:"run_finished_at"`
+	RunDurationMs    int64          `json:"run_duration_ms"`
+	RunStatus        string         `json:"run_status"`
+	TestCaseID       int64          `json:"test_case_id"`
+	TestKey          string         `json:"test_key"`
+	TestName         string         `json:"test_name"`
+	Suite            sql.NullString `json:"suite"`
+	ResultKind       string         `json:"result_kind"`
+	SourceFile       sql.NullString `json:"source_file"`
+	SourceSymbol     sql.NullString `json:"source_symbol"`
+	ResultStatus     string         `json:"result_status"`
+	ResultStartedAt  sql.NullString `json:"result_started_at"`
+	ResultFinishedAt sql.NullString `json:"result_finished_at"`
+	DurationMs       sql.NullInt64  `json:"duration_ms"`
+	Message          sql.NullString `json:"message"`
+	FailureKind      sql.NullString `json:"failure_kind"`
+	FailurePhase     sql.NullString `json:"failure_phase"`
+	FailureCode      sql.NullString `json:"failure_code"`
+	ExpectedValue    sql.NullString `json:"expected_value"`
+	ActualValue      sql.NullString `json:"actual_value"`
+	StackTrace       sql.NullString `json:"stack_trace"`
+	ParametersJson   string         `json:"parameters_json"`
+	MetricsJson      string         `json:"metrics_json"`
+	LabelsJson       string         `json:"labels_json"`
+	DetailsJson      string         `json:"details_json"`
 }
 
 type ResultFile struct {
@@ -125,6 +311,90 @@ type Run struct {
 	ImportedAt      string         `json:"imported_at"`
 }
 
+type RunExplorer struct {
+	RunID                  int64          `json:"run_id"`
+	RunUid                 string         `json:"run_uid"`
+	SchemaVersion          int64          `json:"schema_version"`
+	ProjectID              int64          `json:"project_id"`
+	ProjectKey             string         `json:"project_key"`
+	ProjectName            sql.NullString `json:"project_name"`
+	Repository             sql.NullString `json:"repository"`
+	DeviceID               int64          `json:"device_id"`
+	DeviceKey              string         `json:"device_key"`
+	DeviceName             sql.NullString `json:"device_name"`
+	DeviceOs               sql.NullString `json:"device_os"`
+	DeviceOsVersion        sql.NullString `json:"device_os_version"`
+	DeviceKernel           sql.NullString `json:"device_kernel"`
+	DeviceArch             sql.NullString `json:"device_arch"`
+	DeviceCpu              sql.NullString `json:"device_cpu"`
+	DeviceMemoryBytes      sql.NullInt64  `json:"device_memory_bytes"`
+	ArchiveID              int64          `json:"archive_id"`
+	ArchiveRelativePath    string         `json:"archive_relative_path"`
+	ArchiveSizeBytes       int64          `json:"archive_size_bytes"`
+	ArchiveSha256          sql.NullString `json:"archive_sha256"`
+	ImportStatus           string         `json:"import_status"`
+	ImportAttempts         int64          `json:"import_attempts"`
+	ImportError            sql.NullString `json:"import_error"`
+	ArchiveDiscoveredAt    string         `json:"archive_discovered_at"`
+	ArchiveImportStartedAt sql.NullString `json:"archive_import_started_at"`
+	ArchiveImportedAt      sql.NullString `json:"archive_imported_at"`
+	SourceType             sql.NullString `json:"source_type"`
+	SourceProvider         sql.NullString `json:"source_provider"`
+	Workflow               sql.NullString `json:"workflow"`
+	Job                    sql.NullString `json:"job"`
+	TriggerName            sql.NullString `json:"trigger_name"`
+	SourceAttempt          int64          `json:"source_attempt"`
+	CommitSha              string         `json:"commit_sha"`
+	Branch                 sql.NullString `json:"branch"`
+	Tag                    sql.NullString `json:"tag"`
+	GitDirty               sql.NullInt64  `json:"git_dirty"`
+	CommitTimestamp        sql.NullString `json:"commit_timestamp"`
+	StartedAt              string         `json:"started_at"`
+	FinishedAt             string         `json:"finished_at"`
+	DurationMs             int64          `json:"duration_ms"`
+	Status                 string         `json:"status"`
+	TotalCount             int64          `json:"total_count"`
+	PassedCount            int64          `json:"passed_count"`
+	FailedCount            int64          `json:"failed_count"`
+	SkippedCount           int64          `json:"skipped_count"`
+	ErroredCount           int64          `json:"errored_count"`
+	CancelledCount         int64          `json:"cancelled_count"`
+	PassRate               interface{}    `json:"pass_rate"`
+	SoftwareJson           string         `json:"software_json"`
+	EnvironmentJson        string         `json:"environment_json"`
+	LabelsJson             string         `json:"labels_json"`
+	ManifestJson           string         `json:"manifest_json"`
+	ImportedAt             string         `json:"imported_at"`
+}
+
+type RunFailureSummary struct {
+	RunID            int64          `json:"run_id"`
+	RunUid           string         `json:"run_uid"`
+	ProjectID        int64          `json:"project_id"`
+	ProjectKey       string         `json:"project_key"`
+	DeviceID         int64          `json:"device_id"`
+	DeviceKey        string         `json:"device_key"`
+	Workflow         sql.NullString `json:"workflow"`
+	Job              sql.NullString `json:"job"`
+	CommitSha        string         `json:"commit_sha"`
+	Branch           sql.NullString `json:"branch"`
+	StartedAt        string         `json:"started_at"`
+	RunStatus        string         `json:"run_status"`
+	FailureCount     int64          `json:"failure_count"`
+	FailedTestCount  int64          `json:"failed_test_count"`
+	FailureKindCount int64          `json:"failure_kind_count"`
+}
+
+type SavedQuery struct {
+	ID          int64          `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	SqlText     string         `json:"sql_text"`
+	IsFavorite  int64          `json:"is_favorite"`
+	CreatedAt   string         `json:"created_at"`
+	UpdatedAt   string         `json:"updated_at"`
+}
+
 type TestCase struct {
 	ID           int64          `json:"id"`
 	ProjectID    int64          `json:"project_id"`
@@ -142,6 +412,67 @@ type TestCase struct {
 type TestFeature struct {
 	TestCaseID int64 `json:"test_case_id"`
 	FeatureID  int64 `json:"feature_id"`
+}
+
+type TestFeatureExplorer struct {
+	ProjectID           int64          `json:"project_id"`
+	ProjectKey          string         `json:"project_key"`
+	ProjectName         sql.NullString `json:"project_name"`
+	TestCaseID          int64          `json:"test_case_id"`
+	TestKey             string         `json:"test_key"`
+	TestName            string         `json:"test_name"`
+	Suite               sql.NullString `json:"suite"`
+	ResultKind          string         `json:"result_kind"`
+	TestSourceFile      sql.NullString `json:"test_source_file"`
+	TestSourceSymbol    sql.NullString `json:"test_source_symbol"`
+	FeatureID           int64          `json:"feature_id"`
+	FeatureKey          string         `json:"feature_key"`
+	FeatureName         sql.NullString `json:"feature_name"`
+	FeatureDescription  sql.NullString `json:"feature_description"`
+	FeatureSourceFile   sql.NullString `json:"feature_source_file"`
+	FeatureSourceSymbol sql.NullString `json:"feature_source_symbol"`
+}
+
+type TestHistory struct {
+	TestCaseID      int64          `json:"test_case_id"`
+	TestKey         string         `json:"test_key"`
+	TestName        string         `json:"test_name"`
+	Suite           sql.NullString `json:"suite"`
+	ResultKind      string         `json:"result_kind"`
+	SourceFile      sql.NullString `json:"source_file"`
+	SourceSymbol    sql.NullString `json:"source_symbol"`
+	ProjectID       int64          `json:"project_id"`
+	ProjectKey      string         `json:"project_key"`
+	ProjectName     sql.NullString `json:"project_name"`
+	Repository      sql.NullString `json:"repository"`
+	RunID           int64          `json:"run_id"`
+	RunUid          string         `json:"run_uid"`
+	Workflow        sql.NullString `json:"workflow"`
+	Job             sql.NullString `json:"job"`
+	SourceProvider  sql.NullString `json:"source_provider"`
+	SourceAttempt   int64          `json:"source_attempt"`
+	CommitSha       string         `json:"commit_sha"`
+	Branch          sql.NullString `json:"branch"`
+	Tag             sql.NullString `json:"tag"`
+	GitDirty        sql.NullInt64  `json:"git_dirty"`
+	CommitTimestamp sql.NullString `json:"commit_timestamp"`
+	DeviceID        int64          `json:"device_id"`
+	DeviceKey       string         `json:"device_key"`
+	DeviceName      sql.NullString `json:"device_name"`
+	DeviceOs        sql.NullString `json:"device_os"`
+	DeviceOsVersion sql.NullString `json:"device_os_version"`
+	DeviceArch      sql.NullString `json:"device_arch"`
+	StartedAt       string         `json:"started_at"`
+	Attempt         int64          `json:"attempt"`
+	Status          string         `json:"status"`
+	DurationMs      sql.NullInt64  `json:"duration_ms"`
+	FailureKind     sql.NullString `json:"failure_kind"`
+	FailurePhase    sql.NullString `json:"failure_phase"`
+	FailureCode     sql.NullString `json:"failure_code"`
+	Message         sql.NullString `json:"message"`
+	ExpectedValue   sql.NullString `json:"expected_value"`
+	ActualValue     sql.NullString `json:"actual_value"`
+	StackTrace      sql.NullString `json:"stack_trace"`
 }
 
 type TestResult struct {
@@ -164,4 +495,11 @@ type TestResult struct {
 	MetricsJson    string         `json:"metrics_json"`
 	LabelsJson     string         `json:"labels_json"`
 	DetailsJson    string         `json:"details_json"`
+}
+
+type TestResultSearch struct {
+	Message       string `json:"message"`
+	StackTrace    string `json:"stack_trace"`
+	ExpectedValue string `json:"expected_value"`
+	ActualValue   string `json:"actual_value"`
 }

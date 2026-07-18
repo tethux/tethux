@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { NullString } from '$lib/api/types';
   import type { PageData } from './$types';
   import type { ArchiveFile, TestResult } from '$lib/api/types';
   import { sourceRepositories } from '$lib/repositories';
@@ -127,6 +128,11 @@
   function toggleStatus(status: string) {
     if (statusFilters.has(status)) statusFilters.delete(status);
     else statusFilters.add(status);
+  }
+  function formatSuite(suite: NullString): string {
+    if (!suite.Valid) return 'unknown';
+    if (suite.String === 'go') return 'Go Test';
+    return suite.String.replace(/-/g, ' ');
   }
 </script>
 
@@ -280,7 +286,10 @@
             </div>
             <div>
               <dt>Kind</dt>
-              <dd>{selected.result_kind.replaceAll('_', ' ')}</dd>
+              <dd>
+                {formatSuite(selected.suite)}
+              </dd>
+              <!-- <dd>{selected.result_kind.replaceAll('_', ' ')}</dd> -->
             </div>
           </dl>
 

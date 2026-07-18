@@ -11,8 +11,10 @@ sql:
       - "./internal/ciresults/db/queries/result_files.sql"
       - "./internal/ciresults/db/queries/runs.sql"
       - "./internal/ciresults/db/queries/test_cases.sql"
+      - "./internal/ciresults/db/queries/fts5.sql"
 
-    schema: "./internal/ciresults/db/migrations/000001_initial.up.sql"
+    schema: "internal/ciresults/db/migrations"
+
     gen:
       go:
         package: "sqlc"

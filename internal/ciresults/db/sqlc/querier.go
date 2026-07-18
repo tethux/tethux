@@ -74,6 +74,7 @@ type Querier interface {
 	MarkArchiveImporting(ctx context.Context, id int64) (Archive, error)
 	ResetFailedArchive(ctx context.Context, id int64) error
 	RunUIDExists(ctx context.Context, runUid string) (bool, error)
+	SearchTestResultMessages(ctx context.Context, arg SearchTestResultMessagesParams) ([]SearchTestResultMessagesRow, error)
 	UpsertArchiveFile(ctx context.Context, arg UpsertArchiveFileParams) (ArchiveFile, error)
 	UpsertDevice(ctx context.Context, arg UpsertDeviceParams) (Device, error)
 	// Use this when rescanning files that may already be known.

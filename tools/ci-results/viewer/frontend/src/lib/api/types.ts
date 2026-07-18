@@ -1,4 +1,4 @@
-type NullString = {
+export type NullString = {
   String: string;
   Valid: boolean;
 };
