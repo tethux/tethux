@@ -109,3 +109,22 @@ export type ArchiveFile = {
 };
 
 export type RunDetail = { run: RunRow; tests: TestResult[]; files: ArchiveFile[] };
+
+export type SchemaObjectKind = "table" | "view";
+
+export interface SchemaInfo {
+  objects: SchemaObject[];
+}
+
+export interface SchemaObject {
+  name: string;
+  kind: SchemaObjectKind;
+  columns: SchemaColumn[];
+}
+
+export interface SchemaColumn {
+  name: string;
+  type: string;
+  primaryKey: boolean;
+  nullable: boolean;
+}

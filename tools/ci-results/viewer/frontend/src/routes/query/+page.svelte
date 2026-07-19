@@ -2,6 +2,7 @@
   import Prism from 'prismjs';
   import 'prismjs/components/prism-sql';
   import 'prismjs/themes/prism.css';
+  import type { SchemaInfo } from '$lib/api/types';
 
   let query = $state('');
   let schema = $state('');
@@ -51,6 +52,7 @@
     window.addEventListener('pointermove', resize);
     window.addEventListener('pointerup', stop);
   }
+  let { data }: { data: PageData } = $props();
 </script>
 
 <svelte:head><title>Query builder · CI results</title></svelte:head>

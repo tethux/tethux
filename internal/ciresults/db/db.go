@@ -10,11 +10,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/0xveya/tethux/internal/ciresults/db/sqlc"
 	"github.com/golang-migrate/migrate/v4"
 	migratesqlite "github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "modernc.org/sqlite"
+
+	"github.com/0xveya/tethux/internal/ciresults/db/sqlc"
+	"github.com/0xveya/tethux/tools/ci-results/viewer/handlers/types"
 )
 
 //go:embed migrations/*.sql
@@ -141,15 +143,17 @@ func (s *Store) GetSchema(ctx context.Context) (string, error) {
 	query := `
 		SELECT sql
 		FROM sqlite_master
-		WHERE type IN ('table', 'view', 'index', 'trigger')
+		WHERE type IN ('table', 'view', 'trigger')
 		  AND name NOT LIKE 'sqlite_%'
+		  AND name NOT IN (
+			SELECT name FROM pragma_table_list WHERE type = 'shadow'
+		  )
 		  AND sql IS NOT NULL
 		ORDER BY
 			CASE type
 				WHEN 'table' THEN 1
 				WHEN 'view' THEN 2
-				WHEN 'index' THEN 3
-				WHEN 'trigger' THEN 4
+				WHEN 'trigger' THEN 3
 			END,
 			name;
 	`
@@ -187,4 +191,33 @@ func (s *Store) Close() error {
 	}
 
 	return s.DB.Close()
+}
+
+func (s *Store) GetSchemaInfo(ctx context.Context) (types.DBSchemaInfo, error) {
+	query := `select s.type, s.name, c.name as column_name, c.type as column_type from sqlite_master as s join pragma_table_info(s.name) as c where s.type in ('table', 'view') and s.name not like 'sqlite_%' order by s.type, s.name, c.cid;`
+	rows, err := s.DB.QueryContext(ctx, query)
+	if err != nil {
+		return types.DBSchemaInfo{}, err
+	}
+	defer rows.Close()
+
+	var objects []types.SchemaObject
+	for rows.Next() {
+		var kind types.SchemaObjectKind
+		var name, columnName, columnType string
+		if err := rows.Scan(&kind, &name, &columnName, &columnType); err != nil {
+			return types.DBSchemaInfo{}, err
+		}
+		objects = append(objects, types.SchemaObject{
+			Name:    name,
+			Kind:    kind,
+			Columns: []types.SchemaColumn{{Name: columnName, Type: columnType}},
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return types.DBSchemaInfo{}, err
+	}
+
+	return types.DBSchemaInfo{Objects: objects}, nil
 }

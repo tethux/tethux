@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/0xveya/tethux/internal/ciresults/db"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/0xveya/tethux/internal/ciresults/db"
+	"github.com/0xveya/tethux/tools/ci-results/viewer/handlers/types"
 )
 
 type Handlers struct {
@@ -34,6 +36,7 @@ func (h *Handlers) Routes() http.Handler {
 	router.Get("/file/{id}", h.File)
 	router.Post("/query/execute", h.ExecuteQuery)
 	router.Get("/schema", h.Schema)
+	router.Get("/schema/info", h.SchemaInfo)
 	return router
 }
 
@@ -160,7 +163,7 @@ func (h *Handlers) File(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ExecuteQuery(w http.ResponseWriter, r *http.Request) {
-	var request ExecuteQueryRequest
+	var request types.ExecuteQueryRequest
 	if !DecodeJSON(w, r, &request) {
 		return
 	}
@@ -191,6 +194,15 @@ func (h *Handlers) writeAPIError(w http.ResponseWriter, message, code string, st
 
 func (h *Handlers) Schema(w http.ResponseWriter, r *http.Request) {
 	schema, err := h.Store.GetSchema(r.Context())
+	if err != nil {
+		h.writeAPIError(w, "query schema", ErrCodeQueryFailed, http.StatusInternalServerError, err)
+		return
+	}
+	h.writeJSON(w, schema)
+}
+
+func (h *Handlers) SchemaInfo(w http.ResponseWriter, r *http.Request) {
+	schema, err := h.Store.GetSchemaInfo(r.Context())
 	if err != nil {
 		h.writeAPIError(w, "query schema", ErrCodeQueryFailed, http.StatusInternalServerError, err)
 		return
