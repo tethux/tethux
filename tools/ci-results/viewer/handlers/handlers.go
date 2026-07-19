@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -31,7 +32,8 @@ func (h *Handlers) Routes() http.Handler {
 	router.Get("/runs", h.Runs)
 	router.Get("/run/{id}", h.Run)
 	router.Get("/file/{id}", h.File)
-	router.Get("/query/execute", h.ExecuteQuery)
+	router.Post("/query/execute", h.ExecuteQuery)
+	router.Get("/schema", h.Schema)
 	return router
 }
 
@@ -158,6 +160,16 @@ func (h *Handlers) File(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ExecuteQuery(w http.ResponseWriter, r *http.Request) {
+	var request ExecuteQueryRequest
+	if !DecodeJSON(w, r, &request) {
+		return
+	}
+	if request.SQL == "" {
+		h.writeAPIError(w, "sql is required", ErrCodeInvalidInput, http.StatusBadRequest, nil)
+		return
+	}
+	fmt.Println(request.SQL)
+
 	h.writeAPIError(w, "query execution is not implemented", ErrCodeNotImplemented, http.StatusNotImplemented, nil)
 }
 
@@ -175,4 +187,13 @@ func (h *Handlers) writeAPIError(w http.ResponseWriter, message, code string, st
 	}
 	h.Logger.Warn(message, "status", status, "code", code)
 	WriteAPIError(w, message, code, "", status)
+}
+
+func (h *Handlers) Schema(w http.ResponseWriter, r *http.Request) {
+	schema, err := h.Store.GetSchema(r.Context())
+	if err != nil {
+		h.writeAPIError(w, "query schema", ErrCodeQueryFailed, http.StatusInternalServerError, err)
+		return
+	}
+	h.writeJSON(w, schema)
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/0xveya/tethux/internal/ciresults/db/sqlc"
 	"github.com/golang-migrate/migrate/v4"
@@ -134,6 +135,50 @@ func prepareLegacyMigrationState(ctx context.Context, db *sql.DB) (bool, error) 
 		return false, fmt.Errorf("remove legacy migration table: %w", err)
 	}
 	return true, nil
+}
+
+func (s *Store) GetSchema(ctx context.Context) (string, error) {
+	query := `
+		SELECT sql
+		FROM sqlite_master
+		WHERE type IN ('table', 'view', 'index', 'trigger')
+		  AND name NOT LIKE 'sqlite_%'
+		  AND sql IS NOT NULL
+		ORDER BY
+			CASE type
+				WHEN 'table' THEN 1
+				WHEN 'view' THEN 2
+				WHEN 'index' THEN 3
+				WHEN 'trigger' THEN 4
+			END,
+			name;
+	`
+
+	rows, err := s.DB.QueryContext(ctx, query)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var schema strings.Builder
+	schema.WriteString("PRAGMA foreign_keys = ON;\n\n")
+
+	for rows.Next() {
+		var sqlStmt sql.NullString
+		if err := rows.Scan(&sqlStmt); err != nil {
+			return "", err
+		}
+		if sqlStmt.Valid && sqlStmt.String != "" {
+			schema.WriteString(sqlStmt.String)
+			schema.WriteString(";\n\n")
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(schema.String()), nil
 }
 
 func (s *Store) Close() error {

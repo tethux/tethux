@@ -2,24 +2,24 @@ import { errAsync, ResultAsync } from 'neverthrow';
 
 export type ApiError =
   | {
-      type: 'network';
-      message: string;
-      cause: unknown;
-    }
+    type: 'network';
+    message: string;
+    cause: unknown;
+  }
   | {
-      type: 'http';
-      message: string;
-      status: number;
-    }
+    type: 'http';
+    message: string;
+    status: number;
+  }
   | {
-      type: 'json';
-      message: string;
-      cause: unknown;
-    }
+    type: 'json';
+    message: string;
+    cause: unknown;
+  }
   | {
-      type: 'invalid-response';
-      message: string;
-    };
+    type: 'invalid-response';
+    message: string;
+  };
 
 export type Fetch = typeof globalThis.fetch;
 

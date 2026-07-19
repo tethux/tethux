@@ -29,6 +29,8 @@
   },
   "dependencies": {
     "@humanspeak/svelte-virtual-list": "^0.5.12",
-    "neverthrow": "^8.2.0"
+    "@types/prismjs": "^1.26.6",
+    "neverthrow": "^8.2.0",
+    "prismjs": "^1.30.0"
   }
 }

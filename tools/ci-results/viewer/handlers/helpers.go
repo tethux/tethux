@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	ErrCodeInvalidJSON    = "invalid_json"
 	ErrCodeInvalidInput   = "invalid_input"
 	ErrCodeNotFound       = "not_found"
 	ErrCodeQueryFailed    = "query_failed"
@@ -13,20 +14,25 @@ const (
 	ErrCodeNotImplemented = "not_implemented"
 )
 
-// APIErrorResponse is the standard error body returned by the viewer API.
 type APIErrorResponse struct {
 	Error   string `json:"error"`
 	Code    string `json:"code,omitempty"`
 	Details string `json:"details,omitempty"`
 }
 
-// WriteJSON writes a JSON response body.
 func WriteJSON(w http.ResponseWriter, data any) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	return json.NewEncoder(w).Encode(data)
 }
 
-// WriteAPIError writes a consistently shaped JSON API error response.
+func DecodeJSON[T any](w http.ResponseWriter, r *http.Request, value *T) bool {
+	if err := json.NewDecoder(r.Body).Decode(value); err != nil {
+		WriteAPIError(w, "invalid request body", ErrCodeInvalidJSON, err.Error(), http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
 func WriteAPIError(w http.ResponseWriter, errorMsg, code, details string, statusCode int) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 

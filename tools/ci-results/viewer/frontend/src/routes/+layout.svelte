@@ -6,6 +6,7 @@
 
   const links = [
     { href: '/', label: 'Summary' },
+    { href: '/query', label: 'Query builder' },
     { href: '/runs', label: 'Runs' },
     { href: '/tests', label: 'Tests' },
     { href: '/artifacts', label: 'Artifacts' }
@@ -26,7 +27,7 @@
     </nav>
     <small>Local SQLite viewer</small>
   </aside>
-  <main>{@render children()}</main>
+  <main class:workspace-main={page.url.pathname === '/query'}>{@render children()}</main>
 </div>
 
 <style>
@@ -109,6 +110,11 @@
     padding: 36px 42px 70px;
     overflow: hidden;
   }
+  main.workspace-main {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+  }
   @media (max-width: 700px) {
     .app {
       grid-template-columns: 1fr;
@@ -121,7 +127,7 @@
       display: none;
     }
     nav {
-      grid-template-columns: repeat(4, auto);
+      grid-template-columns: repeat(5, auto);
       margin-top: 18px;
       overflow-x: auto;
     }
