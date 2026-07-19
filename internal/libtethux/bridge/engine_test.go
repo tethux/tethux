@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -226,6 +227,84 @@ func TestSwitchStopsIdleUDPReadersQuickly(t *testing.T) {
 	mustStop(t, sw)
 	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
 		t.Fatalf("idle UDP switch stop took %s", elapsed)
+	}
+}
+
+func TestPacketLossMiddlewareDropsFrames(t *testing.T) {
+	base := newTestPort("lossy")
+	port, err := WithPacketLoss(base, PacketLossOptions{Probability: 1})
+	if err != nil {
+		t.Fatalf("wrap port with packet loss: %v", err)
+	}
+
+	if err := port.WriteFrame(Frame("dropped")); err != nil {
+		t.Fatalf("write dropped frame: %v", err)
+	}
+	if got := base.writeCount(); got != 0 {
+		t.Fatalf("dropped write reached base port: %d writes", got)
+	}
+}
+
+func TestWrapPortAppliesMiddlewareInDeclarationOrder(t *testing.T) {
+	base := newTestPort("ordered")
+	var order []string
+	middleware := func(name string) PortMiddleware {
+		return func(port Port) Port {
+			return &middlewarePort{
+				base: port,
+				writeHook: func() error {
+					order = append(order, name)
+					return nil
+				},
+			}
+		}
+	}
+
+	port := WrapPort(base, middleware("first"), middleware("second"))
+	if err := port.WriteFrame(Frame("frame")); err != nil {
+		t.Fatalf("write frame: %v", err)
+	}
+	if got, want := strings.Join(order, ","), "first,second"; got != want {
+		t.Fatalf("middleware order = %q, want %q", got, want)
+	}
+}
+
+func TestPacketLossMiddlewareCanBeDeterministic(t *testing.T) {
+	base := newTestPort("lossy")
+	values := []float64{0.1, 0.9}
+	index := 0
+	loss, err := NewPacketLossMiddleware(PacketLossOptions{
+		Probability: 0.5,
+		Random: func() float64 {
+			value := values[index]
+			index++
+			return value
+		},
+	})
+	if err != nil {
+		t.Fatalf("create packet loss middleware: %v", err)
+	}
+	port := WrapPort(base, loss)
+
+	if err := port.WriteFrame(Frame("dropped")); err != nil {
+		t.Fatalf("write first frame: %v", err)
+	}
+	if err := port.WriteFrame(Frame("delivered")); err != nil {
+		t.Fatalf("write second frame: %v", err)
+	}
+	if got := base.writeCount(); got != 1 {
+		t.Fatalf("base writes = %d, want 1", got)
+	}
+	if got := string(base.lastWrite()); got != "delivered" {
+		t.Fatalf("delivered frame = %q, want delivered", got)
+	}
+}
+
+func TestPacketLossMiddlewareRejectsInvalidProbability(t *testing.T) {
+	for _, probability := range []float64{-0.1, 1.1} {
+		if _, err := NewPacketLossMiddleware(PacketLossOptions{Probability: probability}); err == nil {
+			t.Fatalf("probability %g unexpectedly accepted", probability)
+		}
 	}
 }
 

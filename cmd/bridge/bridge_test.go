@@ -9,7 +9,7 @@ import (
 
 func TestParsePortSpecs(t *testing.T) {
 	ports, err := parsePortSpecs([]string{
-		"id=left,scheme=udp,listen=127.0.0.1:10001,remote=127.0.0.1:11001,latency=5ms",
+		"id=left,scheme=udp,listen=127.0.0.1:10001,remote=127.0.0.1:11001,latency=5ms,loss=0.25",
 		"id=uplink,scheme=pcap,if=enp0s1,mtu=9000,snaplen=9100,immediate=false",
 		"id=vm,scheme=tap,if=tap0",
 	})
@@ -21,7 +21,7 @@ func TestParsePortSpecs(t *testing.T) {
 		t.Fatalf("expected 3 ports, got %d", len(ports))
 	}
 
-	if ports[0].Scheme != libtethux_br.UDPScheme || ports[0].Latency != 5*time.Millisecond {
+	if ports[0].Scheme != libtethux_br.UDPScheme || ports[0].Latency != 5*time.Millisecond || ports[0].PacketLoss != 0.25 {
 		t.Fatalf("unexpected udp port: %#v", ports[0])
 	}
 
@@ -40,6 +40,7 @@ func TestParsePortSpecsRejectsInvalidValues(t *testing.T) {
 		"id=left,scheme=raw",
 		"id=left,scheme=tap",
 		"id=left,scheme=bogus",
+		"id=left,scheme=udp,listen=127.0.0.1:10001,remote=127.0.0.1:11001,loss=1.1",
 	}
 
 	for _, raw := range tests {

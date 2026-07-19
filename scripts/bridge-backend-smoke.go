@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -13,10 +14,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,8 +61,10 @@ func main() {
 func run() int {
 	var outputPath string
 	var capturePath string
+	var tethuxPath string
 	flag.StringVar(&outputPath, "output", "bridge-backends.jsonl", "structured JSON Lines output")
 	flag.StringVar(&capturePath, "pcap", "bridge-backends.pcap", "packet capture artifact")
+	flag.StringVar(&tethuxPath, "tethux", "", "path to the tethux CLI binary for CLI conformance tests")
 	flag.Parse()
 
 	if os.Geteuid() != 0 {
@@ -87,6 +92,8 @@ func run() int {
 		run  func(*captureWriter) (map[string]any, error)
 	}{
 		{name: "udp", run: testUDP},
+		{name: "udp-loss", run: testUDPPacketLoss},
+		{name: "udp-loss-cli", run: func(c *captureWriter) (map[string]any, error) { return testUDPPacketLossCLI(c, tethuxPath) }},
 		{name: "raw", run: func(c *captureWriter) (map[string]any, error) { return testVethBackend(c, bridge.RawScheme) }},
 		{name: "pcap", run: func(c *captureWriter) (map[string]any, error) { return testVethBackend(c, bridge.PcapScheme) }},
 		{name: "tap", run: testTAP},
@@ -174,6 +181,151 @@ func testUDP(captures *captureWriter) (map[string]any, error) {
 		byteCount += len(received)
 	}
 	return packetMetrics(len(frames), len(frames), byteCount), nil
+}
+
+// testUDPPacketLoss proves that loss is imposed by the bridge, not merely
+// reported by its metrics: a real UDP observer must receive no frame.
+func testUDPPacketLoss(_ *captureWriter) (map[string]any, error) {
+	leftObserver, err := listenUDP()
+	if err != nil {
+		return nil, err
+	}
+	defer leftObserver.Close()
+	rightObserver, err := listenUDP()
+	if err != nil {
+		return nil, err
+	}
+	defer rightObserver.Close()
+
+	left, leftAddress, err := udpPort("loss-left", leftObserver.LocalAddr().String())
+	if err != nil {
+		return nil, err
+	}
+	right, _, err := udpPort("loss-right", rightObserver.LocalAddr().String())
+	if err != nil {
+		_ = left.Close()
+		return nil, err
+	}
+	loss, err := bridge.NewPacketLossMiddleware(bridge.PacketLossOptions{Probability: 1})
+	if err != nil {
+		_ = left.Close()
+		_ = right.Close()
+		return nil, err
+	}
+	right = bridge.WrapPort(right, loss)
+
+	sw := bridge.NewSwitch(bridge.SwitchOptions{})
+	if startErr := attachAndStart(sw, left, right); startErr != nil {
+		return nil, startErr
+	}
+	defer func() { _ = sw.Stop() }()
+
+	remote, err := net.ResolveUDPAddr("udp", leftAddress)
+	if err != nil {
+		return nil, err
+	}
+	frame := testFrameSize(9, 128)
+	if _, err := leftObserver.WriteToUDP(frame, remote); err != nil {
+		return nil, err
+	}
+	if err := expectNoUDPFrame(rightObserver, 250*time.Millisecond); err != nil {
+		return nil, err
+	}
+	return packetMetrics(1, 0, 0), nil
+}
+
+// testUDPPacketLossCLI verifies the public `tethux bridge ports` entry point,
+// rather than the library directly. It keeps the loss policy on the egress
+// port so the observer can prove the frame was not delivered.
+func testUDPPacketLossCLI(_ *captureWriter, tethuxPath string) (map[string]any, error) {
+	if tethuxPath == "" {
+		return nil, errors.New("--tethux is required for the bridge CLI conformance test")
+	}
+	leftObserver, err := listenUDP()
+	if err != nil {
+		return nil, err
+	}
+	defer leftObserver.Close()
+	rightObserver, err := listenUDP()
+	if err != nil {
+		return nil, err
+	}
+	defer rightObserver.Close()
+	leftAddress, err := freeUDPAddress()
+	if err != nil {
+		return nil, err
+	}
+	rightAddress, err := freeUDPAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	command := exec.Command(tethuxPath,
+		"bridge", "ports",
+		"--port", "id=left,scheme=udp,listen="+leftAddress+",remote="+leftObserver.LocalAddr().String(),
+		"--port", "id=right,scheme=udp,listen="+rightAddress+",remote="+rightObserver.LocalAddr().String()+",loss=1",
+	)
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+	if err := command.Start(); err != nil {
+		return nil, err
+	}
+	defer stopCommand(command)
+	if err := waitForSwitchReady(stdout, &stderr); err != nil {
+		return nil, err
+	}
+
+	remote, err := net.ResolveUDPAddr("udp", leftAddress)
+	if err != nil {
+		return nil, err
+	}
+	frame := testFrameSize(10, 128)
+	if _, err := leftObserver.WriteToUDP(frame, remote); err != nil {
+		return nil, err
+	}
+	if err := expectNoUDPFrame(rightObserver, 250*time.Millisecond); err != nil {
+		return nil, err
+	}
+	return packetMetrics(1, 0, 0), nil
+}
+
+func waitForSwitchReady(stdout io.Reader, stderr *bytes.Buffer) error {
+	ready := make(chan error, 1)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), "Switch running.") {
+				ready <- nil
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			ready <- err
+			return
+		}
+		ready <- fmt.Errorf("bridge CLI exited before starting: %s", stderr.String())
+	}()
+
+	select {
+	case err := <-ready:
+		return err
+	case <-time.After(3 * time.Second):
+		return fmt.Errorf("timed out waiting for bridge CLI to start: %s", stderr.String())
+	}
+}
+
+func stopCommand(command *exec.Cmd) {
+	if command.Process == nil {
+		return
+	}
+	if err := command.Process.Signal(os.Interrupt); err != nil {
+		return
+	}
+	_ = command.Wait()
 }
 
 func testVethBackend(captures *captureWriter, scheme bridge.AvailableScheme) (map[string]any, error) {
@@ -482,6 +634,21 @@ func packetMetrics(sent, received, byteCount int) map[string]any {
 		"packet_loss_percent": float64(sent-received) / float64(sent) * 100,
 		"bytes_received":      byteCount,
 	}
+}
+
+func expectNoUDPFrame(conn *net.UDPConn, timeout time.Duration) error {
+	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		return err
+	}
+	defer func() { _ = conn.SetReadDeadline(time.Time{}) }()
+
+	buf := make([]byte, testMTU+32)
+	if _, _, err := conn.ReadFromUDP(buf); err == nil {
+		return errors.New("received a frame despite 100% packet loss")
+	} else if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
+		return err
+	}
+	return nil
 }
 
 func createOutput(path string) (*os.File, error) {

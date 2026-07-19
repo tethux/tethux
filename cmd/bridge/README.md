@@ -27,16 +27,21 @@ One switch can mix all four types:
 sudo tethux bridge ports \
   --port id=vm,scheme=tap,if=tap0 \
   --port id=namespace,scheme=raw,if=tx01 \
-  --port id=mirror,scheme=pcap,if=eth1,immediate=true \
+  --port id=mirror,scheme=pcap,if=eth1,immediate=true,latency=5ms,loss=0.01 \
   --port id=uplink,scheme=udp,listen=0.0.0.0:12000,remote=10.0.0.78:12000
 ```
+
+`latency` delays each ingress and egress frame. `loss` is an independent
+per-frame drop probability from `0` to `1`; use `loss=1` to simulate a fully
+disconnected port.
 
 ## Packet-level backend tests
 
 The privileged backend suite exercises every transport with byte-identical
 Ethernet frames. Libpcap is an independent injector/observer on isolated veth
 endpoints; TAP is verified in both directions through a Linux bridge, and UDP
-uses separate sockets. The run emits JSON Lines with packet/byte/loss metrics
+uses separate sockets. It also verifies a 100% UDP loss policy against a real
+observer. The run emits JSON Lines with packet/byte/loss metrics
 and a standard pcap file:
 
 ```bash

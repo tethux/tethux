@@ -13,6 +13,11 @@ type ContainerBridgeOptions struct {
 	MTU         int
 	UsePcap     bool
 	Immediate   bool
+	// LocalMiddleware is applied to the host-side container port; RemoteMiddleware
+	// is applied to the UDP uplink. Use NewPacketLossMiddleware and WithLatency
+	// to model an impaired link.
+	LocalMiddleware  []PortMiddleware
+	RemoteMiddleware []PortMiddleware
 }
 
 type ContainerBridge struct {
@@ -56,6 +61,7 @@ func StartContainerBridge(opts *ContainerBridgeOptions) (*ContainerBridge, error
 		CleanupLink(opts.HostIf)
 		return nil, err
 	}
+	local = WrapPort(local, opts.LocalMiddleware...)
 	remote, err := NewPort(UDPScheme, &PortOptions{
 		ID:        "remote",
 		LocalAddr: opts.Listen,
@@ -67,6 +73,7 @@ func StartContainerBridge(opts *ContainerBridgeOptions) (*ContainerBridge, error
 		CleanupLink(opts.HostIf)
 		return nil, err
 	}
+	remote = WrapPort(remote, opts.RemoteMiddleware...)
 
 	sw := NewSwitch(SwitchOptions{})
 	if err := sw.AttachPort(local); err != nil {

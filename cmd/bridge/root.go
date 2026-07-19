@@ -8,7 +8,10 @@ func NewRootCmd() *cobra.Command {
 		Short: "CLI for testing the tethux switch library",
 	}
 
-	cmd.AddCommand(newBridgeCmd())
+	cmd.AddCommand(newBridgePortsCmd())
+	cmd.AddCommand(newBridgeContainerCmd())
+	cmd.AddCommand(newBridgeNamespaceCmd())
+	cmd.AddCommand(newBridgeUDPCmd())
 	cmd.AddCommand(newFrameCmd())
 
 	return cmd

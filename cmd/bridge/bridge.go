@@ -26,6 +26,7 @@ type portSpec struct {
 	ImmediateMode bool
 	SnapLen       int
 	Latency       time.Duration
+	PacketLoss    float64
 }
 
 func newBridgeCmd() *cobra.Command {
@@ -430,6 +431,16 @@ func parsePortSpec(raw string) (portSpec, error) {
 		}
 		spec.Latency = latency
 	}
+	if value := values["loss"]; value != "" {
+		loss, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return portSpec{}, fmt.Errorf("invalid loss in %q: %w", raw, err)
+		}
+		if loss < 0 || loss > 1 {
+			return portSpec{}, fmt.Errorf("invalid loss in %q: must be between 0 and 1", raw)
+		}
+		spec.PacketLoss = loss
+	}
 	if spec.SnapLen == 0 {
 		spec.SnapLen = spec.MTU + 32
 	}
@@ -501,6 +512,14 @@ func attachSwitchPorts(sw *libtethux_br.Switch, specs []portSpec) ([]libtethux_b
 		if spec.Latency > 0 {
 			port = libtethux_br.WithLatency(port, spec.Latency)
 		}
+		if spec.PacketLoss != 0 {
+			loss, lossErr := libtethux_br.NewPacketLossMiddleware(libtethux_br.PacketLossOptions{Probability: spec.PacketLoss})
+			if lossErr != nil {
+				_ = port.Close()
+				return attached, fmt.Errorf("configure packet loss for port %s: %w", spec.ID, lossErr)
+			}
+			port = loss(port)
+		}
 		if err := sw.AttachPort(port); err != nil {
 			_ = port.Close()
 			return attached, fmt.Errorf("attach port %s: %w", spec.ID, err)
@@ -528,9 +547,9 @@ func printPortSummary(title string, specs []portSpec) {
 	for _, spec := range ordered {
 		switch spec.Scheme {
 		case libtethux_br.UDPScheme:
-			fmt.Printf("  %s scheme=%s listen=%s remote=%s mtu=%d\n", spec.ID, spec.Scheme, spec.Listen, spec.Remote, spec.MTU)
+			fmt.Printf("  %s scheme=%s listen=%s remote=%s mtu=%d latency=%s loss=%g\n", spec.ID, spec.Scheme, spec.Listen, spec.Remote, spec.MTU, spec.Latency, spec.PacketLoss)
 		case libtethux_br.RawScheme, libtethux_br.PcapScheme, libtethux_br.TAPScheme:
-			fmt.Printf("  %s scheme=%s if=%s mtu=%d snaplen=%d immediate=%t latency=%s\n", spec.ID, spec.Scheme, spec.Interface, spec.MTU, spec.SnapLen, spec.ImmediateMode, spec.Latency)
+			fmt.Printf("  %s scheme=%s if=%s mtu=%d snaplen=%d immediate=%t latency=%s loss=%g\n", spec.ID, spec.Scheme, spec.Interface, spec.MTU, spec.SnapLen, spec.ImmediateMode, spec.Latency, spec.PacketLoss)
 		default:
 			fmt.Printf("  %s scheme=%s\n", spec.ID, spec.Scheme)
 		}

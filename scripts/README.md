@@ -32,6 +32,7 @@ external registry.
 ## Bridge backend conformance
 
 `bridge-backend-smoke.go` tests UDP, raw sockets, pcap, and TAP with exact
-Ethernet frames. It uses libpcap to inject and independently observe packets,
+Ethernet frames. It also verifies that a 100% loss middleware policy drops a
+real UDP frame. It uses libpcap to inject and independently observe packets,
 emits structured metrics, and writes the pcap retained by CI. Run it through
 the opt-in Mise task documented in `cmd/bridge/README.md`.
