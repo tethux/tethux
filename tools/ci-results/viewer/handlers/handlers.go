@@ -1,11 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -171,10 +172,16 @@ func (h *Handlers) ExecuteQuery(w http.ResponseWriter, r *http.Request) {
 		h.writeAPIError(w, "sql is required", ErrCodeInvalidInput, http.StatusBadRequest, nil)
 		return
 	}
-	fmt.Println(request.SQL)
-
-	// h.writeJSON(w, types.ExecuteQueryResponse{})
-	h.writeAPIError(w, "query execution is not implemented", ErrCodeNotImplemented, http.StatusNotImplemented, nil)
+	sql := strings.TrimSpace(request.SQL)
+	if !strings.HasSuffix(sql, ";") {
+		sql += ";"
+	}
+	res, err := executeQuery(r.Context(), h.Store, sql)
+	if err != nil {
+		h.writeAPIError(w, "query execution failed", ErrCodeQueryFailed, http.StatusInternalServerError, err)
+		return
+	}
+	h.writeJSON(w, res)
 }
 
 func (h *Handlers) writeJSON(w http.ResponseWriter, data any) {
@@ -209,4 +216,83 @@ func (h *Handlers) SchemaInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeJSON(w, schema)
+}
+
+func executeQuery(
+	ctx context.Context,
+	store *db.Store,
+	query string,
+) (*types.ExecuteQueryResponse, error) {
+	conn, err := store.DB.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	if _, execErr := conn.ExecContext(ctx, "pragma query_only = on"); execErr != nil {
+		return nil, execErr
+	}
+
+	rows, err := conn.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columnNames, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, err
+	}
+
+	columns := make([]types.QueryColumn, len(columnNames))
+	for i, name := range columnNames {
+		columns[i] = types.QueryColumn{
+			Name: name,
+			Type: columnTypes[i].DatabaseTypeName(),
+		}
+	}
+
+	resultRows := make([]map[string]any, 0)
+
+	for rows.Next() {
+		values := make([]any, len(columnNames))
+		destinations := make([]any, len(columnNames))
+
+		for i := range values {
+			destinations[i] = &values[i]
+		}
+
+		if err := rows.Scan(destinations...); err != nil {
+			return nil, err
+		}
+
+		row := make(map[string]any, len(columnNames))
+
+		for i, name := range columnNames {
+			value := values[i]
+
+			if bytes, ok := value.([]byte); ok {
+				value = string(bytes)
+			}
+
+			row[name] = value
+		}
+
+		resultRows = append(resultRows, row)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &types.ExecuteQueryResponse{
+		Columns:  columns,
+		Rows:     resultRows,
+		RowCount: len(resultRows),
+	}, nil
 }

@@ -17,7 +17,7 @@ export function getSchemaInfo(fetcher: Fetch) {
 }
 
 export function executeQuery(fetcher: Fetch, sql: string) {
-  return fetchJson<ExecuteQueryResponse>(fetcher, '/api/v1/query', {
+  return fetchJson<ExecuteQueryResponse>(fetcher, '/api/v1/query/execute', {
     method: 'POST',
     headers: {
       'content-type': 'application/json'
