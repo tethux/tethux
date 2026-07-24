@@ -80,3 +80,10 @@ test('run and test routes consume the shared theme contract', () => {
   assert.match(runPage, /:global\(html\.dark\) \.file-modal/);
   assert.match(testsPage, /\.passed[^}]+var\(--syntax-green\)/s);
 });
+
+test('shared sidebar keeps theme and source controls visible on every route', () => {
+  assert.match(layout, /position: sticky/);
+  assert.match(layout, /height: 100vh/);
+  assert.match(layout, /ci-results-theme/);
+  assert.match(layout, /tools\/ci-results\/viewer/);
+});

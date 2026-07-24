@@ -162,6 +162,10 @@
     grid-template-columns: 210px 1fr;
   }
   aside {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
     padding: 24px 18px;
     border-right: 1px solid var(--border);
     background: var(--surface);
@@ -254,6 +258,8 @@
       grid-template-columns: 1fr;
     }
     aside {
+      position: static;
+      height: auto;
       border-right: 0;
       border-bottom: 1px solid var(--border);
     }
