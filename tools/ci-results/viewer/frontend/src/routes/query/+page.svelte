@@ -1,58 +1,269 @@
 <script lang="ts">
-  import Prism from 'prismjs';
-  import 'prismjs/components/prism-sql';
-  import 'prismjs/themes/prism.css';
-  import type { SchemaInfo } from '$lib/api/types';
+  import { invalidateAll } from '$app/navigation';
+  import type { PageData } from './$types';
+  import type {
+    SchemaInfo,
+    SchemaObject,
+    SchemaColumn,
+    Suggestion,
+    KeywordSuggestion,
+    SchemaObjectSuggestion,
+    ColumnSuggestion
+  } from '$lib/schema_types';
+  import type { ExecuteQueryResponse } from '$lib/api/types';
+  import { executeQuery } from '$lib/api/querys';
+
+  let { data }: { data: PageData } = $props();
 
   let query = $state('');
-  let schema = $state('');
-  let errorGetSchema = $state('');
-  let loadingSchema = $state(false);
+  let queryInput: HTMLInputElement;
+  let queryHighlight = $state<HTMLDivElement>();
+
+  let suggestions = $state<Suggestion[]>([]);
+  let selectedSuggestionIndex = $state(0);
+  let suggestionsOpen = $state(false);
+
   let schemaOpen = $state(false);
   let schemaWidth = $state(50);
   let workspace: HTMLElement;
 
-  const highlightedSchema = $derived(
-    schema ? Prism.highlight(schema, Prism.languages.sql, 'sql') : ''
-  );
+  const schemaInfo: SchemaInfo = $derived(data.schemaInfo ?? { objects: [] });
 
-  async function openSchema() {
-    schemaOpen = true;
-    if (!schema) await fetchSchema();
+  const schemaError = $derived(data.error);
+  const highlightedQuery = $derived(tokenizeSql(query));
+
+  type QueryToken = {
+    value: string;
+    kind: 'plain' | 'keyword' | 'string' | 'number' | 'operator';
+  };
+
+  const keywords: KeywordSuggestion[] = [
+    createKeywordSuggestion('SELECT'),
+    createKeywordSuggestion('FROM'),
+    createKeywordSuggestion('WHERE'),
+    createKeywordSuggestion('JOIN'),
+    createKeywordSuggestion('ON'),
+    createKeywordSuggestion('GROUP BY'),
+    createKeywordSuggestion('ORDER BY'),
+    createKeywordSuggestion('LIMIT')
+  ];
+
+  function toggleSchema(): void {
+    schemaOpen = !schemaOpen;
   }
 
-  async function fetchSchema() {
-    if (loadingSchema) return;
-    loadingSchema = true;
-    errorGetSchema = '';
-    try {
-      const response = await fetch('/api/v1/schema');
-      if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      schema = await response.json();
-    } catch (cause) {
-      errorGetSchema = cause instanceof Error ? cause.message : 'Request failed';
-    } finally {
-      loadingSchema = false;
+  function createKeywordSuggestion(keyword: KeywordSuggestion['keyword']): KeywordSuggestion {
+    return {
+      kind: 'keyword',
+      keyword,
+      label: keyword,
+      insertText: `${keyword} `,
+      detail: 'SQL keyword'
+    };
+  }
+
+  function createObjectSuggestion(object: SchemaObject): SchemaObjectSuggestion {
+    return {
+      kind: object.kind,
+      label: object.name,
+      insertText: object.name,
+      detail: object.kind === 'table' ? 'Table' : 'View',
+      object
+    };
+  }
+
+  function createColumnSuggestion(object: SchemaObject, column: SchemaColumn): ColumnSuggestion {
+    return {
+      kind: 'column',
+      label: column.name,
+      insertText: column.name,
+      detail: `${column.type || 'unknown'} · ${object.name}`,
+      objectName: object.name,
+      column
+    };
+  }
+
+  function handleInput(): void {
+    const cursor = queryInput.selectionStart ?? query.length;
+    const sqlBeforeCursor = query.slice(0, cursor);
+
+    suggestions = getSuggestions(sqlBeforeCursor, schemaInfo);
+    selectedSuggestionIndex = 0;
+    suggestionsOpen = suggestions.length > 0;
+  }
+
+  function syncHighlightScroll(): void {
+    if (queryHighlight) queryHighlight.scrollLeft = queryInput.scrollLeft;
+  }
+
+  function getSuggestions(sqlBeforeCursor: string, schema: SchemaInfo): Suggestion[] {
+    const trimmed = sqlBeforeCursor.trimEnd();
+
+    const sourceMatch = trimmed.match(/\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)?$/i);
+
+    if (sourceMatch) {
+      const prefix = sourceMatch[1] ?? '';
+
+      const uniqueObjects = new Map(
+        schema.objects.map((object) => [object.name.toLowerCase(), object])
+      );
+
+      return [...uniqueObjects.values()]
+        .filter((object) => matchesPrefix(object.name, prefix))
+        .map(createObjectSuggestion);
+    }
+
+    const qualifiedColumnMatch = trimmed.match(/([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z0-9_]*)$/);
+
+    if (qualifiedColumnMatch) {
+      const objectName = qualifiedColumnMatch[1];
+      const columnPrefix = qualifiedColumnMatch[2];
+
+      const object = schema.objects.find(
+        (candidate) => candidate.name.toLowerCase() === objectName.toLowerCase()
+      );
+
+      if (!object) {
+        return [];
+      }
+
+      return object.columns
+        .filter((column) => matchesPrefix(column.name, columnPrefix))
+        .map((column) => createColumnSuggestion(object, column));
+    }
+
+    const prefix = trimmed.match(/[A-Za-z_][A-Za-z0-9_]*$/)?.[0] ?? '';
+
+    return keywords.filter((suggestion) => matchesPrefix(suggestion.label, prefix));
+  }
+
+  function matchesPrefix(value: string, prefix: string): boolean {
+    return value.toLowerCase().startsWith(prefix.toLowerCase());
+  }
+
+  function tokenizeSql(value: string): QueryToken[] {
+    const keywordPattern =
+      /^(SELECT|FROM|WHERE|JOIN|ON|GROUP|BY|ORDER|LIMIT|AND|OR|AS|ASC|DESC|NULL|IS|NOT|IN|LIKE)\b/i;
+    const tokens: QueryToken[] = [];
+    let remaining = value;
+
+    while (remaining) {
+      const stringMatch = remaining.match(/^'(?:''|[^'])*'/);
+      const keywordMatch = remaining.match(keywordPattern);
+      const numberMatch = remaining.match(/^\b\d+(?:\.\d+)?\b/);
+      const operatorMatch = remaining.match(/^(?:<=|>=|<>|!=|=|<|>|\*|\+|-|\/)/);
+      const plainMatch = remaining.match(/^[\s\S]/);
+      const match = stringMatch ?? keywordMatch ?? numberMatch ?? operatorMatch ?? plainMatch;
+
+      if (!match) break;
+
+      const kind: QueryToken['kind'] = stringMatch
+        ? 'string'
+        : keywordMatch
+          ? 'keyword'
+          : numberMatch
+            ? 'number'
+            : operatorMatch
+              ? 'operator'
+              : 'plain';
+
+      const previous = tokens.at(-1);
+      if (kind === 'plain' && previous?.kind === 'plain') {
+        previous.value += match[0];
+      } else {
+        tokens.push({ value: match[0], kind });
+      }
+
+      remaining = remaining.slice(match[0].length);
+    }
+
+    return tokens;
+  }
+
+  function handleKeydown(event: KeyboardEvent): void {
+    if (!suggestionsOpen || suggestions.length === 0) {
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+
+      selectedSuggestionIndex = (selectedSuggestionIndex + 1) % suggestions.length;
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+
+      selectedSuggestionIndex =
+        (selectedSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+    } else if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault();
+
+      const suggestion = suggestions[selectedSuggestionIndex];
+
+      if (suggestion) {
+        insertSuggestion(suggestion);
+      }
+    } else if (event.key === 'Escape') {
+      suggestionsOpen = false;
     }
   }
 
-  function startResize(event: PointerEvent) {
+  function insertSuggestion(suggestion: Suggestion): void {
+    const cursor = queryInput.selectionStart ?? query.length;
+    const beforeCursor = query.slice(0, cursor);
+    const afterCursor = query.slice(cursor);
+
+    const currentWord = beforeCursor.match(/[A-Za-z0-9_]*$/)?.[0] ?? '';
+
+    const replacementStart = beforeCursor.length - currentWord.length;
+
+    query = beforeCursor.slice(0, replacementStart) + suggestion.insertText + afterCursor;
+
+    const nextCursor = replacementStart + suggestion.insertText.length;
+
+    suggestionsOpen = false;
+
+    requestAnimationFrame(() => {
+      queryInput.focus();
+      queryInput.setSelectionRange(nextCursor, nextCursor);
+    });
+  }
+
+  function startResize(event: PointerEvent): void {
     event.preventDefault();
-    const resize = (move: PointerEvent) => {
+
+    const resize = (move: PointerEvent): void => {
       const bounds = workspace.getBoundingClientRect();
+
       schemaWidth = Math.min(
         70,
         Math.max(30, ((bounds.right - move.clientX) / bounds.width) * 100)
       );
     };
-    const stop = () => {
+
+    const stop = (): void => {
       window.removeEventListener('pointermove', resize);
       window.removeEventListener('pointerup', stop);
     };
+
     window.addEventListener('pointermove', resize);
     window.addEventListener('pointerup', stop);
   }
-  let { data }: { data: PageData } = $props();
+
+  let result = $state<ExecuteQueryResponse | null>(null);
+  let error = $state<string | null>(null);
+
+  async function runQuery() {
+    error = null;
+
+    await executeQuery(fetch, query).match(
+      (response) => {
+        result = response;
+      },
+      (apiError) => {
+        error = apiError.message;
+      }
+    );
+  }
 </script>
 
 <svelte:head><title>Query builder · CI results</title></svelte:head>
@@ -65,26 +276,97 @@
 >
   <section class="builder" aria-labelledby="query-builder-title">
     <header class="builder-header">
-      <div>
-        <p class="eyebrow">CI results / explorer</p>
-        <h1 id="query-builder-title">Query builder</h1>
-        <p class="lede">Build a focused view of the ingested CI database.</p>
+      <div class="title-lockup">
+        <div>
+          <p class="eyebrow">CI results</p>
+          <h1 id="query-builder-title">Explorer</h1>
+        </div>
       </div>
     </header>
 
     <div class="builder-body">
-      <label for="query">Filter expression</label>
-      <textarea id="query" bind:value={query} placeholder="status = passed and branch = main"
-      ></textarea>
-      <div class="builder-footer">
-        <div class="workspace-tools">
-          <span>Local SQLite</span>
-          <button class="schema-trigger" onclick={openSchema} disabled={loadingSchema}>
+      <div class="query-toolbar">
+        <div class="view-tabs" aria-label="Explorer view">
+          <button class="view-tab active" type="button" aria-pressed="true">
+            <span aria-hidden="true">⌘</span> Query
+          </button>
+          <button class="view-tab" type="button" onclick={toggleSchema} aria-pressed={schemaOpen}>
             <span aria-hidden="true">▧</span>
-            {loadingSchema ? 'Loading…' : schemaOpen ? 'Schema open' : 'Schema'}
+            Schema
           </button>
         </div>
-        <button class="run-query" disabled>Run query <span aria-hidden="true">↵</span></button>
+        <button class="run-query" disabled={!query.trim()} onclick={runQuery}>
+          <span aria-hidden="true">▷</span> Run query
+          <kbd>↵</kbd>
+        </button>
+      </div>
+
+      <div class="query-bar">
+        <span class="prompt" aria-hidden="true">›</span>
+        <div class="query-editor">
+          {#if query}
+            <div class="query-highlight" bind:this={queryHighlight} aria-hidden="true">
+              {#each highlightedQuery as token}
+                <span
+                  class:token-keyword={token.kind === 'keyword'}
+                  class:token-string={token.kind === 'string'}
+                  class:token-number={token.kind === 'number'}
+                  class:token-operator={token.kind === 'operator'}>{token.value}</span
+                >
+              {/each}
+            </div>
+          {/if}
+          <input
+            id="query"
+            bind:this={queryInput}
+            bind:value={query}
+            aria-label="SQL query"
+            placeholder="SELECT * FROM runs WHERE status = 'passed'"
+            autocomplete="off"
+            spellcheck="false"
+            oninput={handleInput}
+            onkeydown={handleKeydown}
+            onscroll={syncHighlightScroll}
+            onblur={() => setTimeout(() => (suggestionsOpen = false), 120)}
+          />
+
+          {#if suggestionsOpen}
+            <div class="suggestions" role="listbox" aria-label="SQL suggestions">
+              {#each suggestions as suggestion, index}
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={index === selectedSuggestionIndex}
+                  class:selected={index === selectedSuggestionIndex}
+                  onmousedown={(event) => event.preventDefault()}
+                  onclick={() => insertSuggestion(suggestion)}
+                >
+                  <span class="suggestion-kind">{suggestion.kind}</span>
+                  <strong>{suggestion.label}</strong>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <div class="results-heading">
+        <div>
+          <strong>Query results</strong>
+          <span>Run a query to explore ingested test data</span>
+        </div>
+        <span class="result-count">— rows</span>
+      </div>
+
+      <div class="empty-state">
+        {#if error}
+          <pre>{error}</pre>
+        {:else if result}
+          <pre>{JSON.stringify(result, null, 2)}</pre>
+        {/if}
+        <p>Your results will appear here.</p>
+        <small>Write a filter above, then run the query.</small>
+        <p>todo slap this in a virtual list</p>
       </div>
     </div>
   </section>
@@ -101,31 +383,47 @@
       <div class="schema-actions">
         <button
           class="icon-button"
+          type="button"
           aria-label="Reload schema"
           title="Reload schema"
-          onclick={fetchSchema}
-          disabled={loadingSchema}>↻</button
+          onclick={() => invalidateAll()}>↻</button
         >
         <button
           class="icon-button"
+          type="button"
           aria-label="Close schema"
           title="Close schema"
           onclick={() => (schemaOpen = false)}>×</button
         >
       </div>
       <div class="schema-content">
-        {#if loadingSchema}
-          <p class="schema-message">Loading schema…</p>
-        {:else if errorGetSchema}
+        {#if schemaError}
           <div class="schema-message">
-            <p class="schema-error">{errorGetSchema}</p>
-            <button onclick={fetchSchema}>Try again</button>
+            <p class="schema-error">{schemaError}</p>
+            <button type="button" onclick={() => invalidateAll()}>Try again</button>
           </div>
-        {:else if schema}
-          <!-- The API serves database DDL, highlighted by Prism before it is rendered. -->
-          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-          <pre class="language-sql"><code class="language-sql">{@html highlightedSchema}</code
-            ></pre>
+        {:else if schemaInfo.objects.length}
+          <div class="schema-list">
+            {#each schemaInfo.objects as object (object.name)}
+              <section class="schema-object">
+                <header>
+                  <strong>{object.name}</strong>
+                  <span>{object.kind}</span>
+                </header>
+                <ul>
+                  {#each object.columns as column (column.name)}
+                    <li>
+                      <span>{column.name}</span>
+                      <small>{column.type || 'unknown'}</small>
+                      {#if column.primaryKey}<abbr title="Primary key">PK</abbr>{/if}
+                    </li>
+                  {/each}
+                </ul>
+              </section>
+            {/each}
+          </div>
+        {:else}
+          <p class="schema-message">No schema objects found.</p>
         {/if}
       </div>
     </aside>
@@ -134,9 +432,11 @@
 
 <style>
   .query-workspace {
-    --paper: #fbfaf7;
-    --ink: #20211e;
-    --muted: #71746b;
+    --paper: #f8f8f5;
+    --ink: #242621;
+    --muted: #74786e;
+    --line: #d8d9d2;
+    --accent: #315f4a;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     height: 100vh;
@@ -157,122 +457,266 @@
   .builder {
     display: flex;
     flex-direction: column;
-    padding: clamp(28px, 5vw, 72px);
   }
   .builder-header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 24px;
-    padding-bottom: 34px;
-    border-bottom: 1px solid #d8d7d1;
+    min-height: 68px;
+    padding: 0 clamp(22px, 3vw, 42px);
+    border-bottom: 1px solid var(--line);
+    background: #fdfdfb;
+  }
+  .title-lockup {
+    display: flex;
+    align-items: center;
   }
   .eyebrow {
-    margin: 0 0 8px;
+    margin: 0 0 1px;
     color: #777a70;
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
   }
   h1 {
     margin: 0;
     color: var(--ink);
-    letter-spacing: -0.045em;
-  }
-  h1 {
-    font-size: clamp(32px, 4vw, 52px);
-    line-height: 0.95;
-  }
-  .lede {
-    margin: 13px 0 0;
-    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
   }
   button {
     font: inherit;
     cursor: pointer;
   }
   .run-query {
-    border: 1px solid #20211e;
-    background: #20211e;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 0 12px;
+    border: 1px solid #294f3d;
+    border-radius: 3px;
+    background: var(--accent);
     color: #fff;
-    padding: 10px 14px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 650;
     white-space: nowrap;
   }
   .run-query:hover:not(:disabled) {
-    background: #3c4038;
+    background: #244c38;
   }
-  .schema-trigger {
+  .run-query kbd {
+    padding: 1px 5px;
+    border: 1px solid rgb(255 255 255 / 25%);
+    border-radius: 3px;
+    color: rgb(255 255 255 / 75%);
+    font: inherit;
+  }
+  .view-tabs {
+    display: flex;
+    align-self: stretch;
+    gap: 4px;
+  }
+  .view-tab {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 3px 0;
+    gap: 7px;
+    padding: 0 12px;
     border: 0;
-    border-bottom: 1px solid transparent;
     background: transparent;
     color: var(--muted);
     font-size: 12px;
   }
-  .schema-trigger:hover:not(:disabled) {
-    border-bottom-color: var(--ink);
-    background: transparent;
+  .view-tab:hover:not(:disabled),
+  .view-tab.active {
     color: var(--ink);
+  }
+  .view-tab.active::after {
+    position: absolute;
+    right: 10px;
+    bottom: -13px;
+    left: 10px;
+    height: 2px;
+    background: var(--accent);
+    content: '';
   }
   button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
   .builder-body {
-    display: grid;
-    gap: 12px;
-    width: min(760px, 100%);
-    margin: auto 0;
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    width: 100%;
   }
-  label {
-    color: #4d5049;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  textarea {
-    min-height: 220px;
-    resize: vertical;
-    padding: 22px;
-    border: 1px solid #bdbeb6;
-    border-radius: 2px;
-    background: #fff;
-    color: var(--ink);
-    font:
-      16px/1.65 ui-monospace,
-      SFMono-Regular,
-      Menlo,
-      Consolas,
-      monospace;
-    outline: none;
-  }
-  textarea:focus {
-    border-color: #20211e;
-    box-shadow: 4px 4px 0 #deded7;
-  }
-  .builder-footer {
+  .query-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    color: var(--muted);
-    font-size: 12px;
+    min-height: 62px;
+    padding: 11px clamp(22px, 3vw, 42px);
+    border-bottom: 1px solid var(--line);
+    background: #f2f2ee;
   }
-  .workspace-tools {
+  .query-bar {
     display: flex;
     align-items: center;
+    min-height: 58px;
+    margin: 14px clamp(22px, 3vw, 42px);
+    border: 1px solid #c5c7be;
+    border-radius: 3px;
+    background: #fff;
+    box-shadow: inset 0 1px 0 rgb(24 27 21 / 3%);
+  }
+  .query-bar:focus-within {
+    border-color: #547161;
+    box-shadow: 0 0 0 2px rgb(49 95 74 / 10%);
+  }
+  .prompt {
+    padding-left: 16px;
+    color: var(--accent);
+    font-size: 22px;
+  }
+  .query-editor {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: 56px;
+  }
+  .query-editor input,
+  .query-highlight {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    padding: 17px 12px;
+    border: 0;
+    font: inherit;
+    font-size: 14px;
+    line-height: 22px;
+    text-align: left;
+    white-space: pre;
+  }
+  .query-editor input {
+    z-index: 1;
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--ink);
+  }
+  .query-editor input::selection {
+    background: rgb(49 95 74 / 20%);
+    color: transparent;
+  }
+  .query-editor input::placeholder {
+    color: #96998f;
+  }
+  .query-highlight {
+    z-index: 0;
+    color: var(--ink);
+    pointer-events: none;
+  }
+  .token-keyword {
+    color: #9a651c;
+    font-weight: 650;
+  }
+  .token-string {
+    color: #21845d;
+  }
+  .token-number {
+    color: #315fa0;
+  }
+  .token-operator {
+    color: #a04636;
+  }
+  .suggestions {
+    position: absolute;
+    z-index: 5;
+    top: calc(100% - 2px);
+    left: 10px;
+    width: min(420px, calc(100vw - 330px));
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 5px;
+    border: 1px solid #c5c7be;
+    border-radius: 3px;
+    background: #fff;
+    box-shadow: 0 12px 30px rgb(31 34 28 / 14%);
+  }
+  .suggestions button {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    align-items: center;
+    width: 100%;
+    gap: 9px;
+    padding: 7px 9px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    text-align: left;
+  }
+  .suggestions button:hover,
+  .suggestions button.selected {
+    background: #eef1ec;
+  }
+  .suggestion-kind {
+    color: #8b6d36;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .suggestions strong {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+  }
+  .results-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 52px;
+    padding: 0 clamp(22px, 3vw, 42px);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: #fdfdfb;
+  }
+  .results-heading div {
+    display: flex;
+    align-items: baseline;
     gap: 12px;
   }
-  .workspace-tools > span::after {
-    content: '·';
-    margin-left: 12px;
-    color: #bbbcb5;
+  .results-heading strong {
+    font-size: 12px;
+    font-weight: 650;
+  }
+  .results-heading span {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .empty-state {
+    display: grid;
+    flex: 1;
+    min-height: 220px;
+    place-content: center;
+    justify-items: center;
+    color: var(--muted);
+    text-align: center;
+  }
+  .empty-state p {
+    margin: 0;
+    color: #555950;
+    font-size: 12px;
+  }
+  .empty-state small {
+    margin-top: 4px;
+    font-size: 10px;
   }
   .resize-handle {
     position: relative;
@@ -317,14 +761,62 @@
     overflow: auto;
     padding: 14px;
   }
-  pre {
-    margin: 0;
-    padding: 16px;
-    overflow: auto;
-    border: 1px solid #dadad3;
+  .schema-list {
+    display: grid;
+    gap: 10px;
+    padding-top: 48px;
+  }
+  .schema-object {
+    overflow: hidden;
+    border: 1px solid #d2d3cc;
+    border-radius: 3px;
     background: #fff;
+  }
+  .schema-object header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid #dedfd9;
+    background: #f7f7f3;
+  }
+  .schema-object header strong {
+    color: var(--ink);
     font-size: 12px;
-    line-height: 1.55;
+  }
+  .schema-object header span {
+    color: var(--muted);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .schema-object ul {
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+  }
+  .schema-object li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 12px;
+    color: #4a4d46;
+    font-size: 11px;
+  }
+  .schema-object li:hover {
+    background: #f7f8f4;
+  }
+  .schema-object li small {
+    color: #8a8e84;
+    font-size: 9px;
+    text-transform: uppercase;
+  }
+  .schema-object abbr {
+    border: 0;
+    color: #966c28;
+    font-size: 8px;
+    text-decoration: none;
   }
   .schema-message {
     display: grid;
@@ -357,19 +849,28 @@
       min-height: auto;
     }
     .builder {
-      min-height: 68vh;
+      min-height: 72vh;
     }
     .schema-panel {
       border-left: 0;
       border-top: 1px solid #d8d7d1;
       min-height: 48vh;
     }
-    .builder-header {
-      flex-direction: column;
+    .query-toolbar,
+    .builder-header,
+    .results-heading {
+      padding-right: 16px;
+      padding-left: 16px;
     }
-    .builder-footer {
-      align-items: flex-start;
-      flex-direction: column;
+    .query-bar {
+      margin-right: 16px;
+      margin-left: 16px;
+    }
+    .results-heading div span {
+      display: none;
+    }
+    .run-query kbd {
+      display: none;
     }
   }
 </style>

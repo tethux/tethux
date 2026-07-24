@@ -1,8 +1,7 @@
 package types
 
 type ExecuteQueryRequest struct {
-	SQL    string         `json:"sql"`
-	Params map[string]any `json:"params"`
+	SQL string `json:"sql"`
 }
 
 type QueryColumn struct {

@@ -173,6 +173,7 @@ func (h *Handlers) ExecuteQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Println(request.SQL)
 
+	// h.writeJSON(w, types.ExecuteQueryResponse{})
 	h.writeAPIError(w, "query execution is not implemented", ErrCodeNotImplemented, http.StatusNotImplemented, nil)
 }
 

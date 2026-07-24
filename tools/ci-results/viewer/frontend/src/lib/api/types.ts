@@ -110,21 +110,19 @@ export type ArchiveFile = {
 
 export type RunDetail = { run: RunRow; tests: TestResult[]; files: ArchiveFile[] };
 
-export type SchemaObjectKind = "table" | "view";
-
-export interface SchemaInfo {
-  objects: SchemaObject[];
+export interface ExecuteQueryRequest {
+  sql: string;
 }
 
-export interface SchemaObject {
-  name: string;
-  kind: SchemaObjectKind;
-  columns: SchemaColumn[];
-}
-
-export interface SchemaColumn {
+export interface QueryColumn {
   name: string;
   type: string;
-  primaryKey: boolean;
-  nullable: boolean;
+}
+
+export interface ExecuteQueryResponse {
+  columns: QueryColumn[];
+  rows: Record<string, unknown>[];
+  row_count: number;
+  duration_ms: number;
+  truncated: boolean;
 }
