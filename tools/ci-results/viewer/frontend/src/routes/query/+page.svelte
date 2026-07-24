@@ -1,17 +1,11 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
   import type { PageData } from './$types';
-  import type {
-    SchemaInfo,
-    SchemaObject,
-    SchemaColumn,
-    Suggestion,
-    KeywordSuggestion,
-    SchemaObjectSuggestion,
-    ColumnSuggestion
-  } from '$lib/schema_types';
+  import type { SchemaInfo, Suggestion } from '$lib/schema_types';
   import type { ExecuteQueryResponse } from '$lib/api/types';
   import { executeQuery } from '$lib/api/querys';
+  import QueryResults from '$lib/components/QueryResults.svelte';
+  import { getSuggestions, querySource, tokenizeSql } from './sql';
 
   let { data }: { data: PageData } = $props();
 
@@ -32,57 +26,6 @@
   const schemaError = $derived(data.error);
   const highlightedQuery = $derived(tokenizeSql(query));
 
-  type QueryToken = {
-    value: string;
-    kind: 'plain' | 'keyword' | 'string' | 'number' | 'operator';
-  };
-
-  const keywords: KeywordSuggestion[] = [
-    createKeywordSuggestion('SELECT'),
-    createKeywordSuggestion('FROM'),
-    createKeywordSuggestion('WHERE'),
-    createKeywordSuggestion('JOIN'),
-    createKeywordSuggestion('ON'),
-    createKeywordSuggestion('GROUP BY'),
-    createKeywordSuggestion('ORDER BY'),
-    createKeywordSuggestion('LIMIT')
-  ];
-
-  function toggleSchema(): void {
-    schemaOpen = !schemaOpen;
-  }
-
-  function createKeywordSuggestion(keyword: KeywordSuggestion['keyword']): KeywordSuggestion {
-    return {
-      kind: 'keyword',
-      keyword,
-      label: keyword,
-      insertText: `${keyword} `,
-      detail: 'SQL keyword'
-    };
-  }
-
-  function createObjectSuggestion(object: SchemaObject): SchemaObjectSuggestion {
-    return {
-      kind: object.kind,
-      label: object.name,
-      insertText: object.name,
-      detail: object.kind === 'table' ? 'Table' : 'View',
-      object
-    };
-  }
-
-  function createColumnSuggestion(object: SchemaObject, column: SchemaColumn): ColumnSuggestion {
-    return {
-      kind: 'column',
-      label: column.name,
-      insertText: column.name,
-      detail: `${column.type || 'unknown'} · ${object.name}`,
-      objectName: object.name,
-      column
-    };
-  }
-
   function handleInput(): void {
     const cursor = queryInput.selectionStart ?? query.length;
     const sqlBeforeCursor = query.slice(0, cursor);
@@ -94,90 +37,6 @@
 
   function syncHighlightScroll(): void {
     if (queryHighlight) queryHighlight.scrollLeft = queryInput.scrollLeft;
-  }
-
-  function getSuggestions(sqlBeforeCursor: string, schema: SchemaInfo): Suggestion[] {
-    const trimmed = sqlBeforeCursor.trimEnd();
-
-    const sourceMatch = trimmed.match(/\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)?$/i);
-
-    if (sourceMatch) {
-      const prefix = sourceMatch[1] ?? '';
-
-      const uniqueObjects = new Map(
-        schema.objects.map((object) => [object.name.toLowerCase(), object])
-      );
-
-      return [...uniqueObjects.values()]
-        .filter((object) => matchesPrefix(object.name, prefix))
-        .map(createObjectSuggestion);
-    }
-
-    const qualifiedColumnMatch = trimmed.match(/([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z0-9_]*)$/);
-
-    if (qualifiedColumnMatch) {
-      const objectName = qualifiedColumnMatch[1];
-      const columnPrefix = qualifiedColumnMatch[2];
-
-      const object = schema.objects.find(
-        (candidate) => candidate.name.toLowerCase() === objectName.toLowerCase()
-      );
-
-      if (!object) {
-        return [];
-      }
-
-      return object.columns
-        .filter((column) => matchesPrefix(column.name, columnPrefix))
-        .map((column) => createColumnSuggestion(object, column));
-    }
-
-    const prefix = trimmed.match(/[A-Za-z_][A-Za-z0-9_]*$/)?.[0] ?? '';
-
-    return keywords.filter((suggestion) => matchesPrefix(suggestion.label, prefix));
-  }
-
-  function matchesPrefix(value: string, prefix: string): boolean {
-    return value.toLowerCase().startsWith(prefix.toLowerCase());
-  }
-
-  function tokenizeSql(value: string): QueryToken[] {
-    const keywordPattern =
-      /^(SELECT|FROM|WHERE|JOIN|ON|GROUP|BY|ORDER|LIMIT|AND|OR|AS|ASC|DESC|NULL|IS|NOT|IN|LIKE)\b/i;
-    const tokens: QueryToken[] = [];
-    let remaining = value;
-
-    while (remaining) {
-      const stringMatch = remaining.match(/^'(?:''|[^'])*'/);
-      const keywordMatch = remaining.match(keywordPattern);
-      const numberMatch = remaining.match(/^\b\d+(?:\.\d+)?\b/);
-      const operatorMatch = remaining.match(/^(?:<=|>=|<>|!=|=|<|>|\*|\+|-|\/)/);
-      const plainMatch = remaining.match(/^[\s\S]/);
-      const match = stringMatch ?? keywordMatch ?? numberMatch ?? operatorMatch ?? plainMatch;
-
-      if (!match) break;
-
-      const kind: QueryToken['kind'] = stringMatch
-        ? 'string'
-        : keywordMatch
-          ? 'keyword'
-          : numberMatch
-            ? 'number'
-            : operatorMatch
-              ? 'operator'
-              : 'plain';
-
-      const previous = tokens.at(-1);
-      if (kind === 'plain' && previous?.kind === 'plain') {
-        previous.value += match[0];
-      } else {
-        tokens.push({ value: match[0], kind });
-      }
-
-      remaining = remaining.slice(match[0].length);
-    }
-
-    return tokens;
   }
 
   function handleKeydown(event: KeyboardEvent): void {
@@ -287,10 +146,23 @@
     <div class="builder-body">
       <div class="query-toolbar">
         <div class="view-tabs" aria-label="Explorer view">
-          <button class="view-tab active" type="button" aria-pressed="true">
+          <button
+            class="view-tab"
+            class:active={!schemaOpen}
+            type="button"
+            onclick={() => (schemaOpen = false)}
+            aria-pressed={!schemaOpen}
+          >
             <span aria-hidden="true">⌘</span> Query
           </button>
-          <button class="view-tab" type="button" onclick={toggleSchema} aria-pressed={schemaOpen}>
+          <button
+            class="view-tab"
+            class:active={schemaOpen}
+            type="button"
+            onclick={() => (schemaOpen = true)}
+            aria-pressed={schemaOpen}
+            aria-controls="schema-panel"
+          >
             <span aria-hidden="true">▧</span>
             Schema
           </button>
@@ -306,7 +178,7 @@
         <div class="query-editor">
           {#if query}
             <div class="query-highlight" bind:this={queryHighlight} aria-hidden="true">
-              {#each highlightedQuery as token}
+              {#each highlightedQuery as token, index (`${index}:${token.value}`)}
                 <span
                   class:token-keyword={token.kind === 'keyword'}
                   class:token-string={token.kind === 'string'}
@@ -332,7 +204,7 @@
 
           {#if suggestionsOpen}
             <div class="suggestions" role="listbox" aria-label="SQL suggestions">
-              {#each suggestions as suggestion, index}
+              {#each suggestions as suggestion, index (`${suggestion.kind}:${suggestion.label}`)}
                 <button
                   type="button"
                   role="option"
@@ -355,19 +227,23 @@
           <strong>Query results</strong>
           <span>Run a query to explore ingested test data</span>
         </div>
-        <span class="result-count">— rows</span>
+
+        <span class="result-count">
+          {result ? `${result.row_count} rows` : '— rows'}
+        </span>
       </div>
 
-      <div class="empty-state">
-        {#if error}
+      {#if error}
+        <div class="empty-state">
           <pre>{error}</pre>
-        {:else if result}
-          <pre>{JSON.stringify(result, null, 2)}</pre>
-        {/if}
-        <p>Your results will appear here.</p>
-        <small>Write a filter above, then run the query.</small>
-        <p>todo slap this in a virtual list</p>
-      </div>
+        </div>
+      {:else if result && result.rows.length > 0}
+        {@const queryResult = result}
+
+        <QueryResults result={queryResult} source={querySource(query)} />
+      {:else}
+        <div class="empty-state" aria-label="No query results"></div>
+      {/if}
     </div>
   </section>
 
@@ -379,7 +255,7 @@
       aria-label="Resize schema pane"
       onpointerdown={startResize}
     ></div>
-    <aside class="schema-panel" aria-label="Database schema">
+    <aside id="schema-panel" class="schema-panel" aria-label="Database schema">
       <div class="schema-actions">
         <button
           class="icon-button"
@@ -437,6 +313,7 @@
     --muted: #74786e;
     --line: #d8d9d2;
     --accent: #315f4a;
+    --run-text: #fff;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     height: 100vh;
@@ -444,7 +321,7 @@
     background: var(--paper);
   }
   .query-workspace.split {
-    grid-template-columns: minmax(0, calc(100% - var(--schema-width))) 10px minmax(
+    grid-template-columns: minmax(0, calc(100% - var(--schema-width) - 10px)) 10px minmax(
         0,
         var(--schema-width)
       );
@@ -497,16 +374,17 @@
     gap: 8px;
     min-height: 38px;
     padding: 0 12px;
-    border: 1px solid #294f3d;
+    border: 1px solid var(--syntax-blue);
     border-radius: 3px;
-    background: var(--accent);
-    color: #fff;
+    background: var(--syntax-blue);
+    color: var(--run-text);
     font-size: 12px;
     font-weight: 650;
     white-space: nowrap;
   }
   .run-query:hover:not(:disabled) {
-    background: #244c38;
+    border-color: color-mix(in srgb, var(--syntax-blue) 82%, #000);
+    background: color-mix(in srgb, var(--syntax-blue) 82%, #000);
   }
   .run-query kbd {
     padding: 1px 5px;
@@ -569,9 +447,9 @@
     align-items: center;
     min-height: 58px;
     margin: 14px clamp(22px, 3vw, 42px);
-    border: 1px solid #c5c7be;
+    border: 1px solid var(--border);
     border-radius: 3px;
-    background: #fff;
+    background: var(--base);
     box-shadow: inset 0 1px 0 rgb(24 27 21 / 3%);
   }
   .query-bar:focus-within {
@@ -641,7 +519,9 @@
     z-index: 5;
     top: calc(100% - 2px);
     left: 10px;
-    width: min(420px, calc(100vw - 330px));
+    width: max-content;
+    min-width: 180px;
+    max-width: min(300px, calc(100vw - 330px));
     max-height: 260px;
     overflow-y: auto;
     padding: 5px;
@@ -652,7 +532,7 @@
   }
   .suggestions button {
     display: grid;
-    grid-template-columns: 70px minmax(0, 1fr);
+    grid-template-columns: 54px minmax(0, auto);
     align-items: center;
     width: 100%;
     gap: 9px;
@@ -664,17 +544,23 @@
   }
   .suggestions button:hover,
   .suggestions button.selected {
-    background: #eef1ec;
+    background: var(--overlay);
+    color: var(--text);
+  }
+  .suggestions button.selected {
+    box-shadow: inset 3px 0 0 var(--focus);
   }
   .suggestion-kind {
-    color: #8b6d36;
+    color: var(--syntax-mauve);
     font-size: 9px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
   .suggestions strong {
     overflow: hidden;
+    color: var(--text);
     font-size: 12px;
+    font-weight: 700;
     text-overflow: ellipsis;
   }
   .results-heading {
@@ -708,15 +594,6 @@
     justify-items: center;
     color: var(--muted);
     text-align: center;
-  }
-  .empty-state p {
-    margin: 0;
-    color: #555950;
-    font-size: 12px;
-  }
-  .empty-state small {
-    margin-top: 4px;
-    font-size: 10px;
   }
   .resize-handle {
     position: relative;
@@ -834,6 +711,72 @@
     border: 1px solid #bfc0b8;
     background: #fff;
     padding: 8px 12px;
+  }
+  .empty-state pre {
+    overflow-x: auto;
+    color: #8a3028;
+    white-space: pre-wrap;
+  }
+  :global(html.dark) .query-workspace {
+    --paper: var(--base);
+    --ink: var(--text);
+    --muted: var(--subtle);
+    --line: var(--border);
+    --accent: #89b4fa;
+    --run-text: #1e1e2e;
+  }
+  :global(html.dark) .builder-header,
+  :global(html.dark) .results-heading,
+  :global(html.dark) .query-bar,
+  :global(html.dark) .suggestions,
+  :global(html.dark) .schema-object,
+  :global(html.dark) .icon-button,
+  :global(html.dark) .schema-message button {
+    border-color: var(--border);
+    background: var(--base);
+    color: var(--text);
+  }
+  :global(html.dark) .query-toolbar,
+  :global(html.dark) .schema-panel,
+  :global(html.dark) .schema-object header {
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+  :global(html.dark) .query-bar:focus-within {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 2px rgb(245 194 231 / 14%);
+  }
+  :global(html.dark) .query-highlight {
+    color: var(--text);
+  }
+  :global(html.dark) .token-keyword {
+    color: var(--syntax-mauve);
+  }
+  :global(html.dark) .token-string {
+    color: var(--syntax-green);
+  }
+  :global(html.dark) .token-number {
+    color: var(--syntax-peach);
+  }
+  :global(html.dark) .token-operator {
+    color: var(--syntax-overlay);
+  }
+  :global(html.dark) .suggestions button {
+    color: var(--text);
+  }
+  :global(html.dark) .suggestions button:hover,
+  :global(html.dark) .suggestions button.selected,
+  :global(html.dark) .schema-object li:hover {
+    background: var(--overlay);
+  }
+  :global(html.dark) .run-query {
+    border-color: var(--syntax-blue);
+    background: var(--syntax-blue);
+    color: var(--run-text);
+  }
+  :global(html.dark) .resize-handle {
+    background: var(--border);
   }
   @media (max-width: 760px) {
     .query-workspace.split {
