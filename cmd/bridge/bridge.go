@@ -29,20 +29,6 @@ type portSpec struct {
 	PacketLoss    float64
 }
 
-func newBridgeCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "bridge",
-		Short: "Run the switch with different transport backends",
-	}
-
-	cmd.AddCommand(newBridgePortsCmd())
-	cmd.AddCommand(newBridgeContainerCmd())
-	cmd.AddCommand(newBridgeNamespaceCmd())
-	cmd.AddCommand(newBridgeUDPCmd())
-
-	return cmd
-}
-
 func newBridgePortsCmd() *cobra.Command {
 	var (
 		specs                      []string
