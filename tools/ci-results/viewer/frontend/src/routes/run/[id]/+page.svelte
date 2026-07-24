@@ -472,8 +472,8 @@
     padding: 28px 34px 70px !important;
   }
   :global(body) {
-    background: #f5f7f9 !important;
-    color: #1c2733 !important;
+    background: var(--base) !important;
+    color: var(--text) !important;
     font-family: 'IBM Plex Sans', 'Aptos', sans-serif !important;
   }
   .crumb {
@@ -1245,6 +1245,113 @@
     background: #fff7dd;
     border-bottom: 1px solid #eadb9b;
     color: #725d1b;
+  }
+  :global(html.dark) .summary-card,
+  :global(html.dark) .test-panel,
+  :global(html.dark) .inspector,
+  :global(html.dark) .table-card,
+  :global(html.dark) .manifest,
+  :global(html.dark) .search,
+  :global(html.dark) .filter-select summary,
+  :global(html.dark) .filter-select > div,
+  :global(html.dark) .filter-select button,
+  :global(html.dark) .provider-select,
+  :global(html.dark) .provider-select select,
+  :global(html.dark) .repo-links a,
+  :global(html.dark) .file-row,
+  :global(html.dark) .manifest-file-list button,
+  :global(html.dark) .view-toggle button.active,
+  :global(html.dark) .file-modal {
+    border-color: var(--border);
+    background: var(--base);
+    color: var(--text);
+  }
+  :global(html.dark) .test-tools,
+  :global(html.dark) .source-block,
+  :global(html.dark) .metrics-block,
+  :global(html.dark) .manifest-files-head,
+  :global(html.dark) .manifest-grid h3,
+  :global(html.dark) .view-toggle,
+  :global(html.dark) .json-view,
+  :global(html.dark) .file-modal pre,
+  :global(html.dark) .results-head,
+  :global(html.dark) .message pre {
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+  :global(html.dark) .summary-card > div,
+  :global(html.dark) .panel-title,
+  :global(html.dark) .test-tools,
+  :global(html.dark) .test-list :global(button),
+  :global(html.dark) .inspector dl,
+  :global(html.dark) .inspector dl div,
+  :global(html.dark) .file-row,
+  :global(html.dark) .manifest-grid article,
+  :global(html.dark) .manifest-grid dl div,
+  :global(html.dark) .manifest-file-list button,
+  :global(html.dark) .file-modal header,
+  :global(html.dark) .results-preview article,
+  :global(html.dark) .results-head {
+    border-color: var(--border);
+  }
+  :global(html.dark) .test-list :global(button) {
+    background: var(--base);
+    color: var(--text);
+  }
+  :global(html.dark) .test-list :global(button:hover),
+  :global(html.dark) .test-list :global(button.selected),
+  :global(html.dark) .file-row:hover,
+  :global(html.dark) .manifest-file-list button:hover,
+  :global(html.dark) .repo-links a:hover {
+    background: var(--hover);
+  }
+  :global(html.dark) .search input {
+    color: var(--text);
+  }
+  :global(html.dark) .hero p,
+  :global(html.dark) .summary-card small,
+  :global(html.dark) .panel-title p,
+  :global(html.dark) .panel-title > span,
+  :global(html.dark) .test-name small,
+  :global(html.dark) .duration,
+  :global(html.dark) .chevron,
+  :global(html.dark) .inspector-head,
+  :global(html.dark) .inspector dt,
+  :global(html.dark) .metrics-title,
+  :global(html.dark) .file-row small,
+  :global(html.dark) .manifest-file-name small,
+  :global(html.dark) .manifest-grid dt {
+    color: var(--subtle);
+  }
+  :global(html.dark) .tabs {
+    border-color: var(--border);
+  }
+  :global(html.dark) .tabs button {
+    color: var(--subtle);
+  }
+  :global(html.dark) .tabs button.active,
+  :global(html.dark) .accent,
+  :global(html.dark) .source-block code,
+  :global(html.dark) .repo-links a {
+    color: var(--syntax-blue);
+  }
+  :global(html.dark) .success,
+  :global(html.dark) .result-status,
+  :global(html.dark) .results-head span {
+    color: var(--syntax-green);
+  }
+  :global(html.dark) .badge,
+  :global(html.dark) .status-icon,
+  :global(html.dark) .dot {
+    background: color-mix(in srgb, var(--syntax-green) 14%, transparent);
+    color: var(--syntax-green);
+  }
+  :global(html.dark) .badge.failed,
+  :global(html.dark) .status-icon.bad,
+  :global(html.dark) .dot.bad-dot {
+    background: color-mix(in srgb, var(--love) 14%, transparent);
+    color: var(--love);
   }
   @media (max-width: 950px) {
     .summary-card {
