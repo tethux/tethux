@@ -9,7 +9,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:theme": "node --test tests/query-theme.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

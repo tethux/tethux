@@ -70,7 +70,7 @@
             </div>
 
             <div>
-              <strong>{test.passed_count} passed</strong>
+              <strong class="passed">{test.passed_count} passed</strong>
 
               <small class:failed={test.failed_count > 0}>
                 {test.failed_count} failed · {test.result_count} total
@@ -95,12 +95,13 @@
     flex: 1;
     min-width: 0;
     padding: 9px 11px;
-    border: 1px solid #aaa;
-    background: #fff;
+    border: 1px solid var(--border);
+    background: var(--base);
+    color: var(--text);
   }
 
   .toolbar span {
-    color: #777;
+    color: var(--subtle);
   }
 
   .heading,
@@ -112,8 +113,8 @@
 
   .heading {
     padding: 9px 14px;
-    color: #777;
-    border-bottom: 1px solid #ccc;
+    color: var(--subtle);
+    border-bottom: 1px solid var(--border);
     font-size: 12px;
   }
 
@@ -134,7 +135,8 @@
     box-sizing: border-box;
     width: 100%;
     padding: 12px 14px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border);
+    background: var(--base);
   }
 
   article div {
@@ -146,7 +148,7 @@
   code,
   small,
   article span {
-    color: #777;
+    color: var(--subtle);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -154,12 +156,16 @@
 
   small.failed,
   .error {
-    color: #8a3028;
+    color: var(--love);
+  }
+
+  .passed {
+    color: var(--syntax-green);
   }
 
   .empty {
     padding: 20px;
-    color: #777;
+    color: var(--subtle);
   }
 
   @media (max-width: 700px) {

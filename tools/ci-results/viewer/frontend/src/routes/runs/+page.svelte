@@ -99,8 +99,8 @@
 
   .columns {
     padding: 9px 14px;
-    color: #777;
-    border-bottom: 1px solid #ccc;
+    color: var(--subtle);
+    border-bottom: 1px solid var(--border);
     font-size: 12px;
   }
 
@@ -117,13 +117,13 @@
     min-height: 76px;
     align-items: center;
     padding: 10px 14px;
-    border-bottom: 1px solid #ddd;
-    background: #fff;
+    border-bottom: 1px solid var(--border);
+    background: var(--base);
     cursor: pointer;
   }
 
   .run-row:hover {
-    background: #f8f8f8;
+    background: var(--hover);
   }
 
   .row-link {
@@ -154,18 +154,18 @@
 
   .run-row span {
     overflow: hidden;
-    color: #777;
+    color: var(--subtle);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .run-row b {
     width: max-content;
-    color: #315c2b;
+    color: var(--syntax-green);
   }
 
   .run-row b.failed {
-    color: #8a3028;
+    color: var(--love);
   }
 
   .source {
@@ -176,12 +176,12 @@
   }
 
   .error {
-    color: #8a3028;
+    color: var(--love);
   }
 
   .empty {
     padding: 20px;
-    color: #777;
+    color: var(--subtle);
   }
 
   @media (max-width: 700px) {
