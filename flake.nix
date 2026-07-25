@@ -157,15 +157,14 @@
             integration = pkgs.mkShell (
               cgoPcapEnv
               // {
-                packages = with pkgs; [
+                MISE_ENABLE_TOOLS = "";
+                packages = [ bunBaseline ] ++ miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   bridge-utils
                   containerd
                   curl
                   docker-client
                   git
-                  go
-                  golangci-lint
                   iproute2
                   libpcap
                   openssh
@@ -175,7 +174,7 @@
                   runc
                   socat
                   tcpdump
-                ];
+                ]);
               }
             );
 
