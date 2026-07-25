@@ -18,6 +18,10 @@ const runDetail = await readFile(
   new URL('../src/routes/run/[id]/+page.svelte', import.meta.url),
   'utf8'
 );
+const logSearch = await readFile(
+  new URL('../src/lib/components/LogSearch.svelte', import.meta.url),
+  'utf8'
+);
 
 test('saved queries use a versioned local document and complete lifecycle controls', () => {
   assert.match(saved, /ci-results:saved-queries:v1/);
@@ -63,6 +67,16 @@ test('diagnostic overview keeps health, duration, recent runs, and workflow step
   assert.match(dashboard, /Project pulse/);
   assert.match(dashboard, /Build duration/);
   assert.match(dashboard, /Recent runs/);
+  assert.match(dashboard, /class="y-axis"/);
+  assert.match(dashboard, /chart-tooltip/);
   assert.match(runDetail, /Workflow steps/);
   assert.match(runDetail, /configs\/workflow\.json/);
+});
+
+test('artifact logs expose complete-text search, regex, and severity filtering', () => {
+  assert.match(logSearch, /Full log search/);
+  assert.match(logSearch, /severity/);
+  assert.match(logSearch, /regex/);
+  assert.match(artifacts, /<LogSearch/);
+  assert.match(runDetail, /<LogSearch/);
 });

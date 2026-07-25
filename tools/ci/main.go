@@ -71,8 +71,17 @@ func deployCommand(ctx context.Context, args []string) error {
 			return err
 		}
 		fmt.Fprint(os.Stderr, "Cloudflare tunnel token: ")
-		_ = exec.Command("stty", "-echo").Run()
-		defer func() { _ = exec.Command("stty", "echo").Run(); fmt.Fprintln(os.Stderr) }()
+		setEcho := func(enabled bool) {
+			argument := "-echo"
+			if enabled {
+				argument = "echo"
+			}
+			command := exec.Command("stty", argument)
+			command.Stdin = os.Stdin
+			_ = command.Run()
+		}
+		setEcho(false)
+		defer func() { setEcho(true); _, _ = fmt.Fprintln(os.Stderr) }()
 		var token string
 		if _, err := fmt.Fscanln(os.Stdin, &token); err != nil {
 			return fmt.Errorf("read token: %w", err)
