@@ -329,7 +329,7 @@
   }
   .artifact-tools label > span {
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
@@ -385,6 +385,11 @@
     grid-template-columns: minmax(260px, 2.1fr) minmax(110px, 0.8fr) minmax(140px, 1fr) 80px;
     gap: 16px;
     align-items: center;
+  }
+  .rows {
+    max-height: min(68vh, 760px);
+    overflow: auto;
+    scrollbar-gutter: stable;
   }
   .columns {
     padding: 9px 14px;
@@ -453,9 +458,11 @@
   }
   .size {
     display: flex !important;
-    grid-template-columns: 1fr auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     color: var(--subtle);
-    font-size: 11px;
+    font-size: 12px;
   }
   .size i {
     color: var(--focus);

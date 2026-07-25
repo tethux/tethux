@@ -1,10 +1,9 @@
 <script lang="ts">
-  import VirtualList from '@humanspeak/svelte-virtual-list';
   import { resolve } from '$app/paths';
   import CommitLink from '$lib/components/CommitLink.svelte';
   import ChevronIcon from '$lib/components/ChevronIcon.svelte';
   import { sourceRepositories } from '$lib/repositories';
-  import { nullStringValue, type Run } from '$lib/api/types';
+  import { nullStringValue } from '$lib/api/types';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -18,7 +17,7 @@
   <h1>Runs</h1>
 
   <p class="lede">
-    Virtualized history of {data.runs.length} ingested runs.
+    History of {data.runs.length} ingested runs.
   </p>
 </header>
 
@@ -37,54 +36,44 @@
   {#if data.runs.length === 0}
     <p class="empty">No runs found.</p>
   {:else}
-    <div class="virtual-list">
-      <VirtualList
-        items={data.runs}
-        defaultEstimatedItemHeight={76}
-        bufferSize={8}
-        hasMore={false}
-        viewportLabel="Run history"
-      >
-        {#snippet renderItem(run: Run)}
-          <article class="run-row">
-            <a
-              class="row-link"
-              href={resolve(`/run/${run.run_uid}`)}
-              aria-label={`Open run ${run.run_uid}`}
-            ></a>
+    {#each data.runs as run (run.run_uid)}
+      <article class="run-row">
+        <a
+          class="row-link"
+          href={resolve(`/run/${run.run_uid}`)}
+          aria-label={`Open run ${run.run_uid}`}
+        ></a>
 
-            <div>
-              <b class:failed={run.status !== 'passed'}>
-                {run.status}
-              </b>
+        <div>
+          <b class:failed={run.status !== 'passed'}>
+            {run.status}
+          </b>
 
-              <CommitLink hash={run.commit_sha} repositories={sourceRepositories} />
-            </div>
+          <CommitLink hash={run.commit_sha} repositories={sourceRepositories} />
+        </div>
 
-            <div>
-              <strong>{run.project_key}</strong>
+        <div>
+          <strong>{run.project_key}</strong>
 
-              <span class="source">
-                <span>{run.device_key}</span>
-                <span>·</span>
-                <span>{nullStringValue(run.branch) ?? 'detached'}</span>
-              </span>
-            </div>
+          <span class="source">
+            <span>{run.device_key}</span>
+            <span>·</span>
+            <span>{nullStringValue(run.branch) ?? 'detached'}</span>
+          </span>
+        </div>
 
-            <div>
-              <strong>
-                {run.passed_count}/{run.total_count}
-              </strong>
+        <div>
+          <strong>
+            {run.passed_count}/{run.total_count}
+          </strong>
 
-              <span>
-                {run.duration_ms} ms · {run.started_at}
-              </span>
-            </div>
-            <ChevronIcon size={17} />
-          </article>
-        {/snippet}
-      </VirtualList>
-    </div>
+          <span>
+            {run.duration_ms} ms · {run.started_at}
+          </span>
+        </div>
+        <ChevronIcon size={17} />
+      </article>
+    {/each}
   {/if}
 </section>
 
@@ -105,12 +94,6 @@
     color: var(--subtle);
     border-bottom: 1px solid var(--border);
     font-size: 12px;
-  }
-
-  .virtual-list {
-    width: 100%;
-    height: 532px;
-    overflow: hidden;
   }
 
   .run-row {
@@ -197,11 +180,6 @@
   @media (max-width: 700px) {
     .columns {
       display: none;
-    }
-
-    .virtual-list {
-      height: 70vh;
-      min-height: 400px;
     }
 
     .run-row {

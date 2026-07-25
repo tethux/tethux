@@ -744,14 +744,9 @@
       background-position: -200% 0;
     }
   }
-  :global(main) {
-    width: min(1440px, 100%) !important;
-    padding: 28px 34px 70px !important;
-  }
   :global(body) {
     background: var(--base) !important;
     color: var(--text) !important;
-    font-family: 'IBM Plex Sans', 'Aptos', sans-serif !important;
   }
   .crumb {
     color: #71808e;

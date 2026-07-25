@@ -14,10 +14,6 @@
         .includes(filter.trim().toLowerCase())
     )
   );
-  $effect(() => {
-    console.log('tests:', data.tests);
-    console.log('first suite:', data.tests[0]?.suite);
-  });
 </script>
 
 <svelte:head>
@@ -177,7 +173,8 @@
     }
 
     article {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1.8fr) minmax(64px, 0.8fr) minmax(82px, 1fr);
+      gap: 8px;
     }
   }
 </style>

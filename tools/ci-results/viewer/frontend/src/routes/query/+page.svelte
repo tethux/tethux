@@ -1014,9 +1014,9 @@
   }
   @media (max-width: 760px) {
     .query-workspace {
-      height: auto;
-      min-height: 70vh;
-      overflow: visible;
+      height: 100dvh;
+      min-height: 600px;
+      overflow: hidden;
     }
     .query-workspace.split {
       grid-template-columns: 1fr;
@@ -1029,12 +1029,16 @@
       min-height: auto;
     }
     .builder {
-      min-height: 72vh;
+      min-height: 100%;
     }
     .schema-panel {
-      border-left: 0;
-      border-top: 1px solid #d8d7d1;
-      min-height: 48vh;
+      position: fixed;
+      z-index: 30;
+      inset: 56px 12px 12px;
+      min-height: 0;
+      max-height: calc(100dvh - 68px);
+      border: 1px solid var(--border);
+      box-shadow: 0 16px 48px rgb(0 0 0 / 30%);
     }
     .query-toolbar,
     .builder-header,

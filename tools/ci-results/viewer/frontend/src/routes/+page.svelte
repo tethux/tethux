@@ -17,6 +17,11 @@
   let focusedRun = $state<Run | null>(null);
 
   const recent = $derived(runs.slice(0, 12));
+  const latestRun = $derived(runs[0] ?? null);
+  const latestFailure = $derived(runs.find((run) => run.status !== 'passed') ?? null);
+  const archiveIsStale = $derived(
+    latestRun ? Date.now() - new Date(latestRun.started_at).getTime() > 48 * 60 * 60 * 1000 : false
+  );
   const durationPeak = $derived(Math.max(...recent.map((run) => run.duration_ms), 1));
   const successRate = $derived(
     recent.length
@@ -108,10 +113,22 @@
     <h1>Build status</h1>
     <p class="lede">Recent results, failures, and run times by pipeline and host.</p>
   </div>
-  <a class="query-link" href={resolve('/query')}>Explore data <span>⌘</span></a>
+  <div class="header-actions">
+    {#if latestFailure}
+      <a class="failure-link" href={resolve(`/run/${latestFailure.run_uid}`)}
+        >Open latest failure <span>→</span></a
+      >
+    {/if}
+    <a class="query-link" href={resolve('/query')}>Explore data <span>⌘</span></a>
+  </div>
 </header>
 
 {#if error}<p class="summary-error">Unable to load dashboard: {error}</p>{/if}
+{#if archiveIsStale && latestRun}
+  <p class="stale-notice">
+    Latest archived run: {relative(latestRun.started_at)}. No newer archive has been ingested.
+  </p>
+{/if}
 
 <section class="health-grid" aria-label="CI health summary">
   <article class="health-score">
@@ -287,7 +304,14 @@
     letter-spacing: 0.13em;
     text-transform: uppercase;
   }
-  .query-link {
+  .header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .query-link,
+  .failure-link {
     display: inline-flex;
     align-items: center;
     gap: 14px;
@@ -298,6 +322,12 @@
     color: var(--text);
     text-decoration: none;
   }
+  .failure-link {
+    border-color: color-mix(in srgb, var(--love) 45%, var(--border));
+  }
+  .failure-link span {
+    color: var(--love);
+  }
   .query-link span {
     color: var(--muted);
   }
@@ -305,6 +335,14 @@
     padding: 10px 12px;
     border: 1px solid color-mix(in srgb, var(--love) 35%, var(--border));
     color: var(--love);
+  }
+  .stale-notice {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--yellow) 35%, var(--border));
+    background: color-mix(in srgb, var(--yellow) 5%, var(--base));
+    color: var(--subtle);
+    font-size: 12px;
   }
   .health-grid {
     display: grid;
@@ -676,6 +714,9 @@
     .dashboard-header {
       align-items: start;
       flex-direction: column;
+    }
+    .header-actions {
+      justify-content: flex-start;
     }
     .health-grid {
       grid-template-columns: 1fr;

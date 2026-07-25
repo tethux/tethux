@@ -89,4 +89,6 @@ test('shared sidebar keeps theme and source controls visible on every route', ()
   assert.match(layout, /!== 'light'/);
   assert.match(layout, /theme-favicon/);
   assert.match(layout, /tools\/ci-results\/viewer/);
+  assert.match(layout, /github\.com\/tethux\/tethux/);
+  assert.match(layout, /scrollbar-gutter: stable/);
 });
