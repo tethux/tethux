@@ -6,6 +6,8 @@
   import { getSummary } from '$lib/api/summary';
   import { nullStringValue, type Run, type ViewerSummary } from '$lib/api/types';
   import CommitLink from '$lib/components/CommitLink.svelte';
+  import ChevronIcon from '$lib/components/ChevronIcon.svelte';
+  import StatusIcon from '$lib/components/StatusIcon.svelte';
   import { sourceRepositories } from '$lib/repositories';
 
   let summary = $state<ViewerSummary | null>(null);
@@ -170,15 +172,15 @@
               class:failed={run.status !== 'passed'}
               style:height={`${Math.max((run.duration_ms / durationPeak) * 100, 6)}%`}
             ></i>
+            {#if focusedRun?.run_uid === run.run_uid}
+              <div class="chart-tooltip" role="status">
+                <strong>{duration(run.duration_ms)}</strong>
+                <span>{run.status} · {run.device_key}</span>
+                <small>{nullStringValue(run.branch) ?? run.commit_sha.slice(0, 8)}</small>
+              </div>
+            {/if}
           </a>
         {/each}
-        {#if focusedRun}
-          <div class="chart-tooltip" role="status">
-            <strong>{duration(focusedRun.duration_ms)}</strong>
-            <span>{focusedRun.status} · {focusedRun.device_key}</span>
-            <small>{nullStringValue(focusedRun.branch) ?? focusedRun.commit_sha.slice(0, 8)}</small>
-          </div>
-        {/if}
       </div>
     </div>
     <div class="small-charts">
@@ -238,7 +240,9 @@
         <p>Latest</p>
         <h2 id="recent-title">Recent runs</h2>
       </div>
-      <a class="history-link" href={resolve('/runs')}>All runs <span>→</span></a>
+      <a class="history-link" href={resolve('/runs')}
+        >All runs <span><ChevronIcon size={15} /></span></a
+      >
     </header>
     {#if loading}
       <div class="skeleton" aria-label="Loading recent runs"></div>
@@ -250,7 +254,9 @@
             href={resolve(`/run/${run.run_uid}`)}
             aria-label={`Open ${run.status} run`}
           ></a>
-          <b class:failed={run.status !== 'passed'}>{run.status === 'passed' ? '✓' : '×'}</b>
+          <b class:failed={run.status !== 'passed'}
+            ><StatusIcon passed={run.status === 'passed'} /></b
+          >
           <div>
             <strong><CommitLink hash={run.commit_sha} repositories={sourceRepositories} /></strong>
             <small>{run.project_key} · {run.device_key}</small>
@@ -402,6 +408,7 @@
     background-size: 100% 33.333%;
   }
   .duration-chart a {
+    position: relative;
     display: flex;
     height: 100%;
     flex: 1;
@@ -426,8 +433,9 @@
   .chart-tooltip {
     position: absolute;
     z-index: 2;
-    top: 10px;
-    left: 10px;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
     display: grid;
     gap: 2px;
     min-width: 132px;
@@ -437,6 +445,15 @@
     background: var(--surface);
     box-shadow: 0 8px 24px color-mix(in srgb, #000 20%, transparent);
     pointer-events: none;
+  }
+  .duration-chart a:first-of-type .chart-tooltip {
+    left: 0;
+    transform: none;
+  }
+  .duration-chart a:last-of-type .chart-tooltip {
+    right: 0;
+    left: auto;
+    transform: none;
   }
   .chart-tooltip strong {
     font-size: 13px;
@@ -563,6 +580,8 @@
     border-color: var(--syntax-blue);
   }
   .history-link span {
+    display: grid;
+    place-items: center;
     color: var(--syntax-blue);
   }
   .recent-panel article {

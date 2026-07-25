@@ -2,6 +2,7 @@
   import VirtualList from '@humanspeak/svelte-virtual-list';
   import { resolve } from '$app/paths';
   import CommitLink from '$lib/components/CommitLink.svelte';
+  import ChevronIcon from '$lib/components/ChevronIcon.svelte';
   import { sourceRepositories } from '$lib/repositories';
   import { nullStringValue, type Run } from '$lib/api/types';
   import type { PageData } from './$types';
@@ -30,6 +31,7 @@
     <span>Status / run</span>
     <span>Source</span>
     <span>Results</span>
+    <span aria-hidden="true"></span>
   </div>
 
   {#if data.runs.length === 0}
@@ -78,6 +80,7 @@
                 {run.duration_ms} ms · {run.started_at}
               </span>
             </div>
+            <ChevronIcon size={17} />
           </article>
         {/snippet}
       </VirtualList>
@@ -93,7 +96,7 @@
   .columns,
   .run-row {
     display: grid;
-    grid-template-columns: 1.1fr 2fr 1.5fr;
+    grid-template-columns: 1.1fr 2fr 1.5fr 20px;
     gap: 16px;
   }
 
@@ -147,6 +150,13 @@
     pointer-events: auto;
   }
 
+  .run-row > :global(svg) {
+    position: relative;
+    z-index: 1;
+    color: var(--syntax-blue);
+    pointer-events: none;
+  }
+
   .run-row:has(.row-link:focus-visible) {
     outline: 2px solid currentColor;
     outline-offset: -2px;
@@ -197,6 +207,14 @@
     .run-row {
       grid-template-columns: 1fr;
       min-height: 112px;
+      padding-right: 42px;
+    }
+
+    .run-row > :global(svg) {
+      position: absolute;
+      top: 50%;
+      right: 14px;
+      transform: translateY(-50%);
     }
   }
 </style>
