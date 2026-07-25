@@ -55,9 +55,11 @@ RUNTIME=podman mise run test:integration:local
 Each test host provides a loopback OCI fixture registry. Provider tests use
 those deterministic images and never silently substitute public images.
 
-Push CI runs the normal checks on the NAS, then Docker, Podman, and cross-host
-workflows in order. The optional Proxmox workflow is manual so remote-site
-availability cannot block normal development.
+Push CI runs the normal checks on the NAS alongside the integration chain.
+Docker, Podman, and cross-host workflows still run in that order, but a lint or
+unit-test failure does not prevent them from collecting their own results. The
+optional Proxmox workflow is manual so remote-site availability cannot block
+normal development.
 
 ## Test archives
 

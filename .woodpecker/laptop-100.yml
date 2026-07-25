@@ -8,9 +8,6 @@ labels:
   tethux-test-host: "true"
   privileged: "true"
 
-depends_on:
-  - checks
-
 steps:
   docker-bridge-and-all-providers:
     image: nixos/nix

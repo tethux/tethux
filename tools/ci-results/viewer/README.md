@@ -78,6 +78,3 @@ docker compose \
 
 The tunnel reads `TUNNEL_TOKEN` from `.env`. After changing it, rerun the
 Compose command.
-
-Canonical source:
-https://github.com/tethux/tethux/tree/master/tools/ci-results/viewer

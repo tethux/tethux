@@ -1,15 +1,13 @@
 # tethux
 
-tethux is an experimental, autoscalable network-emulation toolkit. It combines
-an Ethernet switch, UDP/TAP/raw/pcap transports, container and VM provider
-interfaces, and integration tooling for building GNS3/uBridge-style topologies.
+tethux is not ready for general use yet. It is an early-stage network emulation
+toolkit for building programmable Ethernet topologies across containers, virtual
+machines, and physical hosts.
 
-This repository is a Go and Nix monorepo. The root README is intentionally an
-overview; each subsystem owns its commands, examples, and operational notes in
-the closest README.
-
-The canonical source repository is
-[github.com/tethux/tethux](https://github.com/tethux/tethux).
+The project includes an Ethernet switch, UDP/TAP/raw/pcap transports, container
+and VM providers, and integration tooling. This repository is a Go and Nix
+monorepo; detailed commands and examples live in the README nearest each
+subsystem.
 
 ## Monorepo map
 
@@ -58,11 +56,10 @@ nix build .#tethux
 For bridge examples, provider testing, cross-host links, test host installation,
 recovery, and CI archives, follow the subsystem README from the map above.
 
-## Project status
+## Privileged tests
 
-tethux is pre-release research software. Privileged bridge and provider tests
-create real containers, veth devices, namespaces, and UDP listeners; use the
-NixOS test hosts or another disposable lab host for integration work.
-Local privileged integration is never automatic: opt in with
+Bridge and provider integration tests create real containers, veth devices,
+namespaces, and UDP listeners. Use the NixOS test hosts or another disposable
+lab host. Local privileged integration is never automatic; opt in with
 `TETHUX_RUN_INTEGRATION=1` and the Mise tasks documented in
 [`nix/README.md`](nix/README.md).

@@ -1,0 +1,21 @@
+when:
+  - event: push
+  - event: pull_request
+  - event: manual
+
+labels:
+  host: nas
+  github: "true"
+  podman: "true"
+
+steps:
+  build-viewer-image:
+    image: head1328/woodpecker-ci-plugin-podman
+    pull: true
+    settings:
+      context: .
+      containerfile: tools/ci-results/viewer/Dockerfile
+      dry_run: true
+      cache: true
+      tags:
+        - ${CI_COMMIT_SHA}

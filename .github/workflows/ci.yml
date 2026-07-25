@@ -19,11 +19,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up mise
-        uses: jdx/mise-action@v3
-        with:
-          install: true
-          cache: true
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Cache Nix builds
+        uses: DeterminateSystems/magic-nix-cache-action@v14
 
       - name: Run all Go and web checks
-        run: mise run ci
+        run: nix develop .#ci -c mise run ci
