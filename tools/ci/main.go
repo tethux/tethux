@@ -210,14 +210,13 @@ func workflowFor(name, root, runtimeName, provider string) (ciframework.Workflow
 	if runtimeName != "docker" && runtimeName != "podman" {
 		return ciframework.Workflow{}, errors.New("laptop workflow requires --runtime docker or podman")
 	}
-	normal, _ := registry.Workflow("normal")
 	providers, _ := registry.Workflow("provider")
 	topology, _ := registry.Workflow("topology")
 	backends, _ := registry.Workflow("bridge")
-	steps := append([]ciframework.Step(nil), normal.Steps...)
+	steps := make([]ciframework.Step, 0, len(backends.Steps)+len(providers.Steps)+len(topology.Steps))
 	for _, group := range [][]ciframework.Step{backends.Steps, providers.Steps, topology.Steps} {
 		for _, step := range group {
-			step.DependsOn = []string{"build"}
+			step.DependsOn = nil
 			if step.Name == "topology" {
 				step.Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", runtimeName}
 			}
