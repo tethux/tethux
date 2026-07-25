@@ -23,7 +23,7 @@ CI contract:
 sudo tethux virt test --provider all --output json
 ```
 
-The portable default suite uses public Alpine and BusyBox images. Canary CI
+The portable default suite uses public Alpine and BusyBox images. Test-host CI
 overrides them with two Nix-built images from each host's loopback-only fixture
 registry. It verifies image pull, generic
 provider create/delete, container create/start, state, reload, list, inspect,
@@ -48,7 +48,7 @@ tethux virt test --provider all \
 
 ## Remote execution
 
-The provider suite can be forwarded to a NixOS canary over SSH:
+The provider suite can be forwarded to a NixOS test host over SSH:
 
 ```bash
 tethux virt test --host ci@10.0.0.100 --provider all --output json

@@ -37,8 +37,8 @@ mise run check
 
 ## NAS deployment
 
-Woodpecker updates the deployment after a successful push to `master`.
-`compose.yaml` defines one dedicated Docker network and three containers:
+Deployment is manual. `compose.yaml` defines one Docker network and three
+containers:
 
 - `tethux-ci-viewer` serves the UI and API;
 - `tethux-ci-viewer-ingest` watches the archive bind mount read-only;
@@ -66,18 +66,18 @@ printf '%s\n' 'TUNNEL_TOKEN=replace-with-your-token' \
 chmod 600 /Containers/homelab/tethux-ci-viewer/.env
 ```
 
-Then deploy or restart the tunnel:
+Build the image, copy `compose.yaml` beside `.env`, and apply it manually:
 
 ```console
-ssh nas
-/Containers/homelab/tethux-ci-viewer/tethux-ci deploy viewer
+docker build -t tethux-ci-viewer:latest \
+  -f tools/ci-results/viewer/Dockerfile .
+docker compose \
+  -f /Containers/homelab/tethux-ci-viewer/compose.yaml \
+  --profile tunnel up -d --force-recreate --remove-orphans
 ```
 
-Alternatively, `tethux-ci deploy tunnel-token` prompts without echoing and
-writes the same `.env` file. The container receives `TUNNEL_TOKEN` through
-Docker's `--env-file`; the token is not a command argument or Woodpecker
-setting. After editing `.env`, rerun either deploy command to recreate the
-tunnel container with the new token.
+The tunnel reads `TUNNEL_TOKEN` from `.env`. After changing it, rerun the
+Compose command.
 
 Canonical source:
 https://codeberg.org/tethux/tethux/src/branch/master/tools/ci-results/viewer

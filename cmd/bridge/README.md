@@ -50,7 +50,7 @@ TETHUX_RUN_INTEGRATION=1 mise run test:bridge-backends:local
 
 This is deliberately opt-in because it creates temporary veth, TAP, and Linux
 bridge interfaces and requires root. CI executes it on both disposable NixOS
-canaries and stores the pcap as a non-public test-archive artifact.
+test hosts and stores the pcap as a non-public test-archive artifact.
 
 ## Container and namespace attachment
 

@@ -26,5 +26,5 @@ result, err := ci.NewRunner(os.Stdout, os.Stderr).Run(ctx, workflow)
 ```
 
 Add a test by registering a workflow; the runner does not need to change.
-Product commands remain below `cmd`. Repository testing, archives, host
-operations, and deployment belong in `tools/ci`.
+Product commands remain below `cmd`. Repository tests, archives, and host
+operations belong in `tools/ci`.
