@@ -143,7 +143,7 @@
     color: var(--muted);
     cursor: pointer;
     font: inherit;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
   }
@@ -156,7 +156,7 @@
     margin-left: auto;
     padding-right: 8px;
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     text-transform: uppercase;
   }
   .events {
@@ -174,7 +174,7 @@
     grid-template-columns: 148px 62px minmax(0, 1fr) 24px;
     gap: 8px;
     align-items: center;
-    min-height: 36px;
+    min-height: 42px;
     padding: 0 10px;
     cursor: pointer;
     list-style: none;
@@ -189,7 +189,7 @@
   .level,
   summary i {
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     font-style: normal;
     text-transform: uppercase;
   }
@@ -209,7 +209,7 @@
   }
   summary strong {
     overflow: hidden;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;

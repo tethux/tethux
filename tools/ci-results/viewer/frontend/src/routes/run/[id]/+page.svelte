@@ -11,6 +11,7 @@
   import LogSearch from '$lib/components/LogSearch.svelte';
   import LogPreview from '$lib/components/LogPreview.svelte';
   import SearchIcon from '$lib/components/SearchIcon.svelte';
+  import ChevronIcon from '$lib/components/ChevronIcon.svelte';
   import VirtualList from '@humanspeak/svelte-virtual-list';
   import { SvelteSet } from 'svelte/reactivity';
 
@@ -279,7 +280,15 @@
       {/if}
     </section>
     {#if searchableLogs.length}
-      <LogSearch files={searchableLogs} />
+      <details class="run-log-search">
+        <summary>
+          <span><SearchIcon size={16} /></span>
+          <strong>Search all run logs</strong>
+          <small>{searchableLogs.length} retained files</small>
+          <ChevronIcon size={16} />
+        </summary>
+        <LogSearch files={searchableLogs} />
+      </details>
     {/if}
     <div class="workspace">
       <section class="test-panel">
@@ -338,7 +347,7 @@
                 ></span
               >
               <span class="duration">{fmtDuration(intValue(test.duration_ms))}</span><span
-                class="chevron">›</span
+                class="chevron"><ChevronIcon size={17} /></span
               >
             </button>
           {/snippet}
@@ -440,7 +449,7 @@
           <span>▧</span><strong>{file.archive_path}</strong><small>{file.file_type}</small><code
             >{(file.size_bytes / 1024).toFixed(1)} KB</code
           >
-          <span class="chevron">›</span>
+          <span class="chevron"><ChevronIcon size={17} /></span>
         </button>{/each}
     </section>
   {:else}
@@ -493,7 +502,7 @@
                       >
                       <span class="file-size">{formatBytes(file.size_bytes)}</span>
                       <code title={file.sha256}>{file.sha256.slice(0, 9)}…</code><span
-                        class="chevron">›</span
+                        class="chevron"><ChevronIcon size={17} /></span
                       >
                     </button>
                   {/each}
@@ -564,7 +573,14 @@
               {/if}
             </div>{/if}
           {#if fileAvailable && isSearchableLog(openFile)}
-            <LogSearch fileId={openFile.id} fileName={openFile.archive_path} />
+            <details class="file-log-search">
+              <summary>
+                <span><SearchIcon size={15} /></span>
+                <strong>Search complete log</strong>
+                <ChevronIcon size={15} />
+              </summary>
+              <LogSearch fileId={openFile.id} fileName={openFile.archive_path} />
+            </details>
           {/if}
         {/if}
       </div>
@@ -573,6 +589,50 @@
 {:else}<p>{data.error ?? 'Run not found'}</p>{/if}
 
 <style>
+  .run-log-search,
+  .file-log-search {
+    margin: 14px 0;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .run-log-search > summary,
+  .file-log-search > summary {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    align-items: center;
+    gap: 9px;
+    min-height: 44px;
+    padding: 0 13px;
+    color: var(--subtle);
+    cursor: pointer;
+    list-style: none;
+  }
+  .file-log-search > summary {
+    grid-template-columns: auto 1fr auto;
+  }
+  .run-log-search > summary::-webkit-details-marker,
+  .file-log-search > summary::-webkit-details-marker {
+    display: none;
+  }
+  .run-log-search > summary:hover,
+  .file-log-search > summary:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+  .run-log-search > summary small {
+    justify-self: end;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .run-log-search[open] > summary :global(svg:last-child),
+  .file-log-search[open] > summary :global(svg:last-child) {
+    transform: rotate(90deg);
+  }
+  .run-log-search :global(.log-search),
+  .file-log-search :global(.log-search) {
+    margin: 0;
+    border-width: 1px 0 0;
+  }
   .execution-strip {
     margin: 18px 0;
     overflow: hidden;

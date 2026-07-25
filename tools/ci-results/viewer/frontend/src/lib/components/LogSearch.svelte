@@ -157,7 +157,7 @@
   }
   label > span {
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 750;
     letter-spacing: 0.09em;
     text-transform: uppercase;
@@ -199,7 +199,7 @@
     justify-content: space-between;
     padding: 7px 10px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: 12px;
   }
   .result-meta em {
     color: var(--gold);
@@ -223,7 +223,7 @@
   .file {
     overflow: hidden;
     color: var(--muted);
-    font-size: 10px;
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -242,7 +242,7 @@
   }
   .level {
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     text-transform: uppercase;
   }
   .level[data-level='warn'] {

@@ -11,9 +11,9 @@
   stroke="currentColor"
   stroke-width="1.8"
   stroke-linecap="round"
+  stroke-linejoin="round"
 >
-  <circle cx="10.8" cy="10.8" r="6.3"></circle>
-  <path d="m15.5 15.5 4.1 4.1"></path>
+  <path d="m9 5 7 7-7 7"></path>
 </svg>
 
 <style>

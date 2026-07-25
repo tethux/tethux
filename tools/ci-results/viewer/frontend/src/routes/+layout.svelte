@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
 
   let { children } = $props();
-  let dark = $state(false);
+  let dark = $state(true);
 
   const links = [
     { href: '/', label: 'Summary' },
@@ -15,13 +15,25 @@
   ] as const;
 
   onMount(() => {
-    dark = localStorage.getItem('ci-results-theme') === 'dark';
-    document.documentElement.classList.toggle('dark', dark);
+    dark = localStorage.getItem('ci-results-theme') !== 'light';
+    applyTheme();
   });
+
+  function applyTheme(): void {
+    document.documentElement.classList.toggle('dark', dark);
+    const colors = dark
+      ? { base: '#1e1e2e', accent: '#f5c2e7', ok: '#a6e3a1' }
+      : { base: '#eff1f5', accent: '#8839ef', ok: '#40a02b' };
+    document.querySelector<HTMLMetaElement>('#theme-color')?.setAttribute('content', colors.base);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="${colors.base}"/><path d="M8 10.5h16M8 16h10M8 21.5h7" stroke="${colors.accent}" stroke-width="2.5" stroke-linecap="round"/><circle cx="23" cy="21.5" r="3" fill="${colors.ok}"/></svg>`;
+    document
+      .querySelector<HTMLLinkElement>('#theme-favicon')
+      ?.setAttribute('href', `data:image/svg+xml,${encodeURIComponent(svg)}`);
+  }
 
   function toggleTheme(): void {
     dark = !dark;
-    document.documentElement.classList.toggle('dark', dark);
+    applyTheme();
     localStorage.setItem('ci-results-theme', dark ? 'dark' : 'light');
   }
 </script>
@@ -46,9 +58,7 @@
         aria-label="View CI results viewer source on Codeberg"
       >
         <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path
-            d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.1c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3Z"
-          />
+          <path d="m9 7-5 5 5 5m6-10 5 5-5 5M14 4l-4 16" />
         </svg>
         <span>Source</span>
       </a>
@@ -128,7 +138,7 @@
     color: var(--text);
     background: var(--base);
     font:
-      14px/1.5 ui-monospace,
+      15px/1.55 ui-monospace,
       SFMono-Regular,
       Menlo,
       Consolas,
@@ -208,7 +218,7 @@
     align-items: center;
     gap: 7px;
     color: var(--subtle);
-    font-size: 11px;
+    font-size: 12px;
     text-decoration: none;
   }
   footer a:hover {
@@ -234,6 +244,13 @@
     width: 16px;
     height: 16px;
     fill: currentColor;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  footer a svg {
+    fill: none;
   }
   footer button svg {
     fill: none;

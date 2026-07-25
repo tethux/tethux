@@ -95,4 +95,7 @@ test('artifact logs expose complete-text search, regex, and severity filtering',
   assert.match(logSearch, /regex/);
   assert.match(artifacts, /<LogSearch/);
   assert.match(runDetail, /<LogSearch/);
+  assert.match(runDetail, /Search all run logs/);
+  assert.match(runDetail, /Search complete log/);
+  assert.match(runDetail, /<ChevronIcon/);
 });

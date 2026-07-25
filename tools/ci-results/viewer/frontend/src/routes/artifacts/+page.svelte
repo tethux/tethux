@@ -9,6 +9,7 @@
   import LogSearch from '$lib/components/LogSearch.svelte';
   import LogPreview from '$lib/components/LogPreview.svelte';
   import SearchIcon from '$lib/components/SearchIcon.svelte';
+  import ChevronIcon from '$lib/components/ChevronIcon.svelte';
   import { sourceRepositories } from '$lib/repositories';
 
   let artifacts = $state<Artifact[]>([]);
@@ -189,7 +190,9 @@
             {/if}
             <code>{artifact.sha256.slice(0, 12)}</code>
           </span>
-          <span class="size">{formatBytes(artifact.size_bytes)}<i>›</i></span>
+          <span class="size"
+            >{formatBytes(artifact.size_bytes)}<i><ChevronIcon size={17} /></i></span
+          >
         </button>
       {/each}
     </div>

@@ -3,17 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#121310" />
+    <meta id="theme-color" name="theme-color" content="#1e1e2e" />
     <script>
       try {
-        if (localStorage.getItem('ci-results-theme') === 'dark') {
+        if (localStorage.getItem('ci-results-theme') !== 'light') {
           document.documentElement.classList.add('dark');
         }
       } catch {}
     </script>
     <link
+      id="theme-favicon"
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22><rect width=%2220%22 height=%2220%22 rx=%224%22 fill=%22%23e8a735%22/><path d=%22M5 6h10M10 6v9%22 stroke=%22%23121310%22 stroke-width=%222.5%22/></svg>"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%231e1e2e%22/><path d=%22M8 10.5h16M8 16h10M8 21.5h7%22 stroke=%22%23f5c2e7%22 stroke-width=%222.5%22 stroke-linecap=%22round%22/><circle cx=%2223%22 cy=%2221.5%22 r=%223%22 fill=%22%23a6e3a1%22/></svg>"
     />
     %sveltekit.head%
   </head>

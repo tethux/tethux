@@ -278,7 +278,7 @@
   .recent-panel header p {
     margin: 0 0 4px;
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 750;
     letter-spacing: 0.13em;
     text-transform: uppercase;
@@ -322,7 +322,7 @@
   .health-grid span,
   .health-grid small {
     color: var(--muted);
-    font-size: 10px;
+    font-size: 12px;
   }
   .health-grid strong {
     margin: 5px 0 3px;
@@ -378,7 +378,7 @@
   .duration-panel header > small,
   .recent-panel header a {
     color: var(--muted);
-    font-size: 10px;
+    font-size: 12px;
   }
   .chart-frame {
     display: grid;
@@ -391,7 +391,7 @@
     justify-content: space-between;
     padding: 20px 8px 8px 0;
     color: var(--muted);
-    font-size: 8px;
+    font-size: 10px;
     text-align: right;
   }
   .duration-chart {
@@ -446,7 +446,7 @@
   .chart-tooltip span,
   .chart-tooltip small {
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
   }
   .small-charts {
     display: grid;
@@ -478,10 +478,10 @@
   .small-charts header span,
   .small-charts small {
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
   }
   .small-charts header strong {
-    font-size: 10px;
+    font-size: 12px;
   }
   .test-mix {
     display: flex;
@@ -523,7 +523,7 @@
   }
   .diagnostic-list em {
     color: var(--muted);
-    font-size: 8px;
+    font-size: 10px;
     font-style: normal;
     text-align: right;
   }
@@ -533,7 +533,7 @@
   .diagnostic-list .all-clear {
     display: block;
     color: var(--syntax-green);
-    font-size: 9px;
+    font-size: 11px;
   }
   .device-chart {
     display: grid;
@@ -609,12 +609,12 @@
   .recent-panel article > span {
     justify-items: end;
     color: var(--text);
-    font-size: 10px;
+    font-size: 12px;
   }
   .recent-panel small {
     overflow: hidden;
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }

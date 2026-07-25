@@ -47,7 +47,7 @@
     overflow: auto;
     border: 1px solid var(--border);
     background: var(--base);
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1.65;
   }
   .line {

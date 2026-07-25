@@ -86,5 +86,7 @@ test('shared sidebar keeps theme and source controls visible on every route', ()
   assert.match(layout, /position: sticky/);
   assert.match(layout, /height: 100vh/);
   assert.match(layout, /ci-results-theme/);
+  assert.match(layout, /!== 'light'/);
+  assert.match(layout, /theme-favicon/);
   assert.match(layout, /tools\/ci-results\/viewer/);
 });
