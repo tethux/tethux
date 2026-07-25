@@ -16,6 +16,7 @@ services:
     image: ${TETHUX_VIEWER_IMAGE:-tethux-ci-viewer:latest}
     container_name: tethux-ci-viewer-ingest
     restart: unless-stopped
+    user: "0:0"
     read_only: true
     tmpfs: [/tmp]
     volumes:

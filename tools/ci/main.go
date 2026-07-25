@@ -385,7 +385,12 @@ func runRemoteLaptop(ctx context.Context, root, target, jump, runtimeName, archi
 	if err := streamRepository(ctx, remote, root, remoteDir); err != nil {
 		return err
 	}
-	remoteArgs := []string{"nix", "develop", ".#integration", "--extra-experimental-features", "nix-command flakes", "-c", "go", "run", "./tools/ci", "run", "laptop", "--runtime", runtimeName}
+	remoteArgs := []string{
+		"nix", "develop", ".#integration",
+		"--extra-experimental-features=nix-command",
+		"--extra-experimental-features=flakes",
+		"-c", "go", "run", "./tools/ci", "run", "laptop", "--runtime", runtimeName,
+	}
 	if device != "" {
 		remoteArgs = append(remoteArgs, "--device", device)
 	}
