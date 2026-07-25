@@ -7,7 +7,10 @@
   import { sourceRepositories } from '$lib/repositories';
   import { getArtifact } from '$lib/api/artifacts';
   import CommitLink from '$lib/components/CommitLink.svelte';
+  import CodePreview from '$lib/components/CodePreview.svelte';
   import LogSearch from '$lib/components/LogSearch.svelte';
+  import LogPreview from '$lib/components/LogPreview.svelte';
+  import SearchIcon from '$lib/components/SearchIcon.svelte';
   import VirtualList from '@humanspeak/svelte-virtual-list';
   import { SvelteSet } from 'svelte/reactivity';
 
@@ -119,6 +122,7 @@
     file.file_type === 'log' ||
     /(?:text|json|yaml|toml|xml|javascript)/i.test(file.media_type) ||
     /\.(?:log|txt|jsonl?)$/i.test(file.archive_path);
+  const searchableLogs = $derived((data.detail?.files ?? []).filter(isSearchableLog));
   const flatEntries = (entry: unknown, prefix = ''): Array<[string, unknown]> => {
     if (entry === null || typeof entry !== 'object') return [[prefix || 'value', entry]];
     return Object.entries(entry).flatMap(([key, child]) => {
@@ -274,6 +278,9 @@
         </div>
       {/if}
     </section>
+    {#if searchableLogs.length}
+      <LogSearch files={searchableLogs} />
+    {/if}
     <div class="workspace">
       <section class="test-panel">
         <div class="panel-title">
@@ -285,7 +292,7 @@
         </div>
         <div class="test-tools">
           <label class="search"
-            ><span>⌕</span><input
+            ><span><SearchIcon size={15} /></span><input
               bind:value={testSearch}
               placeholder="Search tests, suites, or keys…"
               aria-label="Search tests"
@@ -549,11 +556,15 @@
                     >{result.status}</span
                   ><code>{fmtDuration(intValue(result.duration_ms))}</code>
                 </article>{/each}
-            </div>{:else}<pre>{typeof fileContent === 'string'
-                ? fileContent
-                : JSON.stringify(fileContent, null, 2)}</pre>{/if}
+            </div>{:else}<div class="file-code">
+              {#if isSearchableLog(openFile)}
+                <LogPreview value={fileContent} />
+              {:else}
+                <CodePreview value={fileContent} />
+              {/if}
+            </div>{/if}
           {#if fileAvailable && isSearchableLog(openFile)}
-            <LogSearch fileId={openFile.id} />
+            <LogSearch fileId={openFile.id} fileName={openFile.archive_path} />
           {/if}
         {/if}
       </div>
@@ -1384,19 +1395,9 @@
     color: #667580;
     cursor: pointer;
   }
-  .file-modal pre {
+  .file-code {
     margin: 0;
     padding: 20px;
-    overflow: auto;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    background: #f8fafb;
-    color: #24313d;
-    font:
-      12px/1.65 ui-monospace,
-      SFMono-Regular,
-      Menlo,
-      monospace;
   }
   .results-preview {
     overflow: auto;
@@ -1479,7 +1480,6 @@
   :global(html.dark) .manifest-grid h3,
   :global(html.dark) .view-toggle,
   :global(html.dark) .json-view,
-  :global(html.dark) .file-modal pre,
   :global(html.dark) .results-head,
   :global(html.dark) .message pre {
     border-color: var(--border);
