@@ -225,7 +225,11 @@ func workflowFor(name, root, runtimeName, provider string) (ciframework.Workflow
 				step.DependsOn = []string{"build-cli"}
 			}
 			if step.Name == "topology" {
-				step.Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", runtimeName}
+				step.Args = []string{
+					"run", "./tools/bridge/example/container-udp",
+					"--runtime", runtimeName,
+					"--interface-timeout", "45s",
+				}
 			}
 			steps = append(steps, step)
 		}
