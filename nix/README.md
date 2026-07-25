@@ -57,9 +57,8 @@ those deterministic images and never silently substitute public images.
 
 Push CI runs the normal checks on the NAS alongside the integration chain.
 Docker, Podman, and cross-host workflows still run in that order, but a lint or
-unit-test failure does not prevent them from collecting their own results. The
-optional Proxmox workflow is manual so remote-site availability cannot block
-normal development.
+unit-test failure does not prevent them from collecting their own results.
+Proxmox integration is not part of CI yet.
 
 ## Test archives
 
