@@ -2,7 +2,9 @@ package ingest
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -97,4 +99,48 @@ func DiscoverCandidates(ctx context.Context, root string) ([]ArchiveRef, error) 
 	}
 
 	return runs, nil
+}
+
+func DiscoverCompletedCandidates(ctx context.Context, root string) ([]ArchiveRef, error) {
+	candidates, err := DiscoverCandidates(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	completed := make([]ArchiveRef, 0, len(candidates))
+	for _, candidate := range candidates {
+		valid := true
+		for _, variant := range candidate.Variants {
+			if err := verifyCompletionMarker(variant.ArchivePath); err != nil {
+				valid = false
+				break
+			}
+		}
+		if valid {
+			completed = append(completed, candidate)
+		}
+	}
+	return completed, nil
+}
+
+func verifyCompletionMarker(archivePath string) error {
+	// #nosec G304 -- archivePath is produced by constrained archive discovery.
+	expected, err := os.ReadFile(archivePath + ".done")
+	if err != nil {
+		return err
+	}
+	// #nosec G304 -- archivePath is produced by constrained archive discovery.
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return err
+	}
+	actual := fmt.Sprintf("%x", hash.Sum(nil))
+	if strings.TrimSpace(string(expected)) != actual {
+		return fmt.Errorf("completion checksum mismatch for %s", archivePath)
+	}
+	return nil
 }

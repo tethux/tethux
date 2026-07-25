@@ -134,10 +134,34 @@ func (w *ArchiveWriter) Finalize(ctx context.Context) (string, error) {
 	if err := os.Rename(partial, final); err != nil {
 		return "", err
 	}
+	if err := writeArchiveDone(final); err != nil {
+		return "", err
+	}
 	if err := os.RemoveAll(w.Stage); err != nil {
 		return "", err
 	}
 	return final, nil
+}
+
+func writeArchiveDone(archivePath string) error {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	marker := archivePath + ".done"
+	partial := marker + ".partial"
+	if err := os.WriteFile(partial, []byte(fmt.Sprintf("%x\n", hash.Sum(nil))), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(partial, marker)
 }
 
 func (w *ArchiveWriter) collectResults(ctx context.Context) (archiveformat.ResultsDocument, error) {

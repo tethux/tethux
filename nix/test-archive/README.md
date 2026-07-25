@@ -28,7 +28,8 @@ assertion failure.
 
 The writer validates IDs, statuses, matching run IDs, summary counts, relative
 paths, artifact existence, and checksums before atomically renaming the final
-archive. Files ending in `.partial` are incomplete and must be ignored.
+archive. It then writes `<archive>.done` containing the archive SHA-256.
+Consumers ignore `.partial` files and wait for a valid `.done` marker.
 
 Run locally with the same Go writer used by Woodpecker:
 
@@ -42,7 +43,8 @@ go run ./tools/ci archive run \
 Set `TETHUX_ARCHIVE_NAS_HOST=nas` when running an archive-aware workflow to
 publish a development archive. Uploads use
 the final commit/workflow/UUID path with an additional `.partial` suffix and
-are renamed remotely only after `scp` completes.
+are renamed remotely only after `scp` completes. The completion marker is
+published last.
 
 Only allowlisted metadata is collected. Environment dumps, credentials, SSH
 material, authorization headers, cookies, and private process environments are

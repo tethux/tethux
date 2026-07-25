@@ -1,5 +1,4 @@
-// tethux-ci is the stdlib-flag command adapter for internal repository
-// automation. Product behavior remains in the Cobra-based tethux binary.
+// tethux-ci runs repository tests, archives, test hosts, and deployments.
 package main
 
 import (
@@ -111,12 +110,16 @@ func deployCommand(ctx context.Context, args []string) error {
 		image := flags.String("image", "tethux-ci-viewer:latest", "viewer image")
 		network := flags.String("network", "tethux-ci-viewer", "dedicated Docker network")
 		dataDir := flags.String("data-dir", "/var/cache/tethux-ci/viewer", "persistent viewer data directory")
+		archiveDir := flags.String("archive-dir", "/var/cache/tethux-ci/archive", "read-only test archive directory")
 		tokenFile := flags.String("token-file", "/deployment/secrets/cloudflare-tunnel-token", "Cloudflare tunnel token file")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
 		if err := os.MkdirAll(*dataDir, 0o750); err != nil {
 			return err
+		}
+		if info, err := os.Stat(*archiveDir); err != nil || !info.IsDir() {
+			return fmt.Errorf("archive directory %s is unavailable", *archiveDir)
 		}
 		if err := os.Chown(*dataDir, 100, 101); err != nil {
 			return fmt.Errorf("grant viewer data ownership: %w", err)
@@ -149,6 +152,16 @@ func deployCommand(ctx context.Context, args []string) error {
 			"serve", "--address", "0.0.0.0", "--port", "8080", "--db", "/data/ci-res.db",
 		); err != nil {
 			return fmt.Errorf("start viewer: %w", err)
+		}
+		_ = run("rm", "-f", "tethux-ci-viewer-ingest")
+		if err := run(
+			"run", "-d", "--name", "tethux-ci-viewer-ingest", "--restart", "unless-stopped",
+			"--network", *network, "--read-only", "--tmpfs", "/tmp",
+			"-v", *dataDir+":/data",
+			"-v", *archiveDir+":/archive:ro",
+			*image, "watch", "--path", "/archive", "--db", "/data/ci-res.db", "--poll", "15s",
+		); err != nil {
+			return fmt.Errorf("start archive ingestion watcher: %w", err)
 		}
 		if _, err := os.Stat(*tokenFile); err == nil {
 			_ = run("rm", "-f", "tethux-ci-viewer-tunnel")
@@ -332,7 +345,7 @@ func workflowFor(name, root, runtimeName, provider string) (ciframework.Workflow
 	normal, _ := registry.Workflow("normal")
 	providers, _ := registry.Workflow("provider")
 	topology, _ := registry.Workflow("topology")
-	backends, _ := registry.Workflow("bridge-backends")
+	backends, _ := registry.Workflow("bridge")
 	steps := append([]ciframework.Step(nil), normal.Steps...)
 	for _, group := range [][]ciframework.Step{backends.Steps, providers.Steps, topology.Steps} {
 		for _, step := range group {
@@ -343,7 +356,7 @@ func workflowFor(name, root, runtimeName, provider string) (ciframework.Workflow
 			steps = append(steps, step)
 		}
 	}
-	return ciframework.Workflow{Name: "laptop-" + runtimeName, Description: "complete canary integration", Steps: steps}, nil
+	return ciframework.Workflow{Name: "laptop-" + runtimeName, Description: "complete test host integration", Steps: steps}, nil
 }
 
 func archiveCommand(ctx context.Context, args []string) error {
@@ -604,6 +617,17 @@ func publishArchive(ctx context.Context, archivePath, host, remoteRoot string) e
 	if err := remote.Run(ctx, os.Stdout, os.Stderr, "mv", remotePartial, remoteFinal); err != nil {
 		return err
 	}
+	localMarker := archivePath + ".done"
+	if err := os.WriteFile(localMarker, []byte(expected+"\n"), 0o600); err != nil {
+		return err
+	}
+	remoteMarkerPartial := remoteFinal + ".done.partial"
+	if err := remote.CopyTo(ctx, localMarker, remoteMarkerPartial, os.Stdout, os.Stderr); err != nil {
+		return err
+	}
+	if err := remote.Run(ctx, os.Stdout, os.Stderr, "mv", remoteMarkerPartial, remoteFinal+".done"); err != nil {
+		return err
+	}
 	fmt.Printf("published test archive: %s:%s\n", host, remoteFinal)
 	return nil
 }
@@ -800,7 +824,7 @@ func printUsage(output io.Writer) {
 
 groups:
   run       normal, laptop, local, remote-laptop, cross-laptop,
-            provider, topology, bridge-backends, hypervisors
+            provider, topology, bridge, hypervisors
   archive   run, finalize, publish, inventory
   host      discover, audit, install
   topology  container-udp

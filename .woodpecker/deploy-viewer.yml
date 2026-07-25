@@ -7,7 +7,7 @@ labels:
   host: nas
 
 depends_on:
-  - ci
+  - checks
 
 steps:
   deploy-ci-results-viewer:
