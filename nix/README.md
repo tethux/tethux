@@ -1,240 +1,88 @@
-# Tethux NixOS Canary Hosts
+# Nix test hosts
 
-This tree keeps the disposable bare-metal test-host setup in the tethux
-monorepo. Forgejo and Woodpecker server components live elsewhere; these
-profiles are only for privileged canary runners.
-
-Disclaimer: this Nix setup was shamelessly vibed in with GPT-5.5 in T3 Code.
-T3's local state records the current work as `Expand CI integration coverage`
-(thread `1a388d12-4db4-466d-828a-9ed8d127e24a`). At the completion audit
-(`2026-07-12T21:47:33Z`), T3 recorded 8 user prompts and 136,449,583 processed
-tokens: 136,207,027 input tokens, 134,170,112 of them cached, 242,556 output
-tokens, and 66,399 reasoning-output tokens. The active context at that event
-was 256,582 of 353,400 tokens.
+This directory defines disposable NixOS hosts used for privileged provider,
+bridge, topology, and hypervisor tests. Woodpecker runs on the NAS and reaches
+the test hosts over SSH.
 
 ## Hosts
 
-- `canary-10-0-0-100`: current SSH host at `10.0.0.100`.
-- `canary-former-10-0-0-12`: old `10.0.0.12`, currently discovered as `10.0.0.78`.
-- `canary-proxmox-vm-9901`: optional KVM guest on a remote Proxmox host;
-  bootstrap access is `root@192.168.0.107` through the Tailscale jump host
-  `root@100.115.225.73`.
+| Configuration | Address | Purpose |
+| --- | --- | --- |
+| `test-host-10-0-0-100` | `10.0.0.100` | Docker integration |
+| `test-host-former-10-0-0-12` | `10.0.0.78` | Podman integration |
+| `test-host-proxmox-vm-9901` | `192.168.0.107` through the configured jump host | Optional remote integration |
 
-Run host discovery:
+Discover and inspect hosts with:
 
-```bash
+```console
 mise run host:discover
-```
-
-Audit a host after SSH access works:
-
-```bash
-HOST=veya@10.0.0.100 mise run host:audit
-HOST=veya@10.0.0.78 mise run host:audit
+HOST=ci@10.0.0.100 mise run host:audit
 mise run host:audit:proxmox-vm-9901
 ```
 
-## Before Installing
+Installation is deliberately guarded by an explicit whole-disk path and
+confirmation:
 
-The disko installer intentionally refuses to define a disk layout unless
-`TETHUX_INSTALL_DISK` is set. Confirm the disk manually first:
-
-```bash
-ssh root@HOST 'hostname; ip addr; lsblk -o NAME,SIZE,TYPE,MODEL; lscpu; free -h'
-```
-
-Then run the installer from a trusted checkout:
-
-```bash
+```console
 go run ./tools/ci host install \
-  --host veya@10.0.0.100 \
-  --flake-host canary-10-0-0-100 \
-  --disk /dev/nvme0n1 --yes
+  --host ci@10.0.0.100 \
+  --flake-host test-host-10-0-0-100 \
+  --disk /dev/nvme0n1 \
+  --yes
 ```
 
-For Proxmox VM 9901, the installer must target the guest's 80 GiB `/dev/sda`,
-never the Proxmox host's physical disk. The size and KVM assertions make a
-mistargeted install fail before the destructive countdown:
-
-```bash
-go run ./tools/ci host install \
-  --host root@192.168.0.107 \
-  --jump-host root@100.115.225.73 \
-  --flake-host canary-proxmox-vm-9901 \
-  --disk /dev/sda \
-  --expect-virtualization kvm \
-  --expect-size 85899345920 --yes
-```
-
-The installed guest enables Tailscale but does not embed an auth key. Complete
-tailnet enrollment interactively with `sudo tailscale up`; once it has a stable
-Tailscale address, CI can replace the bootstrap ProxyJump route with that
-direct address.
+Use `--expect-size` and `--expect-virtualization` for remote or virtual targets.
+The installer stops before mutation when an assertion fails.
 
 ## Tests
 
-Normal, unprivileged path:
+The everyday foundation is:
 
-```bash
-mise run ci:normal
+```console
+mise run check
+mise run test:bridge
 ```
 
-Privileged canary paths:
+Privileged suites are explicit:
 
-```bash
-mise run ci:canary:providers
-mise run ci:canary:topology
-mise run ci:canary:hypervisors
+```console
+mise run test:host:providers
+mise run test:host:topology
+mise run test:host:hypervisors
+RUNTIME=podman mise run test:integration:local
 ```
 
-The provider suite is available directly as structured JSON Lines. It tests
-Docker, Podman, and containerd with Alpine and BusyBox and covers the complete
-base-provider and container-provider lifecycles:
+Each test host provides a loopback OCI fixture registry. Provider tests use
+those deterministic images and never silently substitute public images.
 
-```bash
-sudo tethux virt test --provider all --output json
-```
+Push CI runs the normal checks on the NAS, then Docker, Podman, and cross-host
+workflows in order. The optional Proxmox workflow is manual so remote-site
+availability cannot block normal development.
 
-Each NixOS canary runs a loopback-only OCI registry on `127.0.0.1:5000`.
-`fixture-registry.nix` builds two images entirely from Nix packages, seeds the
-registry during activation, and exports their references through
-`TETHUX_TEST_IMAGES`. Provider and topology CI therefore exercise real pull
-operations without depending on Docker Hub, ECR, or another public registry.
-The registry persists blobs in `/var/lib/docker-registry`; Docker, Podman, and
-containerd keep their normal image caches too. Integration scripts require
-these fixture variables and registry health rather than silently falling back
-to a public image. Woodpecker's bootstrap image is cache-only (`pull: false`).
+## Test archives
 
-VirtualBox and VMware remain optional checks and do not block hosts where those
-tools are absent.
-
-The full provider CLI can target a canary over SSH:
-
-```bash
-tethux virt test --host ci@10.0.0.78 --provider all --output json
-```
-
-The remote host needs the `tethux` package in its NixOS profile and passwordless
-sudo for the canary user.
-
-## Woodpecker Topology
-
-The Woodpecker agent remains on `nas` and reaches each laptop over SSH. Every
-push, pull request, and manual run has four required, ordered workflows so the
-web UI reports each concern independently without exhausting Docker networks:
-
-- `normal`: lint, tests, build, both deployable NixOS evaluations, and flake
-  checks on the NAS runner;
-- `laptop-100`: all provider operations plus a Docker bridge topology;
-- `laptop-78`: all provider operations plus a Podman bridge topology;
-- `cross-laptop`: provider-managed containers connected across both machines
-  through tethux UDP bridges.
-
-Both laptop workflows also run byte-exact UDP, raw-socket, pcap, and TAP
-forwarding tests. Libpcap independently observes the frames; structured
-packet metrics and a pcap artifact are included in each archive.
-
-`proxmox-vm-9901` is a fifth, manual-only workflow. It runs the same provider
-and networking integration suite through the Proxmox SSH jump host and archives
-the result under stable device ID `proxmox-vm-9901`. It is deliberately absent
-from push and pull-request events so remote-site availability cannot block the
-required fleet.
-
-The NAS runner persists `/nix` in the Docker-managed `tethux-ci-nix` volume;
-Docker seeds it from the Nix image on first use instead of hiding that image's
-store with an empty bind mount. Go build and module caches remain below
-`/var/cache/tethux-ci`, so later workflows and commits reuse downloads and
-build products.
-
-## CI archive
-
-Every archived CI or developer execution driven by `tethux-ci` produces one
-immutable archive below:
+Archive-aware runs write:
 
 ```text
-/var/cache/tethux-ci/archive/<full-commit-sha>/<workflow>/<uuidv7>.tar.zst
+/var/cache/tethux-ci/archive/<commit>/<workflow>/<uuidv7>.tar.zst
 ```
 
-The archive implements Test Archive Format v1. It always contains versioned
-`manifest.json` and `results.json`, plus separate `logs/`, `configs/`, and
-`artifacts/` entries. The manifest records source/commit/timing, stable device
-identity, allowlisted hardware/software metadata, image references, result
-counts, file sizes, and SHA-256 checksums. Results normalize Go tests, every
-provider operation, topology summaries, and both cross-host endpoints into
-stable IDs with statuses, durations, features, parameters, metrics, and
-machine-readable failures.
+The writer first creates `.partial`, atomically renames the validated archive,
+then writes `<archive>.done` containing its SHA-256. Consumers wait for the
+marker and verify it before ingestion. The viewer watcher uses filesystem
+events plus periodic reconciliation, so missed events on Docker bind mounts or
+network filesystems recover automatically.
 
-Archives are written as `.tar.zst.partial`, validated, and atomically renamed
-only after run IDs, counts, paths, statuses, artifacts, and checksums pass. CI
-and ingestion should ignore `.partial` files.
-
-Use the same contract during development:
-
-```bash
-go run ./tools/ci run normal \
-  --archive \
-  --archive-root /var/cache/tethux-ci/archive
-```
-
-Privileged local integration is opt-in and intended for a disposable NixOS
-canary. The full run verifies both registry fixtures before doing anything and
-never substitutes a public image:
-
-```bash
-TETHUX_RUN_INTEGRATION=1 RUNTIME=podman mise run test:integration:local
-TETHUX_RUN_INTEGRATION=1 mise run test:bridge-backends:local
-```
-
-To atomically publish the resulting archive to the same NAS hierarchy used by
-CI, use the `:nas` variants. They upload a `.partial` file and rename it only
-after a complete transfer:
-
-```bash
-TETHUX_RUN_INTEGRATION=1 RUNTIME=podman mise run test:integration:nas
-TETHUX_RUN_INTEGRATION=1 mise run test:bridge-backends:nas
-```
-
-Local archives default to the ignored `results/archive` directory. Generate
-an ignored, editable inventory of the NAS paths and schemas with:
-
-```bash
+```console
+go run ./tools/ci run normal --archive
 mise run archive:nas:inventory
 ```
 
-That writes `.local/nas-test-archive.md` with current counts, recent archive
-paths, contract locations, inspection commands, and space for future notes.
+See [test-archive/README.md](test-archive/README.md) for the file contract.
 
-On `nas`, list or inspect an archived commit with:
+## Recovery
 
-```bash
-find /var/cache/tethux-ci/archive/COMMIT -type f -name '*.tar.zst' -print
-tar --zstd -xOf /var/cache/tethux-ci/archive/COMMIT/WORKFLOW/RUN.tar.zst manifest.json | jq .
-```
-
-`tethux-ci run remote-laptop` streams the exact checkout into a
-revision-scoped temporary directory, enters the flake's `integration` shell,
-and removes it afterward. The canary users need passwordless sudo. A
-sleeping/offline laptop intentionally fails its required workflow instead of
-silently skipping tests.
-
-## Recovery and disk mounts
-
-The disko installer names partitions `disk-main-root` and `disk-main-ESP`; it
-does not assign filesystem labels. Runtime configurations must therefore use
-`/dev/disk/by-partlabel/...`. Using `/dev/disk/by-label/nixos` and
-`/dev/disk/by-label/boot` caused a live switch to unmount `/boot` and enter
-emergency mode while waiting for labels that did not exist.
-
-If a canary reaches the emergency password prompt, choose the previous NixOS
-generation from systemd-boot. The repository does not define a root password,
-so there is no repository password to enter or recover. Once SSH is restored,
-deploy the corrected generation and verify a reboot.
-
-## Codeberg
-
-The `master` branch is mirrored to both configured SSH remotes:
-
-```bash
-git push codeberg master
-git push origin master
-```
+Disk mounts use `/dev/disk/by-partlabel/disk-main-root` and
+`/dev/disk/by-partlabel/disk-main-ESP`. If a test host enters emergency mode,
+boot its previous NixOS generation, restore SSH, and deploy the corrected
+generation.

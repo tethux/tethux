@@ -1,12 +1,12 @@
 { config, lib, pkgs, ... }:
 
 let
-  cfg = config.tethux.canary;
+  cfg = config.tethux.testHost;
 in
 {
-  options.tethux.canary = {
-    enableVirtualBox = lib.mkEnableOption "VirtualBox host support for bare-metal canaries";
-    enableVmware = lib.mkEnableOption "experimental VMware tooling for bare-metal canaries";
+  options.tethux.testHost = {
+    enableVirtualBox = lib.mkEnableOption "VirtualBox support for bare-metal test hosts";
+    enableVmware = lib.mkEnableOption "experimental VMware tooling for bare-metal test hosts";
     enableNestedHypervisors = lib.mkOption {
       type = lib.types.bool;
       default = true;

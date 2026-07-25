@@ -15,7 +15,7 @@ go run ./tools/ci topology container-udp --runtime podman --n 4
 and TAP conformance checks. Use the archive-aware wrapper:
 
 ```console
-go run ./tools/ci run bridge-backends --archive
+go run ./tools/ci run bridge --archive
 ```
 
 CI and local automation invoke the reusable APIs in `internal/ci`; these

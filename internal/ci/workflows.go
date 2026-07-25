@@ -12,19 +12,22 @@ func BuiltinWorkflows(root string) []Workflow {
 		Name: "go-test", Command: "go", Args: []string{"test", "./...", "-json"}, Dir: root,
 		Outputs:       []Output{{Name: "go-test", Path: filepath.Join(artifactDir, "go-test.jsonl"), Kind: "application/x-ndjson"}},
 		CaptureStdout: filepath.Join(artifactDir, "go-test.jsonl"),
+		DependsOn:     []string{"lint"},
 		Timeout:       30 * time.Minute,
 	}
 	normal := Workflow{
 		Name: "normal", Description: "format, lint, unit, build, and Nix checks",
 		Archive: ArchiveMetadata{Workflow: "normal"},
 		Steps: []Step{
-			{Name: "lint", Command: "golangci-lint", Args: []string{"run", "-c", ".golangci.yml"}, Dir: root, Timeout: 20 * time.Minute},
+			{Name: "format", Command: "mise", Args: []string{"run", "check:format"}, Dir: root, Timeout: 20 * time.Minute},
+			{Name: "lint", Command: "mise", Args: []string{"run", "lint"}, Dir: root, DependsOn: []string{"format"}, Timeout: 20 * time.Minute},
 			goTest,
-			{Name: "build", Command: "go", Args: []string{"build", "./cmd/tethux"}, Dir: root, DependsOn: []string{"go-test"}},
-			{Name: "nix-host-100", Command: "nix", Args: []string{"eval", ".#nixosConfigurations.canary-10-0-0-100.config.system.build.toplevel.drvPath", "--extra-experimental-features", "nix-command flakes"}, Dir: root},
-			{Name: "nix-host-78", Command: "nix", Args: []string{"eval", ".#nixosConfigurations.canary-former-10-0-0-12.config.system.build.toplevel.drvPath", "--extra-experimental-features", "nix-command flakes"}, Dir: root},
-			{Name: "nix-proxmox", Command: "nix", Args: []string{"eval", ".#nixosConfigurations.canary-proxmox-vm-9901.config.system.build.toplevel.drvPath", "--extra-experimental-features", "nix-command flakes"}, Dir: root},
-			{Name: "nix-checks", Command: "nix", Args: []string{"build", ".#checks." + nixArchitecture() + ".unit", ".#checks." + nixArchitecture() + ".build", "--extra-experimental-features", "nix-command flakes"}, Dir: root},
+			{Name: "web-test", Command: "mise", Args: []string{"run", "test:web"}, Dir: root, DependsOn: []string{"lint"}, Timeout: 20 * time.Minute},
+			{Name: "build", Command: "mise", Args: []string{"run", "build"}, Dir: root, DependsOn: []string{"go-test", "web-test"}},
+			{Name: "nix-host-100", Command: "nix", Args: []string{"eval", ".#nixosConfigurations.test-host-10-0-0-100.config.system.build.toplevel.drvPath", "--extra-experimental-features", "nix-command flakes"}, Dir: root, DependsOn: []string{"build"}},
+			{Name: "nix-host-78", Command: "nix", Args: []string{"eval", ".#nixosConfigurations.test-host-former-10-0-0-12.config.system.build.toplevel.drvPath", "--extra-experimental-features", "nix-command flakes"}, Dir: root, DependsOn: []string{"build"}},
+			{Name: "nix-proxmox", Command: "nix", Args: []string{"eval", ".#nixosConfigurations.test-host-proxmox-vm-9901.config.system.build.toplevel.drvPath", "--extra-experimental-features", "nix-command flakes"}, Dir: root, DependsOn: []string{"build"}},
+			{Name: "nix-checks", Command: "nix", Args: []string{"build", ".#checks." + nixArchitecture() + ".unit", ".#checks." + nixArchitecture() + ".build", "--extra-experimental-features", "nix-command flakes"}, Dir: root, DependsOn: []string{"build"}},
 		},
 	}
 	return []Workflow{
@@ -40,10 +43,10 @@ func BuiltinWorkflows(root string) []Workflow {
 			Name: "topology", Command: "go", Args: []string{"run", "./tools/bridge/example/container-udp", "--runtime", "all"},
 			Dir: root, Privilege: PrivilegeRoot, Timeout: 45 * time.Minute,
 		}}},
-		{Name: "bridge-backends", Description: "exact-frame backend conformance", Steps: []Step{{
-			Name: "bridge-backends", Command: "go", Args: []string{"run", "./tools/bridge/testing/backend-smoke"},
+		{Name: "bridge", Description: "exact-frame backend conformance", Steps: []Step{{
+			Name: "bridge", Command: "go", Args: []string{"run", "./tools/bridge/testing/backend-smoke"},
 			Dir: root, Privilege: PrivilegeRoot, Timeout: 30 * time.Minute,
-			Outputs:       []Output{{Name: "bridge-backends", Path: filepath.Join(artifactDir, "bridge-backends.jsonl"), Kind: "application/x-ndjson"}},
+			Outputs:       []Output{{Name: "bridge", Path: filepath.Join(artifactDir, "bridge-backends.jsonl"), Kind: "application/x-ndjson"}},
 			CaptureStdout: filepath.Join(artifactDir, "bridge-backends.jsonl"),
 		}}},
 		{Name: "hypervisors", Description: "network primitives and available hypervisor checks", Steps: []Step{

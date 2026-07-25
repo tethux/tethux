@@ -1,34 +1,30 @@
-# Declarative CI framework
+# Test automation
 
-`internal/ci` contains the reusable automation layer for repository CI,
-integration labs, archives, and remote hosts. The package has no CLI parsing
-and can be embedded by tests or additional provider adapters.
+`internal/ci` is the reusable test harness behind `tools/ci`.
 
-Work is described as `Workflow` values containing named `Step` values. A step
-declares its executable, argument vector, environment overlay, working
-directory, dependencies, privilege policy, timeout, and outputs. `Runner`
-validates the dependency graph, streams output, propagates cancellation, and
-preserves child exit codes.
+- `Workflow` describes named steps and dependencies.
+- `Step` declares an executable, arguments, environment, directory, privilege,
+  timeout, captured output, and artifacts.
+- `Runner` validates the graph, streams logs, propagates cancellation, preserves
+  exit codes, and records structured step results.
+- `Registry` keeps workflow and CI-provider registration separate from the
+  execution engine.
+- `Remote` runs explicit SSH/SCP argument vectors with optional jump hosts.
+- `ArchiveWriter` normalizes test events and atomically publishes Test Archive
+  Format v1 archives with checksum-bearing completion markers.
 
 ```go
 workflow := ci.Workflow{
-    Name: "example",
+    Name: "unit",
     Steps: []ci.Step{{
-        Name: "unit",
+        Name:    "go-test",
         Command: "go",
-        Args: []string{"test", "./..."},
-        Timeout: 10 * time.Minute,
+        Args:    []string{"test", "./..."},
     }},
 }
-_, err := ci.NewRunner(os.Stdout, os.Stderr).Run(ctx, workflow)
+result, err := ci.NewRunner(os.Stdout, os.Stderr).Run(ctx, workflow)
 ```
 
-`Registry` separates provider and workflow registration from execution.
-Woodpecker is the first source provider; another provider can register its
-metadata without modifying the runner. `Remote` builds explicit SSH/SCP
-argument vectors and supports jump hosts without routing through a local
-shell. Archive generation lives beside these primitives so CI and local runs
-use the same Test Archive Format implementation.
-
-The stdlib-`flag` adapter is `tools/ci`. Product commands remain in the Cobra
-tree under `cmd`; operational and test automation belongs here.
+Add a test by registering a workflow; the runner does not need to change.
+Product commands remain below `cmd`. Repository testing, archives, host
+operations, and deployment belong in `tools/ci`.

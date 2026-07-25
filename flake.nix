@@ -1,5 +1,5 @@
 {
-  description = "tethux development and bare-metal CI canary hosts";
+  description = "tethux development and bare-metal CI test hosts";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -29,7 +29,7 @@
           };
           modules = [
             ./nix/modules/base.nix
-            ./nix/modules/ci-canary-user.nix
+            ./nix/modules/ci-test-user.nix
             ./nix/modules/containers.nix
             ./nix/modules/fixture-registry.nix
             ./nix/modules/networking-lab.nix
@@ -49,7 +49,7 @@
             disko.nixosModules.disko
             ./nix/installers/disko-laptop.nix
             ./nix/modules/base.nix
-            ./nix/modules/ci-canary-user.nix
+            ./nix/modules/ci-test-user.nix
             ./nix/modules/containers.nix
             ./nix/modules/fixture-registry.nix
             ./nix/modules/networking-lab.nix
@@ -61,12 +61,12 @@
     in
     {
       nixosConfigurations = {
-        canary-10-0-0-100 = nixosSystem ./nix/hosts/canary-10-0-0-100.nix;
-        canary-former-10-0-0-12 = nixosSystem ./nix/hosts/canary-former-10-0-0-12.nix;
-        canary-proxmox-vm-9901 = nixosSystem ./nix/hosts/canary-proxmox-vm-9901.nix;
-        canary-10-0-0-100-install = nixosInstallSystem ./nix/hosts/canary-10-0-0-100.nix;
-        canary-former-10-0-0-12-install = nixosInstallSystem ./nix/hosts/canary-former-10-0-0-12.nix;
-        canary-proxmox-vm-9901-install = nixosInstallSystem ./nix/hosts/canary-proxmox-vm-9901.nix;
+        test-host-10-0-0-100 = nixosSystem ./nix/hosts/test-host-10-0-0-100.nix;
+        test-host-former-10-0-0-12 = nixosSystem ./nix/hosts/test-host-former-10-0-0-12.nix;
+        test-host-proxmox-vm-9901 = nixosSystem ./nix/hosts/test-host-proxmox-vm-9901.nix;
+        test-host-10-0-0-100-install = nixosInstallSystem ./nix/hosts/test-host-10-0-0-100.nix;
+        test-host-former-10-0-0-12-install = nixosInstallSystem ./nix/hosts/test-host-former-10-0-0-12.nix;
+        test-host-proxmox-vm-9901-install = nixosInstallSystem ./nix/hosts/test-host-proxmox-vm-9901.nix;
       };
     }
     // flake-utils.lib.eachSystem [ system ] (
@@ -125,8 +125,8 @@
               // {
                 packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
+                  docker-client
                   git
-                  jq
                   libpcap
                   openssh
                   pkg-config
@@ -149,7 +149,6 @@
                   go
                   golangci-lint
                   iproute2
-                  jq
                   libpcap
                   openssh
                   pkg-config
@@ -172,7 +171,6 @@
                   dynamips
                   git
                   iproute2
-                  jq
                   libpcap
                   nmap
                   pkg-config
@@ -180,18 +178,12 @@
                   socat
                   tcpdump
                 ]);
-
-            shellHook = ''
-              export DOCKER_HOST="''${DOCKER_HOST:-unix:///var/run/docker.sock}"
-              export CONTAINER_HOST="''${CONTAINER_HOST:-unix:///run/podman/podman.sock}"
-              export CONTAINERD_ADDRESS="''${CONTAINERD_ADDRESS:-/run/containerd/containerd.sock}"
-
-              if command -v nu >/dev/null 2>&1 && [ -z "''${IN_NIX_NUSHELL:-}" ]; then
-                export IN_NIX_NUSHELL=1
-                  exec nu
-                  fi
-                  '';
-          }
+                shellHook = ''
+                  export DOCKER_HOST="''${DOCKER_HOST:-unix:///var/run/docker.sock}"
+                  export CONTAINER_HOST="''${CONTAINER_HOST:-unix:///run/podman/podman.sock}"
+                  export CONTAINERD_ADDRESS="''${CONTAINERD_ADDRESS:-/run/containerd/containerd.sock}"
+                '';
+              }
             );
           };
 

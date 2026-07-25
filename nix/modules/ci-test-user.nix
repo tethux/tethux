@@ -35,7 +35,7 @@ in
     isNormalUser = true;
     hashedPassword = "$6$7UaK2Hl5C/diNGDw$cXRY8FXz9GKuIww8/0WAZP81RznU2ckuGnXYtCsgPC2VL8xbWIJLFzodAcgHeJeF.3LqgfDZlsrccEzpBTNkO0";
     group = "ci";
-    description = "tethux canary test runner";
+    description = "tethux test host test runner";
     extraGroups = [
       "wheel"
       "docker"

@@ -5,11 +5,11 @@ when:
 
 labels:
   host: nas
-  tethux-canary: "true"
+  tethux-test-host: "true"
   privileged: "true"
 
 depends_on:
-  - normal
+  - checks
 
 steps:
   docker-bridge-and-all-providers:

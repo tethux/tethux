@@ -3,7 +3,7 @@ when:
   - event: manual
 
 labels:
-  tethux-canary: "true"
+  tethux-test-host: "true"
   privileged: "true"
   host: nas
 

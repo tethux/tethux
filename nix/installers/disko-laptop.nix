@@ -4,14 +4,7 @@ let
   disk = builtins.getEnv "TETHUX_INSTALL_DISK";
 in
 {
-  assertions = [
-    {
-      assertion = disk != "";
-      message = "Refusing to define destructive disk layout without TETHUX_INSTALL_DISK=/dev/...";
-    }
-  ];
-
-  disko.devices = {
+  disko.devices = lib.mkIf (disk != "") {
     disk.main = {
       type = "disk";
       device = disk;

@@ -16,7 +16,7 @@ the closest README.
 | `cmd/bridge/` | Ethernet switch and namespace/container bridge commands | [`cmd/bridge/README.md`](cmd/bridge/README.md) |
 | `cmd/virt/` | Docker, Podman, and containerd providers and integration CLI | [`cmd/virt/README.md`](cmd/virt/README.md) |
 | `internal/libtethux/` | Switch, transport, bridge, and provider libraries | package Go documentation |
-| `tools/ci/` | Stdlib-flag repository automation CLI | [`internal/ci/README.md`](internal/ci/README.md) |
+| `tools/ci/` | Repository test, archive, host, and deployment CLI | [`internal/ci/README.md`](internal/ci/README.md) |
 | `tools/ci-results/` | CI archive ingestion, SQLite store, API, and web viewer | [`tools/ci-results/viewer/README.md`](tools/ci-results/viewer/README.md) |
 | `tools/bridge/` | Standalone bridge examples and conformance drivers | [`tools/bridge/README.md`](tools/bridge/README.md) |
 | `nix/` | Development shells, NixOS canaries, fixture registry, and CI operations | [`nix/README.md`](nix/README.md) |
@@ -52,7 +52,7 @@ nix build .#tethux
 ./result/bin/tethux --help
 ```
 
-For bridge examples, provider testing, cross-host links, canary installation,
+For bridge examples, provider testing, cross-host links, test host installation,
 recovery, and CI archives, follow the subsystem README from the map above.
 
 ## Project status
