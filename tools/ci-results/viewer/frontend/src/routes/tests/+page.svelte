@@ -66,7 +66,6 @@
 
             <div>
               <span>{nullStringValue(test.suite) ?? 'no suite'}</span>
-              <!-- <small>{nullStringValue(test.suite) ?? 'no suite'}</small> -->
             </div>
 
             <div>

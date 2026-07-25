@@ -374,7 +374,6 @@
               <dd>
                 {formatSuite(selected.suite)}
               </dd>
-              <!-- <dd>{selected.result_kind.replaceAll('_', ' ')}</dd> -->
             </div>
           </dl>
 

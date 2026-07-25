@@ -13,7 +13,18 @@
   let error = $state('');
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const levels = ['all', 'trace', 'debug', 'info', 'notice', 'warn', 'error', 'fatal', 'panic', 'critical'];
+  const levels = [
+    'all',
+    'trace',
+    'debug',
+    'info',
+    'notice',
+    'warn',
+    'error',
+    'fatal',
+    'panic',
+    'critical'
+  ];
 
   function scheduleSearch() {
     clearTimeout(timer);
@@ -57,7 +68,9 @@
         {#each levels as level (level)}<option value={level}>{level}</option>{/each}
       </select>
     </label>
-    <label class="check"><input type="checkbox" bind:checked={regex} onchange={runSearch} /> regex</label>
+    <label class="check"
+      ><input type="checkbox" bind:checked={regex} onchange={runSearch} /> regex</label
+    >
     <button onclick={runSearch} disabled={loading}>{loading ? 'Searching…' : 'Search'}</button>
   </header>
 
@@ -70,7 +83,9 @@
     </div>
     <ol>
       {#each matches as match (match.line)}
-        <li class:flagged={['warn', 'error', 'fatal', 'panic', 'critical'].includes(match.severity)}>
+        <li
+          class:flagged={['warn', 'error', 'fatal', 'panic', 'critical'].includes(match.severity)}
+        >
           <a href={`#L${match.line}`} aria-label={`Line ${match.line}`}>{match.line}</a>
           <span class="level" data-level={match.severity}>{match.severity}</span>
           <code>{match.text || ' '}</code>
@@ -182,11 +197,15 @@
     font-size: 9px;
     text-transform: uppercase;
   }
-  .level[data-level='warn'] { color: var(--gold); }
+  .level[data-level='warn'] {
+    color: var(--gold);
+  }
   .level[data-level='error'],
   .level[data-level='fatal'],
   .level[data-level='panic'],
-  .level[data-level='critical'] { color: var(--love); }
+  .level[data-level='critical'] {
+    color: var(--love);
+  }
   code {
     min-width: 0;
     overflow-wrap: anywhere;
@@ -198,8 +217,12 @@
     padding: 18px 10px;
     color: var(--muted);
   }
-  .error { color: var(--love); }
+  .error {
+    color: var(--love);
+  }
   @media (max-width: 720px) {
-    header { grid-template-columns: 1fr 1fr; }
+    header {
+      grid-template-columns: 1fr 1fr;
+    }
   }
 </style>

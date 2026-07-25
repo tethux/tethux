@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import { resolve } from '$app/paths';
   import { getRuns } from '$lib/api/runs';
   import { getSummary } from '$lib/api/summary';
@@ -31,6 +32,31 @@
   const failedTests = $derived(
     recent.reduce((sum, run) => sum + run.failed_count + run.errored_count, 0)
   );
+  const deviceDurations = $derived.by(() => {
+    const groups = new SvelteMap<string, number[]>();
+    for (const run of recent) {
+      const values = groups.get(run.device_key) ?? [];
+      values.push(run.duration_ms);
+      groups.set(run.device_key, values);
+    }
+    return [...groups].map(([device, values]) => ({
+      device,
+      average: values.reduce((sum, value) => sum + value, 0) / values.length
+    }));
+  });
+  const devicePeak = $derived(Math.max(...deviceDurations.map((item) => item.average), 1));
+  const runDays = $derived.by(() => {
+    const counts = new SvelteMap<string, number>();
+    for (const run of recent) {
+      const day = new Date(run.started_at).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric'
+      });
+      counts.set(day, (counts.get(day) ?? 0) + 1);
+    }
+    return [...counts].reverse().slice(-7);
+  });
+  const dayPeak = $derived(Math.max(...runDays.map(([, count]) => count), 1));
 
   onMount(async () => {
     const [summaryResult, runsResult] = await Promise.all([getSummary(fetch), getRuns(fetch)]);
@@ -141,20 +167,44 @@
         {/if}
       </div>
     </div>
-    <div class="micro-insights">
-      <div
-        class="donut"
-        style={`--rate: ${successRate * 3.6}deg`}
-        aria-label={`${passedRuns} of ${recent.length} runs passed`}
-      ><span>{successRate}%</span></div>
-      <div class="test-mix">
-        <span>Recent test outcomes</span>
-        <div aria-label={`${passedTests} passed and ${failedTests} failed tests`}>
+    <div class="small-charts">
+      <article>
+        <header><span>Run status</span><strong>{passedRuns}/{recent.length}</strong></header>
+        <div class="status-bars" aria-label={`${passedRuns} of ${recent.length} runs passed`}>
+          <i style:width={`${successRate}%`}></i><b style:width={`${100 - successRate}%`}></b>
+        </div>
+        <small>{successRate}% passed</small>
+      </article>
+      <article>
+        <header><span>Test outcomes</span><strong>{totalTests}</strong></header>
+        <div class="test-mix" aria-label={`${passedTests} passed and ${failedTests} failed tests`}>
           <i style:width={`${totalTests ? (passedTests / totalTests) * 100 : 0}%`}></i>
           <b style:width={`${totalTests ? (failedTests / totalTests) * 100 : 0}%`}></b>
         </div>
-        <small>{passedTests} passed · {failedTests} attention</small>
-      </div>
+        <small>{failedTests} need attention</small>
+      </article>
+      <article>
+        <header><span>Runs by day</span><strong>{runDays.length}d</strong></header>
+        <div class="day-chart">
+          {#each runDays as [day, count] (day)}
+            <span title={`${day}: ${count} runs`}
+              ><i style:height={`${(count / dayPeak) * 100}%`}></i></span
+            >
+          {/each}
+        </div>
+        <small>archive throughput</small>
+      </article>
+      <article>
+        <header><span>Device pace</span><strong>{deviceDurations.length}</strong></header>
+        <div class="device-chart">
+          {#each deviceDurations as item (item.device)}
+            <span title={`${item.device}: ${duration(item.average)}`}>
+              <i style:width={`${(item.average / devicePeak) * 100}%`}></i>
+            </span>
+          {/each}
+        </div>
+        <small>average duration</small>
+      </article>
     </div>
   </section>
 
@@ -364,50 +414,96 @@
     box-shadow: 0 8px 24px color-mix(in srgb, #000 20%, transparent);
     pointer-events: none;
   }
-  .chart-tooltip strong { font-size: 13px; }
+  .chart-tooltip strong {
+    font-size: 13px;
+  }
   .chart-tooltip span,
-  .chart-tooltip small { color: var(--muted); font-size: 9px; }
-  .micro-insights {
+  .chart-tooltip small {
+    color: var(--muted);
+    font-size: 9px;
+  }
+  .small-charts {
     display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 14px;
-    padding: 13px 16px;
+    grid-template-columns: repeat(2, 1fr);
     border-top: 1px solid var(--border);
   }
-  .donut {
+  .small-charts article {
     display: grid;
-    width: 48px;
-    height: 48px;
-    place-items: center;
-    border-radius: 50%;
-    background: conic-gradient(var(--syntax-green) var(--rate), var(--border) 0);
+    min-height: 92px;
+    align-content: space-between;
+    gap: 8px;
+    padding: 11px 12px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
   }
-  .donut::before {
-    grid-area: 1 / 1;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: var(--base);
-    content: '';
+  .small-charts article:nth-child(2n) {
+    border-right: 0;
   }
-  .donut span {
-    z-index: 1;
+  .small-charts article:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+  .small-charts header {
+    display: flex;
+    min-height: auto;
+    justify-content: space-between;
+    padding: 0;
+    border: 0;
+  }
+  .small-charts header span,
+  .small-charts small {
+    color: var(--muted);
     font-size: 9px;
-    font-weight: 800;
   }
-  .test-mix { display: grid; gap: 6px; }
-  .test-mix > span,
-  .test-mix small { color: var(--muted); font-size: 9px; }
-  .test-mix > div {
+  .small-charts header strong {
+    font-size: 10px;
+  }
+  .status-bars,
+  .test-mix {
     display: flex;
     height: 7px;
     overflow: hidden;
-    border-radius: 8px;
     background: var(--border);
   }
-  .test-mix i { background: var(--syntax-green); }
-  .test-mix b { background: var(--love); }
+  .status-bars i,
+  .test-mix i {
+    background: var(--syntax-green);
+  }
+  .status-bars b,
+  .test-mix b {
+    background: var(--love);
+  }
+  .day-chart {
+    display: flex;
+    height: 28px;
+    align-items: end;
+    gap: 4px;
+  }
+  .day-chart span {
+    display: flex;
+    height: 100%;
+    flex: 1;
+    align-items: end;
+    background: color-mix(in srgb, var(--syntax-blue) 8%, transparent);
+  }
+  .day-chart i {
+    width: 100%;
+    min-height: 3px;
+    background: var(--syntax-blue);
+  }
+  .device-chart {
+    display: grid;
+    gap: 4px;
+  }
+  .device-chart span {
+    display: block;
+    height: 4px;
+    background: var(--border);
+  }
+  .device-chart i {
+    display: block;
+    height: 100%;
+    background: var(--syntax-purple);
+  }
   .history-link {
     display: inline-flex;
     align-items: center;
@@ -420,8 +516,12 @@
     font-weight: 700;
     text-decoration: none;
   }
-  .history-link:hover { border-color: var(--syntax-blue); }
-  .history-link span { color: var(--syntax-blue); }
+  .history-link:hover {
+    border-color: var(--syntax-blue);
+  }
+  .history-link span {
+    color: var(--syntax-blue);
+  }
   .recent-panel article {
     position: relative;
     display: grid;

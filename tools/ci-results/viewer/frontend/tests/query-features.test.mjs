@@ -69,6 +69,10 @@ test('diagnostic overview keeps health, duration, recent runs, and workflow step
   assert.match(dashboard, /Recent runs/);
   assert.match(dashboard, /class="y-axis"/);
   assert.match(dashboard, /chart-tooltip/);
+  for (const chart of ['Run status', 'Test outcomes', 'Runs by day', 'Device pace']) {
+    assert.match(dashboard, new RegExp(chart));
+  }
+  assert.doesNotMatch(dashboard, /class="donut"/);
   assert.match(runDetail, /Workflow steps/);
   assert.match(runDetail, /configs\/workflow\.json/);
 });
