@@ -114,7 +114,8 @@ type FilterRunsRow struct {
 }
 
 func (q *Queries) FilterRuns(ctx context.Context, arg FilterRunsParams) ([]FilterRunsRow, error) {
-	rows, err := q.db.QueryContext(ctx, filterRuns,
+	rows, err := q.db.QueryContext(
+		ctx, filterRuns,
 		arg.ProjectID,
 		arg.Branch,
 		arg.DeviceID,
@@ -730,7 +731,8 @@ type ListMostFrequentFailuresRow struct {
 }
 
 func (q *Queries) ListMostFrequentFailures(ctx context.Context, arg ListMostFrequentFailuresParams) ([]ListMostFrequentFailuresRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMostFrequentFailures,
+	rows, err := q.db.QueryContext(
+		ctx, listMostFrequentFailures,
 		arg.ProjectID,
 		arg.Branch,
 		arg.DeviceID,
@@ -824,7 +826,8 @@ type ListRunSummaryHistoryRow struct {
 }
 
 func (q *Queries) ListRunSummaryHistory(ctx context.Context, arg ListRunSummaryHistoryParams) ([]ListRunSummaryHistoryRow, error) {
-	rows, err := q.db.QueryContext(ctx, listRunSummaryHistory,
+	rows, err := q.db.QueryContext(
+		ctx, listRunSummaryHistory,
 		arg.ProjectID,
 		arg.Branch,
 		arg.DeviceID,

@@ -123,6 +123,7 @@
             ci = pkgs.mkShell (
               cgoPcapEnv
               // {
+                MISE_ENABLE_TOOLS = "";
                 packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   docker-client
