@@ -361,8 +361,9 @@
   .search label > span {
     position: absolute;
     z-index: 1;
+    top: 50%;
     left: 11px;
-    bottom: 8px;
+    transform: translateY(-58%);
     color: var(--focus) !important;
     font-size: 17px !important;
   }

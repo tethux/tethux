@@ -102,9 +102,9 @@
 
 <header class="page-header dashboard-header">
   <div>
-    <p class="kicker">Archive health</p>
-    <h1>Project pulse</h1>
-    <p class="lede">The smallest useful picture of build health, speed, and recent change.</p>
+    <p class="kicker">CI overview</p>
+    <h1>Build status</h1>
+    <p class="lede">Recent results, failures, and run times by pipeline and host.</p>
   </div>
   <a class="query-link" href={resolve('/query')}>Explore data <span>⌘</span></a>
 </header>
@@ -114,9 +114,9 @@
 <section class="health-grid" aria-label="CI health summary">
   <article class="health-score">
     <div>
-      <span>Recent success</span>
+      <span>Pass rate</span>
       <strong>{loading ? '—' : `${successRate}%`}</strong>
-      <small>last {recent.length} archived runs</small>
+      <small>last {recent.length} runs</small>
     </div>
     <div class="status-track" aria-label={`${successRate}% recent success rate`}>
       {#each recent as run (run.run_uid)}
@@ -130,18 +130,16 @@
     </div>
   </article>
   <article>
-    <span>Runs archived</span><strong>{summary?.run_count ?? '—'}</strong><small
-      >exact, local history</small
-    >
+    <span>Runs</span><strong>{summary?.run_count ?? '—'}</strong><small>retained in archive</small>
   </article>
   <article>
-    <span>Test observations</span><strong>{summary?.test_count ?? '—'}</strong><small
-      >{summary?.failed_count ?? '—'} need attention</small
+    <span>Tests</span><strong>{summary?.test_count ?? '—'}</strong><small
+      >{summary?.failed_count ?? '—'} failed</small
     >
   </article>
   <article>
     <span>Median duration</span><strong>{recent.length ? duration(medianDuration) : '—'}</strong
-    ><small>recent archived runs</small>
+    ><small>last {recent.length} runs</small>
   </article>
 </section>
 
@@ -149,10 +147,10 @@
   <section class="panel duration-panel" aria-labelledby="duration-title">
     <header>
       <div>
-        <p>Performance</p>
+        <p>Recent runs</p>
         <h2 id="duration-title">Build duration</h2>
       </div>
-      <small>latest →</small>
+      <small>oldest to newest</small>
     </header>
     <div class="chart-frame">
       <div class="y-axis" aria-hidden="true">
@@ -185,7 +183,7 @@
     </div>
     <div class="small-charts">
       <article>
-        <header><span>Pipeline health</span><strong>{pipelineHealth.length}</strong></header>
+        <header><span>Pipelines</span><strong>{pipelineHealth.length}</strong></header>
         <div class="diagnostic-list">
           {#each pipelineHealth as item (item.pipeline)}
             <span title={`${item.pipeline}: ${item.passed} of ${item.total} runs passed`}>
@@ -195,18 +193,18 @@
             </span>
           {/each}
         </div>
-        <small>failed tests by pipeline</small>
+        <small>failed tests per pipeline</small>
       </article>
       <article>
-        <header><span>Test outcomes</span><strong>{totalTests}</strong></header>
+        <header><span>Tests</span><strong>{totalTests}</strong></header>
         <div class="test-mix" aria-label={`${passedTests} passed and ${failedTests} failed tests`}>
           <i style:width={`${totalTests ? (passedTests / totalTests) * 100 : 0}%`}></i>
           <b style:width={`${totalTests ? (failedTests / totalTests) * 100 : 0}%`}></b>
         </div>
-        <small>{failedTests} need attention</small>
+        <small>{failedTests} failed</small>
       </article>
       <article>
-        <header><span>Failure hotspots</span><strong>{failedTests}</strong></header>
+        <header><span>Failures</span><strong>{failedTests}</strong></header>
         <div class="diagnostic-list hotspots">
           {#each failureHotspots as item (item.location)}
             <span title={`${item.location}: ${item.failures} failed tests`}>
@@ -218,10 +216,10 @@
             <span class="all-clear">No failures in recent runs</span>
           {/each}
         </div>
-        <small>pipeline and test host</small>
+        <small>by pipeline and host</small>
       </article>
       <article>
-        <header><span>Device pace</span><strong>{deviceDurations.length}</strong></header>
+        <header><span>Host duration</span><strong>{deviceDurations.length}</strong></header>
         <div class="device-chart">
           {#each deviceDurations as item (item.device)}
             <span title={`${item.device}: ${duration(item.average)}`}>
@@ -229,7 +227,7 @@
             </span>
           {/each}
         </div>
-        <small>average duration</small>
+        <small>average run time</small>
       </article>
     </div>
   </section>
@@ -237,10 +235,10 @@
   <section class="panel recent-panel" aria-labelledby="recent-title">
     <header>
       <div>
-        <p>Now</p>
+        <p>Latest</p>
         <h2 id="recent-title">Recent runs</h2>
       </div>
-      <a class="history-link" href={resolve('/runs')}>View history <span>→</span></a>
+      <a class="history-link" href={resolve('/runs')}>All runs <span>→</span></a>
     </header>
     {#if loading}
       <div class="skeleton" aria-label="Loading recent runs"></div>

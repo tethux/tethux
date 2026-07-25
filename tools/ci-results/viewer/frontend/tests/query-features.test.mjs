@@ -76,12 +76,12 @@ test('artifact workbench exposes filtering, preview, and exact-byte download', (
 });
 
 test('diagnostic overview keeps health, duration, recent runs, and workflow steps concise', () => {
-  assert.match(dashboard, /Project pulse/);
+  assert.match(dashboard, /Build status/);
   assert.match(dashboard, /Build duration/);
   assert.match(dashboard, /Recent runs/);
   assert.match(dashboard, /class="y-axis"/);
   assert.match(dashboard, /chart-tooltip/);
-  for (const chart of ['Pipeline health', 'Test outcomes', 'Failure hotspots', 'Device pace']) {
+  for (const chart of ['Pipelines', 'Tests', 'Failures', 'Host duration']) {
     assert.match(dashboard, new RegExp(chart));
   }
   assert.doesNotMatch(dashboard, /class="donut"/);
