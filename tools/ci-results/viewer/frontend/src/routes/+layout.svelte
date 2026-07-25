@@ -21,14 +21,9 @@
 
   function applyTheme(): void {
     document.documentElement.classList.toggle('dark', dark);
-    const colors = dark
-      ? { base: '#1e1e2e', accent: '#f5c2e7', ok: '#a6e3a1' }
-      : { base: '#eff1f5', accent: '#8839ef', ok: '#40a02b' };
-    document.querySelector<HTMLMetaElement>('#theme-color')?.setAttribute('content', colors.base);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="${colors.base}"/><path d="M8 10.5h16M8 16h10M8 21.5h7" stroke="${colors.accent}" stroke-width="2.5" stroke-linecap="round"/><circle cx="23" cy="21.5" r="3" fill="${colors.ok}"/></svg>`;
     document
-      .querySelector<HTMLLinkElement>('#theme-favicon')
-      ?.setAttribute('href', `data:image/svg+xml,${encodeURIComponent(svg)}`);
+      .querySelector<HTMLMetaElement>('#theme-color')
+      ?.setAttribute('content', dark ? '#1e1e2e' : '#eff1f5');
   }
 
   function toggleTheme(): void {

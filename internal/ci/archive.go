@@ -294,7 +294,7 @@ func (w *ArchiveWriter) buildManifest(results archiveformat.ResultsDocument) (ar
 	}
 	return archiveformat.Manifest{
 		SchemaVersion: 1, RunID: w.Options.RunID,
-		Project:     archiveformat.Project{ID: "tethux", Name: "tethux", Repository: "codeberg.org/tethux/tethux"},
+		Project:     archiveformat.Project{ID: "tethux", Name: "tethux", Repository: "github.com/tethux/tethux"},
 		Source:      &archiveformat.Source{Type: sourceType, Provider: provider, Workflow: w.Options.Workflow, Job: w.Options.Workflow, Attempt: 1, Trigger: archiveformat.TriggerType(os.Getenv("CI_PIPELINE_EVENT"))},
 		Git:         archiveformat.Git{CommitSHA: w.Options.Revision, Branch: branch},
 		Timing:      archiveformat.Timing{StartedAt: w.Options.StartedAt, FinishedAt: w.Options.FinishedAt, DurationMS: w.Options.FinishedAt.Sub(w.Options.StartedAt).Milliseconds()},

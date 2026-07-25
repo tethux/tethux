@@ -8,6 +8,9 @@ This repository is a Go and Nix monorepo. The root README is intentionally an
 overview; each subsystem owns its commands, examples, and operational notes in
 the closest README.
 
+The canonical source repository is
+[github.com/tethux/tethux](https://github.com/tethux/tethux).
+
 ## Monorepo map
 
 | Path | Purpose | Documentation |

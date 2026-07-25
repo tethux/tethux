@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const layout = await readFile(new URL('../src/routes/+layout.svelte', import.meta.url), 'utf8');
+const app = await readFile(new URL('../src/app.html', import.meta.url), 'utf8');
 const queryResults = await readFile(
   new URL('../src/lib/components/QueryResults.svelte', import.meta.url),
   'utf8'
@@ -87,7 +88,7 @@ test('shared sidebar keeps theme and source controls visible on every route', ()
   assert.match(layout, /height: 100vh/);
   assert.match(layout, /ci-results-theme/);
   assert.match(layout, /!== 'light'/);
-  assert.match(layout, /theme-favicon/);
+  assert.match(app, /%sveltekit\.assets%\/favicon\.svg/);
   assert.match(layout, /tools\/ci-results\/viewer/);
   assert.match(layout, /github\.com\/tethux\/tethux/);
   assert.match(layout, /scrollbar-gutter: stable/);

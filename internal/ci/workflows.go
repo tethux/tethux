@@ -17,7 +17,7 @@ func BuiltinWorkflows(root string) []Workflow {
 	}
 	normal := Workflow{
 		Name: "normal", Description: "format, lint, unit, build, and Nix checks",
-		Archive: ArchiveMetadata{Workflow: "normal"},
+		Archive: ArchiveMetadata{Workflow: "normal"}, ContinueOnError: true,
 		Steps: []Step{
 			{Name: "format", Command: "mise", Args: []string{"run", "check:format"}, Dir: root, Timeout: 20 * time.Minute},
 			{Name: "lint", Command: "mise", Args: []string{"run", "lint"}, Dir: root, DependsOn: []string{"format"}, Timeout: 20 * time.Minute},
