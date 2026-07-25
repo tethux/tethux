@@ -387,8 +387,8 @@ func runRemoteLaptop(ctx context.Context, root, target, jump, runtimeName, archi
 	}
 	remoteArgs := []string{
 		"nix", "develop", ".#integration",
-		"--extra-experimental-features=nix-command",
-		"--extra-experimental-features=flakes",
+		"--extra-experimental-features", "nix-command",
+		"--extra-experimental-features", "flakes",
 		"-c", "go", "run", "./tools/ci", "run", "laptop", "--runtime", runtimeName,
 	}
 	if device != "" {

@@ -39,7 +39,7 @@ func (r Remote) SSHArgs(remoteArgs ...string) ([]string, error) {
 	if strings.TrimSpace(r.Target) == "" || strings.HasPrefix(r.Target, "-") {
 		return nil, errors.New("remote target is required")
 	}
-	args := []string{"-o", "BatchMode=yes"}
+	args := []string{"-o", "BatchMode=yes", "-o", "UpdateHostKeys=no"}
 	if r.JumpHost != "" {
 		args = append(args, "-J", r.JumpHost)
 	}
@@ -66,7 +66,7 @@ func (r Remote) CopyTo(ctx context.Context, source, destination string, stdout, 
 	if err != nil {
 		return err
 	}
-	args := []string{"-q"}
+	args := []string{"-q", "-o", "UpdateHostKeys=no"}
 	if info.IsDir() {
 		args = append(args, "-r")
 	}
@@ -89,7 +89,7 @@ func (r Remote) CopyFrom(ctx context.Context, source, destination string, stdout
 	if err := os.MkdirAll(destination, 0o750); err != nil {
 		return err
 	}
-	args := []string{"-q", "-r"}
+	args := []string{"-q", "-r", "-o", "UpdateHostKeys=no"}
 	if r.JumpHost != "" {
 		args = append(args, "-o", "ProxyJump="+r.JumpHost)
 	}
