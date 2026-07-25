@@ -140,8 +140,9 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 	defer cancel()
 
 	command, args := step.Command, append([]string(nil), step.Args...)
+	environment := mergedEnvironment(r.BaseEnv, step.Env)
 	if step.Privilege == PrivilegeRoot && os.Geteuid() != 0 {
-		args = append([]string{"-n", command}, args...)
+		args = rootCommandArgs(command, args, environment)
 		command = "sudo"
 	}
 	fmt.Fprintf(r.Stdout, "==> %s\n    %s %s\n", step.Name, command, strings.Join(args, " "))
@@ -156,7 +157,7 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 	}
 	cmd := exec.CommandContext(stepCtx, command, args...)
 	cmd.Dir = step.Dir
-	cmd.Env = mergedEnvironment(r.BaseEnv, step.Env)
+	cmd.Env = environment
 	stdout := r.Stdout
 	var capture *os.File
 	if step.CaptureStdout != "" {
@@ -189,6 +190,20 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 	}
 	result.Error = err.Error()
 	return result, err
+}
+
+func rootCommandArgs(command string, args, environment []string) []string {
+	sudoArgs := []string{"-n", "env"}
+	for _, name := range []string{"PATH", "CGO_ENABLED", "CGO_CFLAGS", "CGO_LDFLAGS", "LD_LIBRARY_PATH"} {
+		prefix := name + "="
+		for _, value := range environment {
+			if strings.HasPrefix(value, prefix) {
+				sudoArgs = append(sudoArgs, value)
+				break
+			}
+		}
+	}
+	return append(sudoArgs, append([]string{command}, args...)...)
 }
 
 func ValidateWorkflow(workflow Workflow) error {

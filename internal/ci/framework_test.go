@@ -5,6 +5,7 @@ import (
 	"context"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -58,5 +59,23 @@ func TestRemoteArgsDoNotUseShell(t *testing.T) {
 		if !slices.Contains(args, option) {
 			t.Fatalf("missing SSH transport option %q in %#v", option, args)
 		}
+	}
+}
+
+func TestRootCommandPreservesOnlyToolchainEnvironment(t *testing.T) {
+	args := rootCommandArgs("go", []string{"test", "./..."}, []string{
+		"PATH=/nix/store/bin",
+		"CGO_CFLAGS=-I/nix/store/libpcap/include",
+		"LD_LIBRARY_PATH=/nix/store/libpcap/lib",
+		"SECRET=not-for-root",
+	})
+	joined := strings.Join(args, " ")
+	for _, expected := range []string{"-n env", "PATH=/nix/store/bin", "CGO_CFLAGS=", "LD_LIBRARY_PATH=", "go test ./..."} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("missing %q in %#v", expected, args)
+		}
+	}
+	if strings.Contains(joined, "SECRET=") {
+		t.Fatalf("unexpected environment leak in %#v", args)
 	}
 }
