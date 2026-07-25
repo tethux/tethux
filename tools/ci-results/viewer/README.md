@@ -37,26 +37,47 @@ mise run check
 
 ## NAS deployment
 
-Woodpecker updates the deployment after a successful push to `master`. The
-deployment uses one dedicated Docker network and three containers:
+Woodpecker updates the deployment after a successful push to `master`.
+`compose.yaml` defines one dedicated Docker network and three containers:
 
 - `tethux-ci-viewer` serves the UI and API;
 - `tethux-ci-viewer-ingest` watches the archive bind mount read-only;
 - `tethux-ci-viewer-tunnel` provides optional Cloudflare access.
 
 SQLite lives at `/var/cache/tethux-ci/viewer`. Archives are mounted read-only
-from `/var/cache/tethux-ci/archive`. No host port is published.
+from `/var/cache/tethux-ci/archive`. No host port is published. Compose uses
+explicit container names, so updates preserve `tethux-ci-viewer`,
+`tethux-ci-viewer-ingest`, and `tethux-ci-viewer-tunnel`; the Cloudflare
+service URL remains stable.
 
-After creating a remotely managed Cloudflare Tunnel, set its service to
-`http://tethux-ci-viewer:8080`, then install the token once:
+Create a remotely managed Cloudflare Tunnel and add a published application:
+
+- Application type: `HTTP`
+- Public hostname: the hostname you want, such as `ci.example.com`
+- Service URL: `http://tethux-ci-viewer:8080`
+
+The service name works because `cloudflared` and the viewer share the
+`tethux-ci-viewer` Docker network. On the NAS, create:
+
+```console
+mkdir -p /Containers/homelab/tethux-ci-viewer
+printf '%s\n' 'TUNNEL_TOKEN=replace-with-your-token' \
+  > /Containers/homelab/tethux-ci-viewer/.env
+chmod 600 /Containers/homelab/tethux-ci-viewer/.env
+```
+
+Then deploy or restart the tunnel:
 
 ```console
 ssh nas
-/Containers/homelab/tethux-ci-viewer/tethux-ci deploy tunnel-token
+/Containers/homelab/tethux-ci-viewer/tethux-ci deploy viewer
 ```
 
-Input is hidden and stored mode `0600`. It is never committed, passed as a
-command argument, or stored in Woodpecker.
+Alternatively, `tethux-ci deploy tunnel-token` prompts without echoing and
+writes the same `.env` file. The container receives `TUNNEL_TOKEN` through
+Docker's `--env-file`; the token is not a command argument or Woodpecker
+setting. After editing `.env`, rerun either deploy command to recreate the
+tunnel container with the new token.
 
 Canonical source:
 https://codeberg.org/tethux/tethux/src/branch/master/tools/ci-results/viewer

@@ -64,7 +64,7 @@ func deployCommand(ctx context.Context, args []string) error {
 	switch args[0] {
 	case "tunnel-token":
 		flags := flag.NewFlagSet("deploy tunnel-token", flag.ContinueOnError)
-		tokenFile := flags.String("file", "/deployment/secrets/cloudflare-tunnel-token", "token file")
+		envFile := flags.String("env-file", "/deployment/.env", "deployment environment file")
 		network := flags.String("network", "tethux-ci-viewer", "viewer Docker network")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
@@ -88,19 +88,19 @@ func deployCommand(ctx context.Context, args []string) error {
 		if len(token) < 20 {
 			return errors.New("token appears incomplete")
 		}
-		if err := os.MkdirAll(filepath.Dir(*tokenFile), 0o700); err != nil {
+		if err := os.MkdirAll(filepath.Dir(*envFile), 0o700); err != nil {
 			return err
 		}
-		if err := os.WriteFile(*tokenFile, []byte(token+"\n"), 0o600); err != nil {
+		if err := os.WriteFile(*envFile, []byte("TUNNEL_TOKEN="+token+"\n"), 0o600); err != nil {
 			return err
 		}
 		_ = exec.CommandContext(ctx, "docker", "rm", "-f", "tethux-ci-viewer-tunnel").Run()
 		command := exec.CommandContext(
 			ctx, "docker", "run", "-d", "--name", "tethux-ci-viewer-tunnel",
 			"--restart", "unless-stopped", "--network", *network, "--read-only",
-			"-v", *tokenFile+":/run/secrets/cloudflare-tunnel-token:ro",
+			"--env-file", *envFile,
 			"cloudflare/cloudflared:latest", "tunnel", "--no-autoupdate",
-			"--token-file", "/run/secrets/cloudflare-tunnel-token", "run",
+			"run",
 		)
 		command.Stdout, command.Stderr = os.Stdout, os.Stderr
 		return command.Run()
@@ -111,7 +111,7 @@ func deployCommand(ctx context.Context, args []string) error {
 		network := flags.String("network", "tethux-ci-viewer", "dedicated Docker network")
 		dataDir := flags.String("data-dir", "/var/cache/tethux-ci/viewer", "persistent viewer data directory")
 		archiveDir := flags.String("archive-dir", "/var/cache/tethux-ci/archive", "read-only test archive directory")
-		tokenFile := flags.String("token-file", "/deployment/secrets/cloudflare-tunnel-token", "Cloudflare tunnel token file")
+		envFile := flags.String("env-file", "/deployment/.env", "Cloudflare tunnel environment file")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
@@ -124,11 +124,26 @@ func deployCommand(ctx context.Context, args []string) error {
 		if err := os.Chown(*dataDir, 100, 101); err != nil {
 			return fmt.Errorf("grant viewer data ownership: %w", err)
 		}
-		helperPath := filepath.Join(filepath.Dir(filepath.Dir(*tokenFile)), "tethux-ci")
+		helperPath := filepath.Join(filepath.Dir(*envFile), "tethux-ci")
 		helper := exec.CommandContext(ctx, "go", "build", "-o", helperPath, "./tools/ci")
 		helper.Dir, helper.Stdout, helper.Stderr = *source, os.Stdout, os.Stderr
 		if err := helper.Run(); err != nil {
 			return fmt.Errorf("build NAS deployment helper: %w", err)
+		}
+		composeSource := filepath.Join(
+			*source,
+			"tools",
+			"ci-results",
+			"viewer",
+			"compose.yaml",
+		)
+		composePath := filepath.Join(filepath.Dir(*envFile), "compose.yaml")
+		composeContent, err := os.ReadFile(composeSource)
+		if err != nil {
+			return fmt.Errorf("read viewer compose file: %w", err)
+		}
+		if err := os.WriteFile(composePath, composeContent, 0o600); err != nil {
+			return fmt.Errorf("install viewer compose file: %w", err)
 		}
 		run := func(arguments ...string) error {
 			cmd := exec.CommandContext(ctx, "docker", arguments...)
@@ -139,52 +154,51 @@ func deployCommand(ctx context.Context, args []string) error {
 		if err := run("build", "-f", dockerfile, "-t", *image, *source); err != nil {
 			return fmt.Errorf("build viewer image: %w", err)
 		}
-		if err := run("network", "inspect", *network); err != nil {
-			if err := run("network", "create", "--driver", "bridge", *network); err != nil {
-				return fmt.Errorf("create viewer network: %w", err)
-			}
-		}
-		_ = run("rm", "-f", "tethux-ci-viewer")
-		if err := run(
-			"run", "-d", "--name", "tethux-ci-viewer", "--restart", "unless-stopped",
-			"--network", *network, "--read-only", "--tmpfs", "/tmp",
-			"-v", *dataDir+":/data", *image,
-			"serve", "--address", "0.0.0.0", "--port", "8080", "--db", "/data/ci-res.db",
-		); err != nil {
-			return fmt.Errorf("start viewer: %w", err)
-		}
-		_ = run("rm", "-f", "tethux-ci-viewer-ingest")
-		if err := run(
-			"run", "-d", "--name", "tethux-ci-viewer-ingest", "--restart", "unless-stopped",
-			"--network", *network, "--read-only", "--tmpfs", "/tmp",
-			"-v", *dataDir+":/data",
-			"-v", *archiveDir+":/archive:ro",
-			*image, "watch", "--path", "/archive", "--db", "/data/ci-res.db", "--poll", "15s",
-		); err != nil {
-			return fmt.Errorf("start archive ingestion watcher: %w", err)
-		}
-		if _, err := os.Stat(*tokenFile); err == nil {
-			_ = run("rm", "-f", "tethux-ci-viewer-tunnel")
-			if err := run(
-				"run", "-d", "--name", "tethux-ci-viewer-tunnel", "--restart", "unless-stopped",
-				"--network", *network, "--read-only",
-				"-v", *tokenFile+":/run/secrets/cloudflare-tunnel-token:ro",
-				"cloudflare/cloudflared:latest", "tunnel", "--no-autoupdate",
-				"--token-file", "/run/secrets/cloudflare-tunnel-token", "run",
-			); err != nil {
-				return fmt.Errorf("start Cloudflare tunnel: %w", err)
-			}
-		} else if !errors.Is(err, os.ErrNotExist) {
+		composeArgs := []string{"compose", "-f", composePath}
+		if configured, err := tunnelConfigured(*envFile); err != nil {
 			return err
+		} else if configured {
+			composeArgs = append(composeArgs, "--profile", "tunnel")
 		} else {
 			if _, err := fmt.Fprintln(os.Stdout, "viewer deployed; tunnel pending secure token installation"); err != nil {
 				return err
 			}
 		}
+		composeArgs = append(composeArgs, "up", "-d", "--force-recreate", "--remove-orphans")
+		command := exec.CommandContext(ctx, "docker", composeArgs...)
+		command.Env = append(
+			os.Environ(),
+			"TETHUX_VIEWER_IMAGE="+*image,
+			"TETHUX_VIEWER_NETWORK="+*network,
+			"TETHUX_VIEWER_DATA_DIR="+*dataDir,
+			"TETHUX_VIEWER_ARCHIVE_DIR="+*archiveDir,
+			"TETHUX_VIEWER_ENV_FILE="+*envFile,
+		)
+		command.Stdout, command.Stderr = os.Stdout, os.Stderr
+		if err := command.Run(); err != nil {
+			return fmt.Errorf("apply viewer compose deployment: %w", err)
+		}
 		return nil
 	default:
 		return usageError("unknown deploy command " + args[0])
 	}
+}
+
+func tunnelConfigured(path string) (bool, error) {
+	content, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for line := range strings.SplitSeq(string(content), "\n") {
+		name, value, found := strings.Cut(strings.TrimSpace(line), "=")
+		if found && name == "TUNNEL_TOKEN" && len(strings.TrimSpace(value)) >= 20 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func runCommand(ctx context.Context, args []string) error {
