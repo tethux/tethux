@@ -129,8 +129,7 @@ type CreateRunParams struct {
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, error) {
-	row := q.db.QueryRowContext(
-		ctx, createRun,
+	row := q.db.QueryRowContext(ctx, createRun,
 		arg.RunUid,
 		arg.SchemaVersion,
 		arg.ArchiveID,
@@ -738,8 +737,7 @@ type ListRunsForDeviceParams struct {
 }
 
 func (q *Queries) ListRunsForDevice(ctx context.Context, arg ListRunsForDeviceParams) ([]Run, error) {
-	rows, err := q.db.QueryContext(
-		ctx, listRunsForDevice,
+	rows, err := q.db.QueryContext(ctx, listRunsForDevice,
 		arg.ProjectID,
 		arg.DeviceID,
 		arg.ResultOffset,

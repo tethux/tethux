@@ -79,8 +79,7 @@ type CreateArchiveParams struct {
 }
 
 func (q *Queries) CreateArchive(ctx context.Context, arg CreateArchiveParams) (Archive, error) {
-	row := q.db.QueryRowContext(
-		ctx, createArchive,
+	row := q.db.QueryRowContext(ctx, createArchive,
 		arg.RelativePath,
 		arg.FileSizeBytes,
 		arg.FileMtimeNs,
@@ -136,8 +135,7 @@ type CreateImportingArchiveParams struct {
 }
 
 func (q *Queries) CreateImportingArchive(ctx context.Context, arg CreateImportingArchiveParams) (Archive, error) {
-	row := q.db.QueryRowContext(
-		ctx, createImportingArchive,
+	row := q.db.QueryRowContext(ctx, createImportingArchive,
 		arg.RelativePath,
 		arg.FileSizeBytes,
 		arg.FileMtimeNs,
@@ -464,8 +462,7 @@ type UpsertDiscoveredArchiveParams struct {
 // Use this when rescanning files that may already be known.
 // It deliberately does not reset successfully imported archives.
 func (q *Queries) UpsertDiscoveredArchive(ctx context.Context, arg UpsertDiscoveredArchiveParams) (Archive, error) {
-	row := q.db.QueryRowContext(
-		ctx, upsertDiscoveredArchive,
+	row := q.db.QueryRowContext(ctx, upsertDiscoveredArchive,
 		arg.RelativePath,
 		arg.FileSizeBytes,
 		arg.FileMtimeNs,

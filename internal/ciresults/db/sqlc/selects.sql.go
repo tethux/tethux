@@ -114,8 +114,7 @@ type FilterRunsRow struct {
 }
 
 func (q *Queries) FilterRuns(ctx context.Context, arg FilterRunsParams) ([]FilterRunsRow, error) {
-	rows, err := q.db.QueryContext(
-		ctx, filterRuns,
+	rows, err := q.db.QueryContext(ctx, filterRuns,
 		arg.ProjectID,
 		arg.Branch,
 		arg.DeviceID,
@@ -731,8 +730,7 @@ type ListMostFrequentFailuresRow struct {
 }
 
 func (q *Queries) ListMostFrequentFailures(ctx context.Context, arg ListMostFrequentFailuresParams) ([]ListMostFrequentFailuresRow, error) {
-	rows, err := q.db.QueryContext(
-		ctx, listMostFrequentFailures,
+	rows, err := q.db.QueryContext(ctx, listMostFrequentFailures,
 		arg.ProjectID,
 		arg.Branch,
 		arg.DeviceID,
@@ -826,8 +824,7 @@ type ListRunSummaryHistoryRow struct {
 }
 
 func (q *Queries) ListRunSummaryHistory(ctx context.Context, arg ListRunSummaryHistoryParams) ([]ListRunSummaryHistoryRow, error) {
-	rows, err := q.db.QueryContext(
-		ctx, listRunSummaryHistory,
+	rows, err := q.db.QueryContext(ctx, listRunSummaryHistory,
 		arg.ProjectID,
 		arg.Branch,
 		arg.DeviceID,
@@ -937,6 +934,7 @@ SELECT
     r.run_uid,
     r.status,
     r.branch,
+    r.workflow,
     r.commit_sha,
     r.started_at,
     r.duration_ms,
@@ -962,6 +960,7 @@ type ListViewerRunsRow struct {
 	RunUid       string         `json:"run_uid"`
 	Status       string         `json:"status"`
 	Branch       sql.NullString `json:"branch"`
+	Workflow     sql.NullString `json:"workflow"`
 	CommitSha    string         `json:"commit_sha"`
 	StartedAt    string         `json:"started_at"`
 	DurationMs   int64          `json:"duration_ms"`
@@ -987,6 +986,7 @@ func (q *Queries) ListViewerRuns(ctx context.Context) ([]ListViewerRunsRow, erro
 			&i.RunUid,
 			&i.Status,
 			&i.Branch,
+			&i.Workflow,
 			&i.CommitSha,
 			&i.StartedAt,
 			&i.DurationMs,

@@ -46,8 +46,7 @@ type CreateArchiveFileParams struct {
 }
 
 func (q *Queries) CreateArchiveFile(ctx context.Context, arg CreateArchiveFileParams) (ArchiveFile, error) {
-	row := q.db.QueryRowContext(
-		ctx, createArchiveFile,
+	row := q.db.QueryRowContext(ctx, createArchiveFile,
 		arg.RunID,
 		arg.ArchivePath,
 		arg.FileType,
@@ -407,8 +406,7 @@ type ListArtifactFilesRow struct {
 }
 
 func (q *Queries) ListArtifactFiles(ctx context.Context, arg ListArtifactFilesParams) ([]ListArtifactFilesRow, error) {
-	rows, err := q.db.QueryContext(
-		ctx, listArtifactFiles,
+	rows, err := q.db.QueryContext(ctx, listArtifactFiles,
 		arg.BeforeID,
 		arg.SearchText,
 		arg.FileTypeFilter,
@@ -622,8 +620,7 @@ type UpsertArchiveFileParams struct {
 }
 
 func (q *Queries) UpsertArchiveFile(ctx context.Context, arg UpsertArchiveFileParams) (ArchiveFile, error) {
-	row := q.db.QueryRowContext(
-		ctx, upsertArchiveFile,
+	row := q.db.QueryRowContext(ctx, upsertArchiveFile,
 		arg.RunID,
 		arg.ArchivePath,
 		arg.FileType,

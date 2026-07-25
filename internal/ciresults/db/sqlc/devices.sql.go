@@ -224,8 +224,7 @@ type UpsertDeviceParams struct {
 }
 
 func (q *Queries) UpsertDevice(ctx context.Context, arg UpsertDeviceParams) (Device, error) {
-	row := q.db.QueryRowContext(
-		ctx, upsertDevice,
+	row := q.db.QueryRowContext(ctx, upsertDevice,
 		arg.DeviceKey,
 		arg.DisplayName,
 		arg.LastOs,

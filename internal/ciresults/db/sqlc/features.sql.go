@@ -168,8 +168,7 @@ type UpsertFeatureParams struct {
 }
 
 func (q *Queries) UpsertFeature(ctx context.Context, arg UpsertFeatureParams) (Feature, error) {
-	row := q.db.QueryRowContext(
-		ctx, upsertFeature,
+	row := q.db.QueryRowContext(ctx, upsertFeature,
 		arg.ProjectID,
 		arg.FeatureKey,
 		arg.Name,

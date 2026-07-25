@@ -48,6 +48,7 @@ SELECT
     r.run_uid,
     r.status,
     r.branch,
+    r.workflow,
     r.commit_sha,
     r.started_at,
     r.duration_ms,

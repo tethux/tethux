@@ -194,7 +194,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) GetSchemaInfo(ctx context.Context) (types.DBSchemaInfo, error) {
-	query := `select s.type, s.name, c.name as column_name, c.type as column_type from sqlite_master as s join pragma_table_info(s.name) as c where s.type in ('table', 'view') and s.name not like 'sqlite_%' order by s.type, s.name, c.cid;`
+	query := `select s.type, s.name, c.name as column_name, c.type as column_type, c.pk, c."notnull" from sqlite_master as s join pragma_table_info(s.name) as c where s.type in ('table', 'view') and s.name not like 'sqlite_%' order by s.type, s.name, c.cid;`
 	rows, err := s.DB.QueryContext(ctx, query)
 	if err != nil {
 		return types.DBSchemaInfo{}, err
@@ -205,14 +205,20 @@ func (s *Store) GetSchemaInfo(ctx context.Context) (types.DBSchemaInfo, error) {
 	for rows.Next() {
 		var kind types.SchemaObjectKind
 		var name, columnName, columnType string
-		if err := rows.Scan(&kind, &name, &columnName, &columnType); err != nil {
+		var primaryKey, notNull int
+		if err := rows.Scan(&kind, &name, &columnName, &columnType, &primaryKey, &notNull); err != nil {
 			return types.DBSchemaInfo{}, err
 		}
-		objects = append(objects, types.SchemaObject{
-			Name:    name,
-			Kind:    kind,
-			Columns: []types.SchemaColumn{{Name: columnName, Type: columnType}},
-		})
+		column := types.SchemaColumn{
+			Name:       columnName,
+			Type:       columnType,
+			PrimaryKey: primaryKey > 0,
+			Nullable:   notNull == 0 && primaryKey == 0,
+		}
+		if len(objects) == 0 || objects[len(objects)-1].Name != name {
+			objects = append(objects, types.SchemaObject{Name: name, Kind: kind})
+		}
+		objects[len(objects)-1].Columns = append(objects[len(objects)-1].Columns, column)
 	}
 
 	if err := rows.Err(); err != nil {

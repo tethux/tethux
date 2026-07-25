@@ -23,17 +23,20 @@ RETURNING
     *;
 
 -- name: StoreArchiveFileContent :one
-UPDATE archive_files
+UPDATE
+    archive_files
 SET
     content = sqlc.arg(content),
     content_available = 1,
     content_error = NULL
 WHERE
     id = sqlc.arg(id)
-RETURNING *;
+RETURNING
+    *;
 
 -- name: MarkArchiveFileContentUnavailable :exec
-UPDATE archive_files
+UPDATE
+    archive_files
 SET
     content = NULL,
     content_available = 0,
@@ -49,11 +52,14 @@ SELECT
     r.commit_sha,
     r.status AS run_status,
     a.relative_path AS archive_relative_path
-FROM archive_files af
-JOIN runs r ON r.id = af.run_id
-JOIN archives a ON a.id = r.archive_id
-WHERE af.id = sqlc.arg(id)
-LIMIT 1;
+FROM
+    archive_files af
+    JOIN runs r ON r.id = af.run_id
+    JOIN archives a ON a.id = r.archive_id
+WHERE
+    af.id = sqlc.arg(id)
+LIMIT
+    1;
 
 -- name: ListArtifactFiles :many
 SELECT
@@ -72,8 +78,9 @@ SELECT
     r.commit_sha,
     r.status AS run_status,
     r.started_at
-FROM archive_files af
-JOIN runs r ON r.id = af.run_id
+FROM
+    archive_files af
+    JOIN runs r ON r.id = af.run_id
 WHERE
     af.id < sqlc.arg(before_id)
     AND (
@@ -83,22 +90,46 @@ WHERE
         OR r.run_uid LIKE '%' || sqlc.arg(search_text) || '%'
         OR COALESCE(r.workflow, '') LIKE '%' || sqlc.arg(search_text) || '%'
     )
-    AND (sqlc.arg(file_type_filter) = '' OR af.file_type = sqlc.arg(file_type_filter))
-    AND (sqlc.arg(media_type_filter) = '' OR af.media_type LIKE sqlc.arg(media_type_filter) || '%')
-    AND (sqlc.arg(workflow_filter) = '' OR COALESCE(r.workflow, '') = sqlc.arg(workflow_filter))
-    AND (sqlc.arg(run_filter) = '' OR r.run_uid = sqlc.arg(run_filter))
-    AND (sqlc.arg(public_filter) < 0 OR af.is_public = sqlc.arg(public_filter))
-    AND (sqlc.arg(available_filter) < 0 OR af.content_available = sqlc.arg(available_filter))
-ORDER BY af.id DESC
-LIMIT sqlc.arg(result_limit);
+    AND (
+        sqlc.arg(file_type_filter) = ''
+        OR af.file_type = sqlc.arg(file_type_filter)
+    )
+    AND (
+        sqlc.arg(media_type_filter) = ''
+        OR af.media_type LIKE sqlc.arg(media_type_filter) || '%'
+    )
+    AND (
+        sqlc.arg(workflow_filter) = ''
+        OR COALESCE(r.workflow, '') = sqlc.arg(workflow_filter)
+    )
+    AND (
+        sqlc.arg(run_filter) = ''
+        OR r.run_uid = sqlc.arg(run_filter)
+    )
+    AND (
+        sqlc.arg(public_filter) < 0
+        OR af.is_public = sqlc.arg(public_filter)
+    )
+    AND (
+        sqlc.arg(available_filter) < 0
+        OR af.content_available = sqlc.arg(available_filter)
+    )
+ORDER BY
+    af.id DESC
+LIMIT
+    sqlc.arg(result_limit);
 
 -- name: GetArchiveFileForRunPath :one
-SELECT af.*
-FROM archive_files af
-JOIN runs r ON r.id = af.run_id
-WHERE r.run_uid = sqlc.arg(run_uid)
-  AND af.archive_path = sqlc.arg(archive_path)
-LIMIT 1;
+SELECT
+    af.*
+FROM
+    archive_files af
+    JOIN runs r ON r.id = af.run_id
+WHERE
+    r.run_uid = sqlc.arg(run_uid)
+    AND af.archive_path = sqlc.arg(archive_path)
+LIMIT
+    1;
 
 -- name: UpsertArchiveFile :one
 INSERT INTO
