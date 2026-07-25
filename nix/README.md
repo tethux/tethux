@@ -46,9 +46,10 @@ ssh root@HOST 'hostname; ip addr; lsblk -o NAME,SIZE,TYPE,MODEL; lscpu; free -h'
 Then run the installer from a trusted checkout:
 
 ```bash
-TETHUX_INSTALL_DISK=/dev/nvme0n1 nix/scripts/install-canary.sh \
-  veya@10.0.0.100 \
-  canary-10-0-0-100
+go run ./tools/ci host install \
+  --host veya@10.0.0.100 \
+  --flake-host canary-10-0-0-100 \
+  --disk /dev/nvme0n1 --yes
 ```
 
 For Proxmox VM 9901, the installer must target the guest's 80 GiB `/dev/sda`,
@@ -56,12 +57,13 @@ never the Proxmox host's physical disk. The size and KVM assertions make a
 mistargeted install fail before the destructive countdown:
 
 ```bash
-TETHUX_INSTALL_DISK=/dev/sda \
-TETHUX_SSH_JUMP=root@100.115.225.73 \
-TETHUX_EXPECT_VIRTUALIZATION=kvm \
-TETHUX_EXPECT_DISK_SIZE_BYTES=85899345920 \
-  nix/scripts/install-canary.sh \
-  root@192.168.0.107 canary-proxmox-vm-9901
+go run ./tools/ci host install \
+  --host root@192.168.0.107 \
+  --jump-host root@100.115.225.73 \
+  --flake-host canary-proxmox-vm-9901 \
+  --disk /dev/sda \
+  --expect-virtualization kvm \
+  --expect-size 85899345920 --yes
 ```
 
 The installed guest enables Tailscale but does not embed an auth key. Complete
@@ -146,7 +148,7 @@ build products.
 
 ## CI archive
 
-Every CI or developer execution wrapped by `test-archive-run.sh` produces one
+Every archived CI or developer execution driven by `tethux-ci` produces one
 immutable archive below:
 
 ```text
@@ -169,9 +171,9 @@ and ingestion should ignore `.partial` files.
 Use the same contract during development:
 
 ```bash
-TETHUX_TEST_ARCHIVE_ROOT=/var/cache/tethux-ci/archive \
-  ./nix/scripts/test-archive-run.sh local-normal \
-  nix develop .#ci -c ./nix/scripts/normal-ci.sh
+go run ./tools/ci run normal \
+  --archive \
+  --archive-root /var/cache/tethux-ci/archive
 ```
 
 Privileged local integration is opt-in and intended for a disposable NixOS
@@ -209,10 +211,11 @@ find /var/cache/tethux-ci/archive/COMMIT -type f -name '*.tar.zst' -print
 tar --zstd -xOf /var/cache/tethux-ci/archive/COMMIT/WORKFLOW/RUN.tar.zst manifest.json | jq .
 ```
 
-`remote-laptop-integration.sh` copies the exact checkout into a revision-scoped
-temporary directory, enters the flake's `integration` shell, and removes it
-afterward. The canary users need passwordless sudo. A sleeping/offline laptop
-intentionally fails its required workflow instead of silently skipping tests.
+`tethux-ci run remote-laptop` streams the exact checkout into a
+revision-scoped temporary directory, enters the flake's `integration` shell,
+and removes it afterward. The canary users need passwordless sudo. A
+sleeping/offline laptop intentionally fails its required workflow instead of
+silently skipping tests.
 
 ## Recovery and disk mounts
 

@@ -3,17 +3,22 @@ package ingest
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/0xveya/tethux/internal/ciresults/db"
 	dbgen "github.com/0xveya/tethux/internal/ciresults/db/sqlc"
 	"github.com/0xveya/tethux/internal/ciresults/ingest/archiveformat"
 )
+
+var errArtifactBackfillComplete = errors.New("artifact backfill complete")
 
 func persistRun(ctx context.Context, store *db.Store, record IngestionRecord, manifest archiveformat.Manifest) (returnErr error) {
 	results, err := DecodeResults(bytes.NewReader(record.ResultsJSON))
@@ -40,7 +45,17 @@ func persistRun(ctx context.Context, store *db.Store, record IngestionRecord, ma
 		return fmt.Errorf("check existing run: %w", err)
 	}
 	if exists {
-		return tx.Rollback()
+		existingRun, getErr := q.GetRunByUID(ctx, record.RunID)
+		if getErr != nil {
+			return fmt.Errorf("load existing run: %w", getErr)
+		}
+		if backfillErr := persistArchiveContent(ctx, q, record, manifest, existingRun.ID); backfillErr != nil {
+			return backfillErr
+		}
+		if commitErr := tx.Commit(); commitErr != nil {
+			return fmt.Errorf("commit artifact backfill: %w", commitErr)
+		}
+		return errArtifactBackfillComplete
 	}
 
 	relativePath := filepath.ToSlash(filepath.Join(record.Hash, record.Variant.String(), filepath.Base(record.ArchivePath)))
@@ -122,6 +137,9 @@ func persistRun(ctx context.Context, store *db.Store, record IngestionRecord, ma
 		}
 		fileIDs[file.Path] = stored.ID
 	}
+	if err := persistArchiveContent(ctx, q, record, manifest, run.ID); err != nil {
+		return err
+	}
 
 	for _, test := range results.Tests {
 		testCase, err := q.UpsertTestCase(ctx, dbgen.UpsertTestCaseParams{
@@ -184,6 +202,81 @@ func persistRun(ctx context.Context, store *db.Store, record IngestionRecord, ma
 		return fmt.Errorf("commit ingestion transaction: %w", err)
 	}
 	return nil
+}
+
+const maxStoredArtifactBytes = 512 << 20
+
+func persistArchiveContent(
+	ctx context.Context,
+	q *dbgen.Queries,
+	record IngestionRecord,
+	manifest archiveformat.Manifest,
+	runID int64,
+) error {
+	root, err := filepath.Abs(record.RunDir)
+	if err != nil {
+		return fmt.Errorf("resolve extracted run directory: %w", err)
+	}
+	for _, manifestFile := range manifest.Files {
+		if manifestFile.SizeBytes > maxStoredArtifactBytes {
+			return fmt.Errorf("artifact %q exceeds %d byte storage limit", manifestFile.Path, maxStoredArtifactBytes)
+		}
+		filePath, err := safeStoredFilePath(root, manifestFile.Path)
+		if err != nil {
+			return fmt.Errorf("resolve artifact %q: %w", manifestFile.Path, err)
+		}
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("read artifact %q: %w", manifestFile.Path, err)
+		}
+		if int64(len(content)) != manifestFile.SizeBytes {
+			return fmt.Errorf(
+				"artifact %q size mismatch: manifest=%d actual=%d",
+				manifestFile.Path,
+				manifestFile.SizeBytes,
+				len(content),
+			)
+		}
+		sum := fmt.Sprintf("%x", sha256.Sum256(content))
+		if !strings.EqualFold(sum, manifestFile.SHA256) {
+			return fmt.Errorf(
+				"artifact %q checksum mismatch: manifest=%s actual=%s",
+				manifestFile.Path,
+				manifestFile.SHA256,
+				sum,
+			)
+		}
+		stored, err := q.GetArchiveFileForRunPath(ctx, dbgen.GetArchiveFileForRunPathParams{
+			RunUid:      record.RunID,
+			ArchivePath: manifestFile.Path,
+		})
+		if err != nil {
+			return fmt.Errorf("find artifact row %q for run %d: %w", manifestFile.Path, runID, err)
+		}
+		if _, err := q.StoreArchiveFileContent(ctx, dbgen.StoreArchiveFileContentParams{
+			Content: content,
+			ID:      stored.ID,
+		}); err != nil {
+			return fmt.Errorf("store artifact %q: %w", manifestFile.Path, err)
+		}
+	}
+	return nil
+}
+
+func safeStoredFilePath(root, archivePath string) (string, error) {
+	clean := filepath.Clean(filepath.FromSlash(archivePath))
+	if clean == "." || clean == "" || filepath.IsAbs(clean) {
+		return "", fmt.Errorf("invalid relative path")
+	}
+	target := filepath.Join(root, clean)
+	relative, err := filepath.Rel(root, target)
+	if err != nil {
+		return "", err
+	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes extracted run")
+	}
+	return target, nil
 }
 
 const timeFormat = "2006-01-02T15:04:05.999999999Z07:00"

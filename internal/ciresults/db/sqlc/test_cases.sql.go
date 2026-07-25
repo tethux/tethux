@@ -131,7 +131,8 @@ type CreateTestResultParams struct {
 }
 
 func (q *Queries) CreateTestResult(ctx context.Context, arg CreateTestResultParams) (TestResult, error) {
-	row := q.db.QueryRowContext(ctx, createTestResult,
+	row := q.db.QueryRowContext(
+		ctx, createTestResult,
 		arg.RunID,
 		arg.TestCaseID,
 		arg.Attempt,
@@ -288,7 +289,8 @@ type FilterTestResultsRow struct {
 }
 
 func (q *Queries) FilterTestResults(ctx context.Context, arg FilterTestResultsParams) ([]FilterTestResultsRow, error) {
-	rows, err := q.db.QueryContext(ctx, filterTestResults,
+	rows, err := q.db.QueryContext(
+		ctx, filterTestResults,
 		arg.ProjectID,
 		arg.Status,
 		arg.DeviceID,
@@ -850,7 +852,8 @@ type ListTestHistoryForDeviceRow struct {
 }
 
 func (q *Queries) ListTestHistoryForDevice(ctx context.Context, arg ListTestHistoryForDeviceParams) ([]ListTestHistoryForDeviceRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTestHistoryForDevice,
+	rows, err := q.db.QueryContext(
+		ctx, listTestHistoryForDevice,
 		arg.TestCaseID,
 		arg.DeviceID,
 		arg.ResultOffset,
@@ -938,7 +941,8 @@ type UpsertTestCaseParams struct {
 }
 
 func (q *Queries) UpsertTestCase(ctx context.Context, arg UpsertTestCaseParams) (TestCase, error) {
-	row := q.db.QueryRowContext(ctx, upsertTestCase,
+	row := q.db.QueryRowContext(
+		ctx, upsertTestCase,
 		arg.ProjectID,
 		arg.TestKey,
 		arg.Name,
@@ -1054,7 +1058,8 @@ type UpsertTestResultParams struct {
 // Useful if an importer retry can encounter already inserted rows
 // within an otherwise incomplete run.
 func (q *Queries) UpsertTestResult(ctx context.Context, arg UpsertTestResultParams) (TestResult, error) {
-	row := q.db.QueryRowContext(ctx, upsertTestResult,
+	row := q.db.QueryRowContext(
+		ctx, upsertTestResult,
 		arg.RunID,
 		arg.TestCaseID,
 		arg.Attempt,

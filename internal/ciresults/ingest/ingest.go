@@ -140,6 +140,9 @@ func IngestRun(
 
 	if store != nil {
 		if err := persistRun(ctx, store, record, manifest); err != nil {
+			if errors.Is(err, errArtifactBackfillComplete) {
+				return nil
+			}
 			return fmt.Errorf("persist run: %w", err)
 		}
 	}

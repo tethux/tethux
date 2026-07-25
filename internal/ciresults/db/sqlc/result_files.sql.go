@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"database/sql"
 )
 
 const linkResultFile = `-- name: LinkResultFile :exec
@@ -40,7 +41,16 @@ func (q *Queries) LinkResultFile(ctx context.Context, arg LinkResultFileParams) 
 
 const listFilesForResult = `-- name: ListFilesForResult :many
 SELECT
-    af.id, af.run_id, af.archive_path, af.file_type, af.media_type, af.size_bytes, af.sha256, af.is_public,
+    af.id,
+    af.run_id,
+    af.archive_path,
+    af.file_type,
+    af.media_type,
+    af.size_bytes,
+    af.sha256,
+    af.is_public,
+    af.content_available,
+    af.content_error,
     rf.relationship
 FROM
     result_files rf
@@ -53,15 +63,17 @@ ORDER BY
 `
 
 type ListFilesForResultRow struct {
-	ID           int64  `json:"id"`
-	RunID        int64  `json:"run_id"`
-	ArchivePath  string `json:"archive_path"`
-	FileType     string `json:"file_type"`
-	MediaType    string `json:"media_type"`
-	SizeBytes    int64  `json:"size_bytes"`
-	Sha256       string `json:"sha256"`
-	IsPublic     int64  `json:"is_public"`
-	Relationship string `json:"relationship"`
+	ID               int64          `json:"id"`
+	RunID            int64          `json:"run_id"`
+	ArchivePath      string         `json:"archive_path"`
+	FileType         string         `json:"file_type"`
+	MediaType        string         `json:"media_type"`
+	SizeBytes        int64          `json:"size_bytes"`
+	Sha256           string         `json:"sha256"`
+	IsPublic         int64          `json:"is_public"`
+	ContentAvailable int64          `json:"content_available"`
+	ContentError     sql.NullString `json:"content_error"`
+	Relationship     string         `json:"relationship"`
 }
 
 func (q *Queries) ListFilesForResult(ctx context.Context, resultID int64) ([]ListFilesForResultRow, error) {
@@ -82,6 +94,8 @@ func (q *Queries) ListFilesForResult(ctx context.Context, resultID int64) ([]Lis
 			&i.SizeBytes,
 			&i.Sha256,
 			&i.IsPublic,
+			&i.ContentAvailable,
+			&i.ContentError,
 			&i.Relationship,
 		); err != nil {
 			return nil, err
@@ -99,7 +113,16 @@ func (q *Queries) ListFilesForResult(ctx context.Context, resultID int64) ([]Lis
 
 const listPublicFilesForResult = `-- name: ListPublicFilesForResult :many
 SELECT
-    af.id, af.run_id, af.archive_path, af.file_type, af.media_type, af.size_bytes, af.sha256, af.is_public,
+    af.id,
+    af.run_id,
+    af.archive_path,
+    af.file_type,
+    af.media_type,
+    af.size_bytes,
+    af.sha256,
+    af.is_public,
+    af.content_available,
+    af.content_error,
     rf.relationship
 FROM
     result_files rf
@@ -113,15 +136,17 @@ ORDER BY
 `
 
 type ListPublicFilesForResultRow struct {
-	ID           int64  `json:"id"`
-	RunID        int64  `json:"run_id"`
-	ArchivePath  string `json:"archive_path"`
-	FileType     string `json:"file_type"`
-	MediaType    string `json:"media_type"`
-	SizeBytes    int64  `json:"size_bytes"`
-	Sha256       string `json:"sha256"`
-	IsPublic     int64  `json:"is_public"`
-	Relationship string `json:"relationship"`
+	ID               int64          `json:"id"`
+	RunID            int64          `json:"run_id"`
+	ArchivePath      string         `json:"archive_path"`
+	FileType         string         `json:"file_type"`
+	MediaType        string         `json:"media_type"`
+	SizeBytes        int64          `json:"size_bytes"`
+	Sha256           string         `json:"sha256"`
+	IsPublic         int64          `json:"is_public"`
+	ContentAvailable int64          `json:"content_available"`
+	ContentError     sql.NullString `json:"content_error"`
+	Relationship     string         `json:"relationship"`
 }
 
 func (q *Queries) ListPublicFilesForResult(ctx context.Context, resultID int64) ([]ListPublicFilesForResultRow, error) {
@@ -142,6 +167,8 @@ func (q *Queries) ListPublicFilesForResult(ctx context.Context, resultID int64) 
 			&i.SizeBytes,
 			&i.Sha256,
 			&i.IsPublic,
+			&i.ContentAvailable,
+			&i.ContentError,
 			&i.Relationship,
 		); err != nil {
 			return nil, err

@@ -16,7 +16,9 @@ the closest README.
 | `cmd/bridge/` | Ethernet switch and namespace/container bridge commands | [`cmd/bridge/README.md`](cmd/bridge/README.md) |
 | `cmd/virt/` | Docker, Podman, and containerd providers and integration CLI | [`cmd/virt/README.md`](cmd/virt/README.md) |
 | `internal/libtethux/` | Switch, transport, bridge, and provider libraries | package Go documentation |
-| `scripts/` | Standalone topology demonstrations and load runners | [`scripts/README.md`](scripts/README.md) |
+| `tools/ci/` | Stdlib-flag repository automation CLI | [`internal/ci/README.md`](internal/ci/README.md) |
+| `tools/ci-results/` | CI archive ingestion, SQLite store, API, and web viewer | [`tools/ci-results/viewer/README.md`](tools/ci-results/viewer/README.md) |
+| `tools/bridge/` | Standalone bridge examples and conformance drivers | [`tools/bridge/README.md`](tools/bridge/README.md) |
 | `nix/` | Development shells, NixOS canaries, fixture registry, and CI operations | [`nix/README.md`](nix/README.md) |
 | `.woodpecker/` | Ordered NAS and two-laptop CI workflows | [`nix/README.md`](nix/README.md#woodpecker-topology) |
 
@@ -29,6 +31,7 @@ the closest README.
 - provider-managed container links between physical hosts over UDP;
 - reproducible NixOS canaries with a local OCI fixture registry;
 - commit-addressed CI reports archived on the NAS.
+- exact CI artifact bytes retained in SQLite and browsable in the local viewer;
 - byte-exact libpcap-observed tests for every bridge transport backend.
 
 ## Quick start

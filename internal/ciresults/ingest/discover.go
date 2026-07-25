@@ -80,16 +80,17 @@ func DiscoverCandidates(ctx context.Context, root string) ([]ArchiveRef, error) 
 
 				archivePath := filepath.Join(variantPath, filename)
 
-				runs = append(runs, ArchiveRef{
-					Hash:  hash,
-					RunID: runID,
-					Variants: []VariantDetails{
-						{
-							Variant:     variant,
-							ArchivePath: archivePath,
+				runs = append(
+					runs, ArchiveRef{
+						Hash:  hash,
+						RunID: runID,
+						Variants: []VariantDetails{
+							{
+								Variant:     variant,
+								ArchivePath: archivePath,
+							},
 						},
 					},
-				},
 				)
 			}
 		}

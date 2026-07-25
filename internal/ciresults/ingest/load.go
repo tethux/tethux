@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 func GetData(ctx context.Context, run ExtractedRun) (*IngestionRecord, error) {
@@ -34,6 +35,7 @@ func GetData(ctx context.Context, run ExtractedRun) (*IngestionRecord, error) {
 		RunID:       run.Archive.RunID,
 		Variant:     run.Variant,
 		ArchivePath: archivePath,
+		RunDir:      filepath.Dir(run.ManifestPath),
 
 		ManifestJSON: manifestJSON,
 		ResultsJSON:  resultsJSON,

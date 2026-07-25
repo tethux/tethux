@@ -91,7 +91,8 @@ func socketCandidates() []socketCandidate {
 	}
 
 	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates,
+		candidates = append(
+			candidates,
 			socketCandidate{
 				label:  "rootless/docker-desktop",
 				socket: "unix://" + filepath.Join(home, ".docker", "run", "docker.sock"),
@@ -103,7 +104,8 @@ func socketCandidates() []socketCandidate {
 		)
 	}
 
-	candidates = append(candidates,
+	candidates = append(
+		candidates,
 		socketCandidate{label: "rootful/var-run-docker", socket: "unix:///var/run/docker.sock"},
 		socketCandidate{label: "rootful/run-docker", socket: "unix:///run/docker.sock"},
 	)

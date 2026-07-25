@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { invalidateAll } from '$app/navigation';
+  import { onMount } from 'svelte';
   import type { PageData } from './$types';
   import type { SchemaInfo, Suggestion } from '$lib/schema_types';
   import type { ExecuteQueryResponse } from '$lib/api/types';
   import { executeQuery } from '$lib/api/querys';
+  import { getSchemaInfo } from '$lib/api/querys';
   import QueryResults from '$lib/components/QueryResults.svelte';
+  import { readSavedQueries, writeSavedQueries, type SavedQuery } from '$lib/savedQueries';
   import { getSuggestions, querySource, tokenizeSql } from './sql';
 
   let { data }: { data: PageData } = $props();
@@ -20,10 +22,14 @@
   let schemaOpen = $state(false);
   let schemaWidth = $state(50);
   let workspace: HTMLElement;
-
-  const schemaInfo: SchemaInfo = $derived(data.schemaInfo ?? { objects: [] });
-
-  const schemaError = $derived(data.error);
+  let schemaInfo = $state<SchemaInfo>({ objects: [] });
+  let schemaError = $state<string | null>(null);
+  let schemaStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  let schemaRequest = 0;
+  let savedQueries = $state<SavedQuery[]>([]);
+  let selectedSavedID = $state('');
+  let savedName = $state('');
+  let savedError = $state('');
   const highlightedQuery = $derived(tokenizeSql(query));
 
   function handleInput(): void {
@@ -123,6 +129,93 @@
       }
     );
   }
+
+  async function reloadSchema(): Promise<void> {
+    if (schemaStatus === 'loading') return;
+    const request = ++schemaRequest;
+    schemaStatus = 'loading';
+    schemaError = null;
+    const response = await getSchemaInfo(fetch);
+    if (request !== schemaRequest) return;
+    response.match(
+      (next) => {
+        schemaInfo = next;
+        schemaStatus = 'ready';
+        handleInput();
+      },
+      (apiError) => {
+        schemaError = apiError.message;
+        schemaStatus = 'error';
+      }
+    );
+  }
+
+  function persistSaved(next: SavedQuery[]): void {
+    savedQueries = [...next].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    writeSavedQueries(localStorage, savedQueries);
+  }
+
+  function saveQuery(): void {
+    const name = savedName.trim();
+    savedError = '';
+    if (!name || !query.trim()) {
+      savedError = 'A name and SQL query are required.';
+      return;
+    }
+    const duplicate = savedQueries.find(
+      (item) => item.name.toLowerCase() === name.toLowerCase() && item.id !== selectedSavedID
+    );
+    if (duplicate) {
+      savedError = 'A saved query already uses that name.';
+      return;
+    }
+    const now = new Date().toISOString();
+    const selected = savedQueries.find((item) => item.id === selectedSavedID);
+    const record: SavedQuery = selected
+      ? { ...selected, name, sql: query, updatedAt: now }
+      : { id: crypto.randomUUID(), name, sql: query, createdAt: now, updatedAt: now };
+    persistSaved([record, ...savedQueries.filter((item) => item.id !== record.id)]);
+    selectedSavedID = record.id;
+  }
+
+  function loadSaved(id: string): void {
+    selectedSavedID = id;
+    const selected = savedQueries.find((item) => item.id === id);
+    if (!selected) {
+      savedName = '';
+      return;
+    }
+    query = selected.sql;
+    savedName = selected.name;
+    savedError = '';
+    requestAnimationFrame(() => {
+      queryInput?.focus();
+      handleInput();
+    });
+  }
+
+  function deleteSaved(): void {
+    if (!selectedSavedID) return;
+    persistSaved(savedQueries.filter((item) => item.id !== selectedSavedID));
+    selectedSavedID = '';
+    savedName = '';
+  }
+
+  onMount(() => {
+    schemaInfo = data.schemaInfo ?? { objects: [] };
+    schemaError = data.error;
+    schemaStatus = data.error ? 'error' : 'ready';
+    savedQueries = readSavedQueries(localStorage);
+    schemaOpen = localStorage.getItem('ci-results:schema-open') === 'true';
+    const width = Number(localStorage.getItem('ci-results:schema-width'));
+    if (width >= 30 && width <= 70) schemaWidth = width;
+  });
+
+  $effect(() => {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem('ci-results:schema-open', String(schemaOpen));
+    localStorage.setItem('ci-results:schema-width', String(schemaWidth));
+  });
 </script>
 
 <svelte:head><title>Query builder · CI results</title></svelte:head>
@@ -171,6 +264,30 @@
           <span aria-hidden="true">▷</span> Run query
           <kbd>↵</kbd>
         </button>
+      </div>
+
+      <div class="saved-query-bar">
+        <select
+          aria-label="Saved queries"
+          value={selectedSavedID}
+          onchange={(event) => loadSaved(event.currentTarget.value)}
+        >
+          <option value="">Saved queries…</option>
+          {#each savedQueries as saved (saved.id)}
+            <option value={saved.id}>{saved.name}</option>
+          {/each}
+        </select>
+        <input
+          aria-label="Saved query name"
+          bind:value={savedName}
+          placeholder="Query name"
+          oninput={() => (savedError = '')}
+        />
+        <button type="button" disabled={!query.trim()} onclick={saveQuery}>
+          {selectedSavedID ? 'Update' : 'Save'}
+        </button>
+        <button type="button" disabled={!selectedSavedID} onclick={deleteSaved}>Delete</button>
+        {#if savedError}<span role="alert">{savedError}</span>{/if}
       </div>
 
       <div class="query-bar">
@@ -262,7 +379,9 @@
           type="button"
           aria-label="Reload schema"
           title="Reload schema"
-          onclick={() => invalidateAll()}>↻</button
+          disabled={schemaStatus === 'loading'}
+          class:loading={schemaStatus === 'loading'}
+          onclick={reloadSchema}>↻</button
         >
         <button
           class="icon-button"
@@ -276,7 +395,7 @@
         {#if schemaError}
           <div class="schema-message">
             <p class="schema-error">{schemaError}</p>
-            <button type="button" onclick={() => invalidateAll()}>Try again</button>
+            <button type="button" onclick={reloadSchema}>Try again</button>
           </div>
         {:else if schemaInfo.objects.length}
           <div class="schema-list">
@@ -441,6 +560,41 @@
     padding: 11px clamp(22px, 3vw, 42px);
     border-bottom: 1px solid var(--line);
     background: #f2f2ee;
+  }
+  .saved-query-bar {
+    display: grid;
+    grid-template-columns: minmax(150px, 220px) minmax(150px, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 8px clamp(22px, 3vw, 42px);
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--paper) 85%, var(--surface));
+  }
+  .saved-query-bar select,
+  .saved-query-bar input,
+  .saved-query-bar button {
+    min-height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--base);
+    color: var(--text);
+  }
+  .saved-query-bar select,
+  .saved-query-bar input {
+    min-width: 0;
+    padding: 0 9px;
+  }
+  .saved-query-bar button {
+    padding: 0 11px;
+  }
+  .saved-query-bar button:hover:not(:disabled) {
+    border-color: var(--focus);
+    color: var(--focus);
+  }
+  .saved-query-bar > span {
+    grid-column: 1 / -1;
+    color: var(--love);
+    font-size: 10px;
   }
   .query-bar {
     display: flex;
@@ -632,6 +786,14 @@
   .icon-button:hover:not(:disabled) {
     border-color: var(--ink);
   }
+  .icon-button.loading {
+    animation: schema-spin 0.8s linear infinite;
+  }
+  @keyframes schema-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   .schema-content {
     flex: 1;
     min-height: 0;
@@ -737,6 +899,7 @@
     color: var(--text);
   }
   :global(html.dark) .query-toolbar,
+  :global(html.dark) .saved-query-bar,
   :global(html.dark) .schema-panel,
   :global(html.dark) .schema-object header {
     border-color: var(--border);
@@ -808,6 +971,11 @@
     .query-bar {
       margin-right: 16px;
       margin-left: 16px;
+    }
+    .saved-query-bar {
+      grid-template-columns: 1fr 1fr;
+      padding-right: 16px;
+      padding-left: 16px;
     }
     .results-heading div span {
       display: none;

@@ -106,6 +106,31 @@ export type ArchiveFile = {
   size_bytes: number;
   sha256: string;
   is_public: number;
+  content_available: number;
+  content_error: NullString;
+};
+
+export type Artifact = ArchiveFile & {
+  run_id: number;
+  run_uid: string;
+  workflow: NullString;
+  commit_sha: string;
+  run_status: string;
+  started_at: string;
+};
+
+export type ArtifactPage = {
+  items: Artifact[];
+  next_cursor: string;
+};
+
+export type ArtifactPreview = {
+  file: Artifact;
+  available: boolean;
+  synthesized: boolean;
+  truncated: boolean;
+  preview: unknown;
+  raw_url: string;
 };
 
 export type RunDetail = { run: RunRow; tests: TestResult[]; files: ArchiveFile[] };

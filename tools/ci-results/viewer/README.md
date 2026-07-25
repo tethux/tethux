@@ -7,7 +7,15 @@ not as a public or hosted service.
 The Go server exposes a read-only results API and embeds the static Svelte
 frontend. The viewer includes run, test, and artifact pages plus a SQL explorer
 with schema completion, configurable result summaries, row details, nested JSON
-inspection, and persistent light/dark themes.
+inspection, browser-local saved queries, relative/calendar timestamp modes, and
+persistent light/dark themes.
+
+Ingestion verifies every manifest file by size and SHA-256 and stores its exact
+bytes in SQLite. Re-running ingestion against an existing archive backfills
+legacy metadata-only rows without duplicating the run. The artifact workbench
+can filter and preview textual files and images; binary files and packet
+captures are available as exact-byte downloads. Private entries remain visibly
+marked and the service binds only to loopback.
 
 ## Run locally
 
@@ -37,6 +45,14 @@ npm run build
 
 ## Source
 
-Once this change is pushed, the viewer source will be available at:
+Saved SQL queries are versioned in browser local storage and never synchronized
+to the results database. To populate bytes for an older database, run the same
+`ingest` command again with the original archive path.
+
+The canonical viewer source is:
+
+https://codeberg.org/tethux/tethux/src/branch/master/tools/ci-results/viewer
+
+The GitHub repository is a secondary mirror:
 
 https://github.com/tethux/tethux/tree/master/tools/ci-results/viewer

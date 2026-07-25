@@ -40,10 +40,10 @@
     </nav>
     <footer>
       <a
-        href="https://github.com/tethux/tethux/tree/master/tools/ci-results/viewer"
+        href="https://codeberg.org/tethux/tethux/src/branch/master/tools/ci-results/viewer"
         target="_blank"
         rel="noreferrer"
-        aria-label="View CI results viewer source on GitHub"
+        aria-label="View CI results viewer source on Codeberg"
       >
         <svg aria-hidden="true" viewBox="0 0 24 24">
           <path

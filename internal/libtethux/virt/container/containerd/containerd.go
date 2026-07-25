@@ -124,7 +124,8 @@ func socketCandidates() []socketCandidate {
 	var candidates []socketCandidate
 
 	if xdg := os.Getenv("XDG_RUNTIME_DIR"); xdg != "" {
-		candidates = append(candidates,
+		candidates = append(
+			candidates,
 			socketCandidate{
 				label:  "rootless/XDG_RUNTIME_DIR",
 				socket: filepath.Join(xdg, "containerd", "containerd.sock"),
@@ -137,7 +138,8 @@ func socketCandidates() []socketCandidate {
 	}
 
 	if uid := os.Getuid(); uid > 0 {
-		candidates = append(candidates,
+		candidates = append(
+			candidates,
 			socketCandidate{
 				label:  "rootless/run-user",
 				socket: fmt.Sprintf("/run/user/%d/containerd/containerd.sock", uid),
@@ -149,7 +151,8 @@ func socketCandidates() []socketCandidate {
 		)
 	}
 
-	candidates = append(candidates,
+	candidates = append(
+		candidates,
 		socketCandidate{label: "rootful/run-containerd", socket: "/run/containerd/containerd.sock"},
 		socketCandidate{label: "rootful/var-run-containerd", socket: "/var/run/containerd/containerd.sock"},
 	)
@@ -217,7 +220,8 @@ func (c *Containerd) CreateContainer(ctx context.Context, cfg *container.Contain
 		if err != nil {
 			return nil, errs.Wrap("containerd", errs.ErrFailedToCreateContainer, cfg.Name, err)
 		}
-		specOpts = append(specOpts,
+		specOpts = append(
+			specOpts,
 			oci.WithCgroup("user.slice:tethux:"+cfg.Name),
 			oci.WithLinuxNamespace(specs.LinuxNamespace{Type: specs.CgroupNamespace}),
 		)
@@ -293,7 +297,8 @@ func (c *Containerd) CreateContainer(ctx context.Context, cfg *container.Contain
 
 	snapshotID := cfg.Name + "-snapshot"
 
-	ctr, err := c.cli.NewContainer(ctx, cfg.Name,
+	ctr, err := c.cli.NewContainer(
+		ctx, cfg.Name,
 		containerd.WithImage(img),
 		containerd.WithNewSnapshot(snapshotID, img),
 		containerd.WithSnapshotter(defaults.DefaultSnapshotter),

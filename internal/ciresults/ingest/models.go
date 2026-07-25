@@ -5,47 +5,31 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 
 	"github.com/google/uuid"
 )
 
-type Variant int
+type Variant string
 
 const (
-	CrossLaptop Variant = iota
-	Laptop78
-	Laptop100
-	Normal
+	CrossLaptop Variant = "cross-laptop"
+	Laptop78    Variant = "laptop-78"
+	Laptop100   Variant = "laptop-100"
+	Normal      Variant = "normal"
 )
 
 func (v Variant) String() string {
-	switch v {
-	case CrossLaptop:
-		return "cross-laptop"
-	case Laptop78:
-		return "laptop-78"
-	case Laptop100:
-		return "laptop-100"
-	case Normal:
-		return "normal"
-	default:
-		return "unknown"
-	}
+	return string(v)
 }
 
+var workflowName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+
 func ParseVariant(s string) (Variant, error) {
-	switch s {
-	case "cross-laptop":
-		return CrossLaptop, nil
-	case "laptop-78":
-		return Laptop78, nil
-	case "laptop-100":
-		return Laptop100, nil
-	case "normal":
-		return Normal, nil
-	default:
-		return 0, errors.New("unknown variant")
+	if !workflowName.MatchString(s) || s == "." || s == ".." {
+		return "", errors.New("invalid workflow name")
 	}
+	return Variant(s), nil
 }
 
 func (v *Variant) UnmarshalJSON(data []byte) error {
@@ -104,6 +88,7 @@ type IngestionRecord struct {
 	RunID       string
 	Variant     Variant
 	ArchivePath string
+	RunDir      string
 
 	ManifestJSON []byte
 	ResultsJSON  []byte

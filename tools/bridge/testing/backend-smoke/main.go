@@ -1,5 +1,3 @@
-//go:build ignore
-
 // bridge-backend-smoke is a privileged integration test for every bridge
 // transport. It uses libpcap as an independent packet injector/observer and
 // writes both structured JSON Lines and a pcap artifact for CI archives.
@@ -260,7 +258,8 @@ func testUDPPacketLossCLI(_ *captureWriter, tethuxPath string) (map[string]any, 
 		return nil, err
 	}
 
-	command := exec.Command(tethuxPath,
+	command := exec.Command(
+		tethuxPath,
 		"bridge", "ports",
 		"--port", "id=left,scheme=udp,listen="+leftAddress+",remote="+leftObserver.LocalAddr().String(),
 		"--port", "id=right,scheme=udp,listen="+rightAddress+",remote="+rightObserver.LocalAddr().String()+",loss=1",

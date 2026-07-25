@@ -10,7 +10,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
-    "test:theme": "node --test tests/query-theme.test.mjs"
+    "test:theme": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

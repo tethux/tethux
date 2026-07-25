@@ -49,6 +49,73 @@ linters:
           - gocritic
         text: "hugeParam|rangeValCopy|unnamedResult"
 
+      # The CI framework passes declarative value objects by value for an
+      # immutable API. Archive paths stay beneath framework-created stages,
+      # and SSH/SCP arguments are validated and passed without a shell.
+      - path: internal/ci/
+        linters:
+          - gocritic
+        text: "hugeParam|rangeValCopy"
+      - path: internal/ci/
+        linters:
+          - gosec
+        text: "G204|G304|G104|G122|G302"
+      - path: internal/ci/archive\.go
+        linters:
+          - govet
+        text: 'shadow: declaration of "err"'
+
+      # These privileged lab harnesses intentionally execute selected runtime,
+      # network, and hypervisor binaries supplied by the operator.
+      - path: tools/bridge/(example|testing)/
+        linters:
+          - gosec
+          - gocritic
+          - errorlint
+          - govet
+          - noctx
+
+      # The operations CLI reads operator-selected archive paths and creates
+      # group-readable CI logs in a loopback/local-runner trust boundary.
+      - path: tools/ci/main\.go
+        linters:
+          - gosec
+        text: "G204|G302|G304"
+      - path: tools/ci/main\.go
+        linters:
+          - gocritic
+        text: "exitAfterDefer|hugeParam|rangeValCopy|httpNoBody"
+      - path: tools/ci/main\.go
+        linters:
+          - govet
+        text: 'shadow: declaration of "err"'
+      - path: tools/ci/main\.go
+        linters:
+          - noctx
+        text: "os/exec.Command"
+
+      # Manifest paths have already passed traversal checks and are resolved
+      # beneath the extracted archive root before verified ingestion.
+      - path: internal/ciresults/ingest/persist\.go
+        linters:
+          - gosec
+        text: "G304"
+
+      # Artifact content is selected by a numeric database ID; the constant
+      # SQL statements are not assembled from request input.
+      - path: tools/ci-results/viewer/handlers/
+        linters:
+          - gosec
+        text: "G701|G104"
+      - path: tools/ci-results/viewer/handlers/
+        linters:
+          - gocritic
+        text: "hugeParam|importShadow|unnamedResult"
+      - path: tools/ci-results/viewer/handlers/artifacts_test\.go
+        linters:
+          - govet
+        text: 'shadow: declaration of "err"'
+
       # Archive paths are constrained by safeArchivePath/artifactPath before
       # opening, and extraction permissions come from the trusted CI archive.
       - path: internal/ciresults/ingest/(extract|ingest|ingestConfig|ingestLog)\.go

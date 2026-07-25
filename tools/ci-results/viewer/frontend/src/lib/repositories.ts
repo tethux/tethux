@@ -1,11 +1,11 @@
 export const sourceRepositories = [
   {
     name: 'Codeberg',
-    url: 'https://codeberg.org/veya/tethux'
+    url: 'https://codeberg.org/tethux/tethux'
   },
   {
     name: 'GitHub',
-    url: 'https://github.com/0xveya/tethux'
+    url: 'https://github.com/tethux/tethux'
   }
 ] satisfies Array<{
   name: string;

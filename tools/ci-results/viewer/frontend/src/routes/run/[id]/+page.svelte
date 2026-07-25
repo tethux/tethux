@@ -1,8 +1,10 @@
 <script lang="ts">
+  /* eslint-disable svelte/no-navigation-without-resolve */
   import type { NullString } from '$lib/api/types';
   import type { PageData } from './$types';
   import type { ArchiveFile, TestResult } from '$lib/api/types';
   import { sourceRepositories } from '$lib/repositories';
+  import { getArtifact } from '$lib/api/artifacts';
   import CommitLink from '$lib/components/CommitLink.svelte';
   import VirtualList from '@humanspeak/svelte-virtual-list';
   import { SvelteSet } from 'svelte/reactivity';
@@ -17,6 +19,7 @@
   let fileContent = $state<unknown>(null);
   let fileAvailable = $state(false);
   let fileLoading = $state(false);
+  let fileRawURL = $state('');
   let manifestMode = $state<'structured' | 'json'>('structured');
   let testSearch = $state('');
   let providerFilter = $state('all');
@@ -113,17 +116,20 @@
     openFile = file;
     fileContent = null;
     fileLoading = true;
-    try {
-      const response = await fetch(`/api/v1/file/${file.id}`);
-      const payload = await response.json();
-      fileAvailable = Boolean(payload.available);
-      fileContent = payload.content;
-    } catch {
-      fileAvailable = false;
-      fileContent = { message: 'The file preview could not be loaded.' };
-    } finally {
-      fileLoading = false;
-    }
+    fileRawURL = '';
+    const response = await getArtifact(fetch, file.id);
+    response.match(
+      (payload) => {
+        fileAvailable = payload.available;
+        fileContent = payload.preview;
+        fileRawURL = payload.raw_url;
+      },
+      () => {
+        fileAvailable = false;
+        fileContent = { message: 'The file preview could not be loaded.' };
+      }
+    );
+    fileLoading = false;
   }
   function toggleStatus(status: string) {
     if (statusFilters.has(status)) statusFilters.delete(status);
@@ -438,9 +444,17 @@
           </div>
           <button aria-label="Close file preview" onclick={() => (openFile = null)}>×</button>
         </header>
+        {#if fileAvailable && fileRawURL}
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+          <a
+            class="file-download"
+            href={fileRawURL}
+            download={openFile.archive_path.split('/').at(-1)}>Download exact bytes</a
+          >
+        {/if}
         {#if fileLoading}<div class="loading">Loading file data…</div>{:else}
           {#if !fileAvailable}<p class="notice">
-              Preview metadata is shown because this file’s raw bytes are not retained in SQLite.
+              Raw bytes are unavailable. Re-ingest the original archive to backfill this entry.
             </p>{/if}
           {#if resultPreview}<div class="results-preview">
               <div class="results-head">

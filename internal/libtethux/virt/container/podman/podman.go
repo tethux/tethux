@@ -96,7 +96,8 @@ func socketCandidates() []socketCandidate {
 	}
 
 	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates,
+		candidates = append(
+			candidates,
 			socketCandidate{
 				label:  "rootless/podman-machine-qemu",
 				socket: "unix://" + filepath.Join(home, ".local", "share", "containers", "podman", "machine", "qemu", "podman.sock"),
@@ -108,7 +109,8 @@ func socketCandidates() []socketCandidate {
 		)
 	}
 
-	candidates = append(candidates,
+	candidates = append(
+		candidates,
 		socketCandidate{label: "rootful/run-podman", socket: "unix:///run/podman/podman.sock"},
 		socketCandidate{label: "rootful/var-run-podman", socket: "unix:///var/run/podman/podman.sock"},
 	)

@@ -23,6 +23,8 @@ type Querier interface {
 	GetArchiveByID(ctx context.Context, id int64) (Archive, error)
 	GetArchiveByPath(ctx context.Context, relativePath string) (Archive, error)
 	GetArchiveFileByID(ctx context.Context, id int64) (GetArchiveFileByIDRow, error)
+	GetArchiveFileContentByID(ctx context.Context, id int64) (GetArchiveFileContentByIDRow, error)
+	GetArchiveFileForRunPath(ctx context.Context, arg GetArchiveFileForRunPathParams) (ArchiveFile, error)
 	GetCurrentFailuresOnBranch(ctx context.Context, arg GetCurrentFailuresOnBranchParams) ([]GetCurrentFailuresOnBranchRow, error)
 	GetDeviceByKey(ctx context.Context, deviceKey string) (Device, error)
 	GetLatestResultForTestAndDevice(ctx context.Context, arg GetLatestResultForTestAndDeviceParams) (GetLatestResultForTestAndDeviceRow, error)
@@ -42,8 +44,9 @@ type Querier interface {
 	GetViewerSummary(ctx context.Context) (GetViewerSummaryRow, error)
 	LinkResultFile(ctx context.Context, arg LinkResultFileParams) error
 	LinkTestFeature(ctx context.Context, arg LinkTestFeatureParams) error
-	ListArchiveFilesForRun(ctx context.Context, runID int64) ([]ArchiveFile, error)
+	ListArchiveFilesForRun(ctx context.Context, runID int64) ([]ListArchiveFilesForRunRow, error)
 	ListArchivesPendingImport(ctx context.Context, resultLimit int64) ([]Archive, error)
+	ListArtifactFiles(ctx context.Context, arg ListArtifactFilesParams) ([]ListArtifactFilesRow, error)
 	ListCurrentFailures(ctx context.Context, arg ListCurrentFailuresParams) ([]ListCurrentFailuresRow, error)
 	ListDevices(ctx context.Context) ([]Device, error)
 	ListFailedArchives(ctx context.Context, resultLimit int64) ([]Archive, error)
@@ -53,7 +56,7 @@ type Querier interface {
 	ListLatestRunsByDevice(ctx context.Context, arg ListLatestRunsByDeviceParams) ([]ListLatestRunsByDeviceRow, error)
 	ListMostFrequentFailures(ctx context.Context, arg ListMostFrequentFailuresParams) ([]ListMostFrequentFailuresRow, error)
 	ListProjects(ctx context.Context) ([]Project, error)
-	ListPublicArchiveFilesForRun(ctx context.Context, runID int64) ([]ArchiveFile, error)
+	ListPublicArchiveFilesForRun(ctx context.Context, runID int64) ([]ListPublicArchiveFilesForRunRow, error)
 	ListPublicFilesForResult(ctx context.Context, resultID int64) ([]ListPublicFilesForResultRow, error)
 	ListResultsForRun(ctx context.Context, runID int64) ([]ListResultsForRunRow, error)
 	ListRunSummaryHistory(ctx context.Context, arg ListRunSummaryHistoryParams) ([]ListRunSummaryHistoryRow, error)
@@ -69,12 +72,14 @@ type Querier interface {
 	ListViewerRuns(ctx context.Context) ([]ListViewerRunsRow, error)
 	ListViewerTests(ctx context.Context) ([]ListViewerTestsRow, error)
 	MarkArchiveFailed(ctx context.Context, arg MarkArchiveFailedParams) error
+	MarkArchiveFileContentUnavailable(ctx context.Context, arg MarkArchiveFileContentUnavailableParams) error
 	MarkArchiveIgnored(ctx context.Context, arg MarkArchiveIgnoredParams) error
 	MarkArchiveImported(ctx context.Context, id int64) error
 	MarkArchiveImporting(ctx context.Context, id int64) (Archive, error)
 	ResetFailedArchive(ctx context.Context, id int64) error
 	RunUIDExists(ctx context.Context, runUid string) (bool, error)
 	SearchTestResultMessages(ctx context.Context, arg SearchTestResultMessagesParams) ([]SearchTestResultMessagesRow, error)
+	StoreArchiveFileContent(ctx context.Context, arg StoreArchiveFileContentParams) (ArchiveFile, error)
 	UpsertArchiveFile(ctx context.Context, arg UpsertArchiveFileParams) (ArchiveFile, error)
 	UpsertDevice(ctx context.Context, arg UpsertDeviceParams) (Device, error)
 	// Use this when rescanning files that may already be known.

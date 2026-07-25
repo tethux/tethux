@@ -12,6 +12,8 @@
   let showEmpty = $state(false);
   let detailView = $state<'fields' | 'json'>('fields');
   let hydratedSignature = $state('');
+  let timeMode = $state<'relative' | 'calendar'>('relative');
+  let clock = $state(Date.now());
 
   type JsonToken = {
     value: string;
@@ -57,6 +59,10 @@
 
   onMount(() => {
     if (!selectedColumns.length) selectedColumns = defaultColumns(result.columns);
+    timeMode =
+      localStorage.getItem('ci-results:timestamp-mode') === 'calendar' ? 'calendar' : 'relative';
+    const timer = window.setInterval(() => (clock = Date.now()), 60_000);
+    return () => window.clearInterval(timer);
   });
 
   function defaultColumns(columns: QueryColumn[]): string[] {
@@ -108,13 +114,10 @@
     if (value === null) return 'NULL';
     if (value === undefined || value === '') return '—';
     const unpacked = unpackJson(value);
-    if (typeof unpacked === 'string' && isTimestampColumn(columnName)) {
+    if (typeof unpacked === 'string' && isTimestampValue(unpacked, columnName)) {
       const date = new Date(unpacked);
       if (!Number.isNaN(date.getTime())) {
-        return new Intl.DateTimeFormat(undefined, {
-          dateStyle: 'medium',
-          timeStyle: 'medium'
-        }).format(date);
+        return timeMode === 'relative' ? relativeTime(date, clock) : calendarTime(date);
       }
     }
     return typeof unpacked === 'object' ? JSON.stringify(unpacked) : String(unpacked);
@@ -122,6 +125,59 @@
 
   function isTimestampColumn(name: string): boolean {
     return /(?:^|[._])(?:timestamp|time|created_at|updated_at|started_at|finished_at)$/i.test(name);
+  }
+
+  function isTimestampValue(value: string, name: string): boolean {
+    return (
+      isTimestampColumn(name) ||
+      /^\d{4}-\d{2}-\d{2}[T ][0-2]\d:[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/.test(
+        value
+      )
+    );
+  }
+
+  function relativeTime(date: Date, now: number): string {
+    const seconds = Math.round((date.getTime() - now) / 1000);
+    const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+      ['year', 31_536_000],
+      ['month', 2_592_000],
+      ['week', 604_800],
+      ['day', 86_400],
+      ['hour', 3_600],
+      ['minute', 60],
+      ['second', 1]
+    ];
+    const [unit, size] =
+      units.find(([, candidate]) => Math.abs(seconds) >= candidate) ?? units.at(-1)!;
+    return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
+      Math.round(seconds / size),
+      unit
+    );
+  }
+
+  function calendarTime(date: Date): string {
+    const day = date.getDate();
+    const mod100 = day % 100;
+    const suffix =
+      mod100 >= 11 && mod100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][day % 10] ?? 'th');
+    const dateText = new Intl.DateTimeFormat(undefined, {
+      month: 'long',
+      year: 'numeric'
+    }).format(date);
+    const timeText = new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+    return `${day}${suffix} ${dateText}, ${timeText}`;
+  }
+
+  function setTimeMode(mode: 'relative' | 'calendar'): void {
+    timeMode = mode;
+    localStorage.setItem('ci-results:timestamp-mode', mode);
+  }
+
+  async function copyRaw(value: unknown): Promise<void> {
+    await navigator.clipboard.writeText(String(value ?? ''));
   }
 
   function unpackJson(value: unknown): unknown {
@@ -200,6 +256,14 @@
 
 <div class="results-tools">
   <span>{visibleColumns.length} summary fields</span>
+  <div class="time-toggle" aria-label="Timestamp display">
+    <button class:active={timeMode === 'relative'} onclick={() => setTimeMode('relative')}>
+      Relative
+    </button>
+    <button class:active={timeMode === 'calendar'} onclick={() => setTimeMode('calendar')}>
+      Calendar
+    </button>
+  </div>
   <div class="column-control">
     <button type="button" class:active={columnsOpen} onclick={() => (columnsOpen = !columnsOpen)}>
       Columns <small>{visibleColumns.length}/4</small>
@@ -322,7 +386,17 @@
       <div class="field-list">
         {#each filteredFields as column (column.name)}
           <div class="field">
-            <div><strong>{column.name}</strong><small>{column.type}</small></div>
+            <div>
+              <strong>{column.name}</strong><small>{column.type}</small>
+              {#if typeof selectedRow[column.name] === 'string' && isTimestampValue(String(selectedRow[column.name]), column.name)}
+                <button
+                  class="copy-raw"
+                  type="button"
+                  title="Copy original timestamp"
+                  onclick={() => copyRaw(selectedRow?.[column.name])}>Copy raw</button
+                >
+              {/if}
+            </div>
             <pre
               class:status-passed={statusKind(selectedRow[column.name]) === 'passed'}
               class:status-failed={statusKind(selectedRow[column.name]) === 'failed'}
@@ -361,6 +435,35 @@
   }
   .column-control {
     position: relative;
+  }
+  .time-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .time-toggle button {
+    padding: 4px 7px;
+    border: 0;
+    border-right: 1px solid var(--border);
+    background: var(--base);
+    color: var(--muted);
+    font-size: 10px;
+  }
+  .time-toggle button:last-child {
+    border-right: 0;
+  }
+  .time-toggle button.active {
+    background: var(--overlay);
+    color: var(--text);
+  }
+  .copy-raw {
+    width: max-content;
+    padding: 2px 5px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--subtle);
+    font-size: 9px;
   }
   .column-control > button {
     padding: 5px 9px;

@@ -23,14 +23,17 @@ type Archive struct {
 }
 
 type ArchiveFile struct {
-	ID          int64  `json:"id"`
-	RunID       int64  `json:"run_id"`
-	ArchivePath string `json:"archive_path"`
-	FileType    string `json:"file_type"`
-	MediaType   string `json:"media_type"`
-	SizeBytes   int64  `json:"size_bytes"`
-	Sha256      string `json:"sha256"`
-	IsPublic    int64  `json:"is_public"`
+	ID               int64          `json:"id"`
+	RunID            int64          `json:"run_id"`
+	ArchivePath      string         `json:"archive_path"`
+	FileType         string         `json:"file_type"`
+	MediaType        string         `json:"media_type"`
+	SizeBytes        int64          `json:"size_bytes"`
+	Sha256           string         `json:"sha256"`
+	IsPublic         int64          `json:"is_public"`
+	Content          []byte         `json:"content"`
+	ContentAvailable int64          `json:"content_available"`
+	ContentError     sql.NullString `json:"content_error"`
 }
 
 type ArtifactExplorer struct {

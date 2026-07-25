@@ -1,5 +1,3 @@
-//go:build ignore
-
 package main
 
 import (
@@ -48,7 +46,7 @@ func main() {
 
 	cfg := parseFlags()
 	if os.Geteuid() != 0 {
-		log.Fatalf("this demo needs root for veth/raw sockets: sudo go run ./scripts/container-udp-topology.go --runtime %s --n %d", cfg.runtime, cfg.n)
+		log.Fatalf("this demo needs root for veth/raw sockets: go run ./tools/ci topology container-udp --runtime %s --n %d", cfg.runtime, cfg.n)
 	}
 
 	if _, err := exec.LookPath(cfg.runtime); err != nil {

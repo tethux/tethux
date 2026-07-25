@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createArchiveFile = `-- name: CreateArchiveFile :one
@@ -31,7 +32,7 @@ VALUES
         ?7
     )
 RETURNING
-    id, run_id, archive_path, file_type, media_type, size_bytes, sha256, is_public
+    id, run_id, archive_path, file_type, media_type, size_bytes, sha256, is_public, content, content_available, content_error
 `
 
 type CreateArchiveFileParams struct {
@@ -45,7 +46,8 @@ type CreateArchiveFileParams struct {
 }
 
 func (q *Queries) CreateArchiveFile(ctx context.Context, arg CreateArchiveFileParams) (ArchiveFile, error) {
-	row := q.db.QueryRowContext(ctx, createArchiveFile,
+	row := q.db.QueryRowContext(
+		ctx, createArchiveFile,
 		arg.RunID,
 		arg.ArchivePath,
 		arg.FileType,
@@ -64,13 +66,16 @@ func (q *Queries) CreateArchiveFile(ctx context.Context, arg CreateArchiveFilePa
 		&i.SizeBytes,
 		&i.Sha256,
 		&i.IsPublic,
+		&i.Content,
+		&i.ContentAvailable,
+		&i.ContentError,
 	)
 	return i, err
 }
 
 const getArchiveFileByID = `-- name: GetArchiveFileByID :one
 SELECT
-    af.id, af.run_id, af.archive_path, af.file_type, af.media_type, af.size_bytes, af.sha256, af.is_public,
+    af.id, af.run_id, af.archive_path, af.file_type, af.media_type, af.size_bytes, af.sha256, af.is_public, af.content, af.content_available, af.content_error,
     r.run_uid,
     a.relative_path AS archive_relative_path
 FROM
@@ -84,16 +89,19 @@ LIMIT
 `
 
 type GetArchiveFileByIDRow struct {
-	ID                  int64  `json:"id"`
-	RunID               int64  `json:"run_id"`
-	ArchivePath         string `json:"archive_path"`
-	FileType            string `json:"file_type"`
-	MediaType           string `json:"media_type"`
-	SizeBytes           int64  `json:"size_bytes"`
-	Sha256              string `json:"sha256"`
-	IsPublic            int64  `json:"is_public"`
-	RunUid              string `json:"run_uid"`
-	ArchiveRelativePath string `json:"archive_relative_path"`
+	ID                  int64          `json:"id"`
+	RunID               int64          `json:"run_id"`
+	ArchivePath         string         `json:"archive_path"`
+	FileType            string         `json:"file_type"`
+	MediaType           string         `json:"media_type"`
+	SizeBytes           int64          `json:"size_bytes"`
+	Sha256              string         `json:"sha256"`
+	IsPublic            int64          `json:"is_public"`
+	Content             []byte         `json:"content"`
+	ContentAvailable    int64          `json:"content_available"`
+	ContentError        sql.NullString `json:"content_error"`
+	RunUid              string         `json:"run_uid"`
+	ArchiveRelativePath string         `json:"archive_relative_path"`
 }
 
 func (q *Queries) GetArchiveFileByID(ctx context.Context, id int64) (GetArchiveFileByIDRow, error) {
@@ -108,15 +116,109 @@ func (q *Queries) GetArchiveFileByID(ctx context.Context, id int64) (GetArchiveF
 		&i.SizeBytes,
 		&i.Sha256,
 		&i.IsPublic,
+		&i.Content,
+		&i.ContentAvailable,
+		&i.ContentError,
 		&i.RunUid,
 		&i.ArchiveRelativePath,
 	)
 	return i, err
 }
 
+const getArchiveFileContentByID = `-- name: GetArchiveFileContentByID :one
+SELECT
+    af.id, af.run_id, af.archive_path, af.file_type, af.media_type, af.size_bytes, af.sha256, af.is_public, af.content, af.content_available, af.content_error,
+    r.run_uid,
+    r.workflow,
+    r.commit_sha,
+    r.status AS run_status,
+    a.relative_path AS archive_relative_path
+FROM archive_files af
+JOIN runs r ON r.id = af.run_id
+JOIN archives a ON a.id = r.archive_id
+WHERE af.id = ?1
+LIMIT 1
+`
+
+type GetArchiveFileContentByIDRow struct {
+	ID                  int64          `json:"id"`
+	RunID               int64          `json:"run_id"`
+	ArchivePath         string         `json:"archive_path"`
+	FileType            string         `json:"file_type"`
+	MediaType           string         `json:"media_type"`
+	SizeBytes           int64          `json:"size_bytes"`
+	Sha256              string         `json:"sha256"`
+	IsPublic            int64          `json:"is_public"`
+	Content             []byte         `json:"content"`
+	ContentAvailable    int64          `json:"content_available"`
+	ContentError        sql.NullString `json:"content_error"`
+	RunUid              string         `json:"run_uid"`
+	Workflow            sql.NullString `json:"workflow"`
+	CommitSha           string         `json:"commit_sha"`
+	RunStatus           string         `json:"run_status"`
+	ArchiveRelativePath string         `json:"archive_relative_path"`
+}
+
+func (q *Queries) GetArchiveFileContentByID(ctx context.Context, id int64) (GetArchiveFileContentByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getArchiveFileContentByID, id)
+	var i GetArchiveFileContentByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ArchivePath,
+		&i.FileType,
+		&i.MediaType,
+		&i.SizeBytes,
+		&i.Sha256,
+		&i.IsPublic,
+		&i.Content,
+		&i.ContentAvailable,
+		&i.ContentError,
+		&i.RunUid,
+		&i.Workflow,
+		&i.CommitSha,
+		&i.RunStatus,
+		&i.ArchiveRelativePath,
+	)
+	return i, err
+}
+
+const getArchiveFileForRunPath = `-- name: GetArchiveFileForRunPath :one
+SELECT af.id, af.run_id, af.archive_path, af.file_type, af.media_type, af.size_bytes, af.sha256, af.is_public, af.content, af.content_available, af.content_error
+FROM archive_files af
+JOIN runs r ON r.id = af.run_id
+WHERE r.run_uid = ?1
+  AND af.archive_path = ?2
+LIMIT 1
+`
+
+type GetArchiveFileForRunPathParams struct {
+	RunUid      string `json:"run_uid"`
+	ArchivePath string `json:"archive_path"`
+}
+
+func (q *Queries) GetArchiveFileForRunPath(ctx context.Context, arg GetArchiveFileForRunPathParams) (ArchiveFile, error) {
+	row := q.db.QueryRowContext(ctx, getArchiveFileForRunPath, arg.RunUid, arg.ArchivePath)
+	var i ArchiveFile
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ArchivePath,
+		&i.FileType,
+		&i.MediaType,
+		&i.SizeBytes,
+		&i.Sha256,
+		&i.IsPublic,
+		&i.Content,
+		&i.ContentAvailable,
+		&i.ContentError,
+	)
+	return i, err
+}
+
 const getPublicArchiveFileByID = `-- name: GetPublicArchiveFileByID :one
 SELECT
-    af.id, af.run_id, af.archive_path, af.file_type, af.media_type, af.size_bytes, af.sha256, af.is_public,
+    af.id, af.run_id, af.archive_path, af.file_type, af.media_type, af.size_bytes, af.sha256, af.is_public, af.content, af.content_available, af.content_error,
     r.run_uid,
     a.relative_path AS archive_relative_path
 FROM
@@ -131,16 +233,19 @@ LIMIT
 `
 
 type GetPublicArchiveFileByIDRow struct {
-	ID                  int64  `json:"id"`
-	RunID               int64  `json:"run_id"`
-	ArchivePath         string `json:"archive_path"`
-	FileType            string `json:"file_type"`
-	MediaType           string `json:"media_type"`
-	SizeBytes           int64  `json:"size_bytes"`
-	Sha256              string `json:"sha256"`
-	IsPublic            int64  `json:"is_public"`
-	RunUid              string `json:"run_uid"`
-	ArchiveRelativePath string `json:"archive_relative_path"`
+	ID                  int64          `json:"id"`
+	RunID               int64          `json:"run_id"`
+	ArchivePath         string         `json:"archive_path"`
+	FileType            string         `json:"file_type"`
+	MediaType           string         `json:"media_type"`
+	SizeBytes           int64          `json:"size_bytes"`
+	Sha256              string         `json:"sha256"`
+	IsPublic            int64          `json:"is_public"`
+	Content             []byte         `json:"content"`
+	ContentAvailable    int64          `json:"content_available"`
+	ContentError        sql.NullString `json:"content_error"`
+	RunUid              string         `json:"run_uid"`
+	ArchiveRelativePath string         `json:"archive_relative_path"`
 }
 
 // Use this for the public artifact endpoint.
@@ -157,6 +262,9 @@ func (q *Queries) GetPublicArchiveFileByID(ctx context.Context, id int64) (GetPu
 		&i.SizeBytes,
 		&i.Sha256,
 		&i.IsPublic,
+		&i.Content,
+		&i.ContentAvailable,
+		&i.ContentError,
 		&i.RunUid,
 		&i.ArchiveRelativePath,
 	)
@@ -165,7 +273,16 @@ func (q *Queries) GetPublicArchiveFileByID(ctx context.Context, id int64) (GetPu
 
 const listArchiveFilesForRun = `-- name: ListArchiveFilesForRun :many
 SELECT
-    id, run_id, archive_path, file_type, media_type, size_bytes, sha256, is_public
+    id,
+    run_id,
+    archive_path,
+    file_type,
+    media_type,
+    size_bytes,
+    sha256,
+    is_public,
+    content_available,
+    content_error
 FROM
     archive_files
 WHERE
@@ -174,15 +291,28 @@ ORDER BY
     archive_path
 `
 
-func (q *Queries) ListArchiveFilesForRun(ctx context.Context, runID int64) ([]ArchiveFile, error) {
+type ListArchiveFilesForRunRow struct {
+	ID               int64          `json:"id"`
+	RunID            int64          `json:"run_id"`
+	ArchivePath      string         `json:"archive_path"`
+	FileType         string         `json:"file_type"`
+	MediaType        string         `json:"media_type"`
+	SizeBytes        int64          `json:"size_bytes"`
+	Sha256           string         `json:"sha256"`
+	IsPublic         int64          `json:"is_public"`
+	ContentAvailable int64          `json:"content_available"`
+	ContentError     sql.NullString `json:"content_error"`
+}
+
+func (q *Queries) ListArchiveFilesForRun(ctx context.Context, runID int64) ([]ListArchiveFilesForRunRow, error) {
 	rows, err := q.db.QueryContext(ctx, listArchiveFilesForRun, runID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ArchiveFile{}
+	items := []ListArchiveFilesForRunRow{}
 	for rows.Next() {
-		var i ArchiveFile
+		var i ListArchiveFilesForRunRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.RunID,
@@ -192,6 +322,126 @@ func (q *Queries) ListArchiveFilesForRun(ctx context.Context, runID int64) ([]Ar
 			&i.SizeBytes,
 			&i.Sha256,
 			&i.IsPublic,
+			&i.ContentAvailable,
+			&i.ContentError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listArtifactFiles = `-- name: ListArtifactFiles :many
+SELECT
+    af.id,
+    af.run_id,
+    af.archive_path,
+    af.file_type,
+    af.media_type,
+    af.size_bytes,
+    af.sha256,
+    af.is_public,
+    af.content_available,
+    af.content_error,
+    r.run_uid,
+    r.workflow,
+    r.commit_sha,
+    r.status AS run_status,
+    r.started_at
+FROM archive_files af
+JOIN runs r ON r.id = af.run_id
+WHERE
+    af.id < ?1
+    AND (
+        ?2 = ''
+        OR af.archive_path LIKE '%' || ?2 || '%'
+        OR af.media_type LIKE '%' || ?2 || '%'
+        OR r.run_uid LIKE '%' || ?2 || '%'
+        OR COALESCE(r.workflow, '') LIKE '%' || ?2 || '%'
+    )
+    AND (?3 = '' OR af.file_type = ?3)
+    AND (?4 = '' OR af.media_type LIKE ?4 || '%')
+    AND (?5 = '' OR COALESCE(r.workflow, '') = ?5)
+    AND (?6 = '' OR r.run_uid = ?6)
+    AND (?7 < 0 OR af.is_public = ?7)
+    AND (?8 < 0 OR af.content_available = ?8)
+ORDER BY af.id DESC
+LIMIT ?9
+`
+
+type ListArtifactFilesParams struct {
+	BeforeID        int64       `json:"before_id"`
+	SearchText      interface{} `json:"search_text"`
+	FileTypeFilter  interface{} `json:"file_type_filter"`
+	MediaTypeFilter interface{} `json:"media_type_filter"`
+	WorkflowFilter  interface{} `json:"workflow_filter"`
+	RunFilter       interface{} `json:"run_filter"`
+	PublicFilter    interface{} `json:"public_filter"`
+	AvailableFilter interface{} `json:"available_filter"`
+	ResultLimit     int64       `json:"result_limit"`
+}
+
+type ListArtifactFilesRow struct {
+	ID               int64          `json:"id"`
+	RunID            int64          `json:"run_id"`
+	ArchivePath      string         `json:"archive_path"`
+	FileType         string         `json:"file_type"`
+	MediaType        string         `json:"media_type"`
+	SizeBytes        int64          `json:"size_bytes"`
+	Sha256           string         `json:"sha256"`
+	IsPublic         int64          `json:"is_public"`
+	ContentAvailable int64          `json:"content_available"`
+	ContentError     sql.NullString `json:"content_error"`
+	RunUid           string         `json:"run_uid"`
+	Workflow         sql.NullString `json:"workflow"`
+	CommitSha        string         `json:"commit_sha"`
+	RunStatus        string         `json:"run_status"`
+	StartedAt        string         `json:"started_at"`
+}
+
+func (q *Queries) ListArtifactFiles(ctx context.Context, arg ListArtifactFilesParams) ([]ListArtifactFilesRow, error) {
+	rows, err := q.db.QueryContext(
+		ctx, listArtifactFiles,
+		arg.BeforeID,
+		arg.SearchText,
+		arg.FileTypeFilter,
+		arg.MediaTypeFilter,
+		arg.WorkflowFilter,
+		arg.RunFilter,
+		arg.PublicFilter,
+		arg.AvailableFilter,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArtifactFilesRow{}
+	for rows.Next() {
+		var i ListArtifactFilesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RunID,
+			&i.ArchivePath,
+			&i.FileType,
+			&i.MediaType,
+			&i.SizeBytes,
+			&i.Sha256,
+			&i.IsPublic,
+			&i.ContentAvailable,
+			&i.ContentError,
+			&i.RunUid,
+			&i.Workflow,
+			&i.CommitSha,
+			&i.RunStatus,
+			&i.StartedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -208,7 +458,16 @@ func (q *Queries) ListArchiveFilesForRun(ctx context.Context, runID int64) ([]Ar
 
 const listPublicArchiveFilesForRun = `-- name: ListPublicArchiveFilesForRun :many
 SELECT
-    id, run_id, archive_path, file_type, media_type, size_bytes, sha256, is_public
+    id,
+    run_id,
+    archive_path,
+    file_type,
+    media_type,
+    size_bytes,
+    sha256,
+    is_public,
+    content_available,
+    content_error
 FROM
     archive_files
 WHERE
@@ -218,15 +477,28 @@ ORDER BY
     archive_path
 `
 
-func (q *Queries) ListPublicArchiveFilesForRun(ctx context.Context, runID int64) ([]ArchiveFile, error) {
+type ListPublicArchiveFilesForRunRow struct {
+	ID               int64          `json:"id"`
+	RunID            int64          `json:"run_id"`
+	ArchivePath      string         `json:"archive_path"`
+	FileType         string         `json:"file_type"`
+	MediaType        string         `json:"media_type"`
+	SizeBytes        int64          `json:"size_bytes"`
+	Sha256           string         `json:"sha256"`
+	IsPublic         int64          `json:"is_public"`
+	ContentAvailable int64          `json:"content_available"`
+	ContentError     sql.NullString `json:"content_error"`
+}
+
+func (q *Queries) ListPublicArchiveFilesForRun(ctx context.Context, runID int64) ([]ListPublicArchiveFilesForRunRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPublicArchiveFilesForRun, runID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ArchiveFile{}
+	items := []ListPublicArchiveFilesForRunRow{}
 	for rows.Next() {
-		var i ArchiveFile
+		var i ListPublicArchiveFilesForRunRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.RunID,
@@ -236,6 +508,8 @@ func (q *Queries) ListPublicArchiveFilesForRun(ctx context.Context, runID int64)
 			&i.SizeBytes,
 			&i.Sha256,
 			&i.IsPublic,
+			&i.ContentAvailable,
+			&i.ContentError,
 		); err != nil {
 			return nil, err
 		}
@@ -248,6 +522,61 @@ func (q *Queries) ListPublicArchiveFilesForRun(ctx context.Context, runID int64)
 		return nil, err
 	}
 	return items, nil
+}
+
+const markArchiveFileContentUnavailable = `-- name: MarkArchiveFileContentUnavailable :exec
+UPDATE archive_files
+SET
+    content = NULL,
+    content_available = 0,
+    content_error = ?1
+WHERE
+    id = ?2
+`
+
+type MarkArchiveFileContentUnavailableParams struct {
+	ContentError sql.NullString `json:"content_error"`
+	ID           int64          `json:"id"`
+}
+
+func (q *Queries) MarkArchiveFileContentUnavailable(ctx context.Context, arg MarkArchiveFileContentUnavailableParams) error {
+	_, err := q.db.ExecContext(ctx, markArchiveFileContentUnavailable, arg.ContentError, arg.ID)
+	return err
+}
+
+const storeArchiveFileContent = `-- name: StoreArchiveFileContent :one
+UPDATE archive_files
+SET
+    content = ?1,
+    content_available = 1,
+    content_error = NULL
+WHERE
+    id = ?2
+RETURNING id, run_id, archive_path, file_type, media_type, size_bytes, sha256, is_public, content, content_available, content_error
+`
+
+type StoreArchiveFileContentParams struct {
+	Content []byte `json:"content"`
+	ID      int64  `json:"id"`
+}
+
+func (q *Queries) StoreArchiveFileContent(ctx context.Context, arg StoreArchiveFileContentParams) (ArchiveFile, error) {
+	row := q.db.QueryRowContext(ctx, storeArchiveFileContent, arg.Content, arg.ID)
+	var i ArchiveFile
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ArchivePath,
+		&i.FileType,
+		&i.MediaType,
+		&i.SizeBytes,
+		&i.Sha256,
+		&i.IsPublic,
+		&i.Content,
+		&i.ContentAvailable,
+		&i.ContentError,
+	)
+	return i, err
 }
 
 const upsertArchiveFile = `-- name: UpsertArchiveFile :one
@@ -279,7 +608,7 @@ SET
     sha256 = excluded.sha256,
     is_public = excluded.is_public
 RETURNING
-    id, run_id, archive_path, file_type, media_type, size_bytes, sha256, is_public
+    id, run_id, archive_path, file_type, media_type, size_bytes, sha256, is_public, content, content_available, content_error
 `
 
 type UpsertArchiveFileParams struct {
@@ -293,7 +622,8 @@ type UpsertArchiveFileParams struct {
 }
 
 func (q *Queries) UpsertArchiveFile(ctx context.Context, arg UpsertArchiveFileParams) (ArchiveFile, error) {
-	row := q.db.QueryRowContext(ctx, upsertArchiveFile,
+	row := q.db.QueryRowContext(
+		ctx, upsertArchiveFile,
 		arg.RunID,
 		arg.ArchivePath,
 		arg.FileType,
@@ -312,6 +642,9 @@ func (q *Queries) UpsertArchiveFile(ctx context.Context, arg UpsertArchiveFilePa
 		&i.SizeBytes,
 		&i.Sha256,
 		&i.IsPublic,
+		&i.Content,
+		&i.ContentAvailable,
+		&i.ContentError,
 	)
 	return i, err
 }

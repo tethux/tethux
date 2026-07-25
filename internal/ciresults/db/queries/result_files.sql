@@ -17,7 +17,16 @@ SET
 
 -- name: ListFilesForResult :many
 SELECT
-    af.*,
+    af.id,
+    af.run_id,
+    af.archive_path,
+    af.file_type,
+    af.media_type,
+    af.size_bytes,
+    af.sha256,
+    af.is_public,
+    af.content_available,
+    af.content_error,
     rf.relationship
 FROM
     result_files rf
@@ -30,7 +39,16 @@ ORDER BY
 
 -- name: ListPublicFilesForResult :many
 SELECT
-    af.*,
+    af.id,
+    af.run_id,
+    af.archive_path,
+    af.file_type,
+    af.media_type,
+    af.size_bytes,
+    af.sha256,
+    af.is_public,
+    af.content_available,
+    af.content_error,
     rf.relationship
 FROM
     result_files rf

@@ -30,15 +30,17 @@ The writer validates IDs, statuses, matching run IDs, summary counts, relative
 paths, artifact existence, and checksums before atomically renaming the final
 archive. Files ending in `.partial` are incomplete and must be ignored.
 
-Run locally with the same writer used by Woodpecker:
+Run locally with the same Go writer used by Woodpecker:
 
 ```bash
-TETHUX_TEST_ARCHIVE_ROOT=./results/archive \
-  ./nix/scripts/test-archive-run.sh local-go \
-  sh -c 'go test ./... -json | tee "$TETHUX_CI_ARCHIVE_DIR/artifacts/go-test.jsonl"'
+go run ./tools/ci archive run \
+  --archive-root ./results/archive \
+  --workflow local-go \
+  go test ./... -json
 ```
 
-Set `TETHUX_ARCHIVE_NAS_HOST=nas` to publish a development archive. Uploads use
+Set `TETHUX_ARCHIVE_NAS_HOST=nas` when running an archive-aware workflow to
+publish a development archive. Uploads use
 the final commit/workflow/UUID path with an additional `.partial` suffix and
 are renamed remotely only after `scp` completes.
 
