@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import VirtualList from '@humanspeak/svelte-virtual-list';
   import type { ExecuteQueryResponse, QueryColumn } from '$lib/api/types';
 
   let { result, source }: { result: ExecuteQueryResponse; source: string } = $props();
@@ -293,51 +292,44 @@
 
 <div class="query-results">
   <div
-    class="query-columns"
-    style={`grid-template-columns: repeat(${visibleColumns.length}, minmax(160px, 1fr));`}
+    class="query-grid"
+    role="region"
+    aria-label="Query results"
+    style={`--query-columns: ${visibleColumns.length};`}
   >
-    {#each visibleColumns as column (column.name)}
-      <span title={column.type}>{column.name}<small>{column.type}</small></span>
+    <div class="query-columns">
+      {#each visibleColumns as column (column.name)}
+        <span title={column.type}>{column.name}<small>{column.type}</small></span>
+      {/each}
+    </div>
+    {#each result.rows as row, rowIndex (rowIndex)}
+      <button
+        class="query-row"
+        class:selected={selectedRow === row}
+        type="button"
+        onclick={() => (selectedRow = row)}
+        aria-label={`Open row ${rowIndex + 1} details`}
+      >
+        {#each visibleColumns as column (column.name)}
+          <span
+            class:empty={isEmpty(row[column.name])}
+            class:status-passed={statusKind(row[column.name]) === 'passed'}
+            class:status-failed={statusKind(row[column.name]) === 'failed'}
+            class:status-skipped={statusKind(row[column.name]) === 'skipped'}
+            class:status-cancelled={statusKind(row[column.name]) === 'cancelled'}
+            title={String(row[column.name] ?? '')}
+          >
+            {#if typeof unpackJson(row[column.name]) === 'object'}
+              {#each highlightJson(row[column.name], false) as token, index (`${index}:${token.kind}`)}<span
+                  class={`json-${token.kind}`}>{token.value}</span
+                >{/each}
+            {:else}
+              {formatCell(row[column.name], column.name)}
+            {/if}
+          </span>
+        {/each}
+      </button>
     {/each}
-  </div>
-  <div class="query-virtual-list">
-    <VirtualList
-      items={result.rows}
-      defaultEstimatedItemHeight={42}
-      bufferSize={8}
-      hasMore={false}
-      viewportLabel="Query results"
-    >
-      {#snippet renderItem(row: Record<string, unknown>)}
-        <button
-          class="query-row"
-          class:selected={selectedRow === row}
-          type="button"
-          style={`grid-template-columns: repeat(${visibleColumns.length}, minmax(160px, 1fr));`}
-          onclick={() => (selectedRow = row)}
-          aria-label="Open row details"
-        >
-          {#each visibleColumns as column (column.name)}
-            <span
-              class:empty={isEmpty(row[column.name])}
-              class:status-passed={statusKind(row[column.name]) === 'passed'}
-              class:status-failed={statusKind(row[column.name]) === 'failed'}
-              class:status-skipped={statusKind(row[column.name]) === 'skipped'}
-              class:status-cancelled={statusKind(row[column.name]) === 'cancelled'}
-              title={String(row[column.name] ?? '')}
-            >
-              {#if typeof unpackJson(row[column.name]) === 'object'}
-                {#each highlightJson(row[column.name], false) as token, index (`${index}:${token.kind}`)}<span
-                    class={`json-${token.kind}`}>{token.value}</span
-                  >{/each}
-              {:else}
-                {formatCell(row[column.name], column.name)}
-              {/if}
-            </span>
-          {/each}
-        </button>
-      {/snippet}
-    </VirtualList>
   </div>
 </div>
 
@@ -530,13 +522,18 @@
     flex: 1;
     width: 100%;
     min-height: 0;
-    overflow-x: auto;
+    overflow: auto;
+    background: var(--base);
+  }
+  .query-grid {
+    width: 100%;
+    min-width: calc(var(--query-columns) * 160px);
   }
   .query-columns,
   .query-row {
     display: grid;
-    width: max-content;
-    min-width: 100%;
+    grid-template-columns: repeat(var(--query-columns), minmax(160px, 1fr));
+    width: 100%;
   }
   .query-columns {
     position: sticky;
@@ -566,12 +563,6 @@
     color: var(--muted);
     font-size: 10px;
     font-weight: normal;
-  }
-  .query-virtual-list {
-    width: max-content;
-    min-width: 100%;
-    height: 100%;
-    min-height: 300px;
   }
   .query-row {
     min-height: 42px;

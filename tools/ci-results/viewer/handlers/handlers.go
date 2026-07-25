@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -44,6 +45,7 @@ func (h *Handlers) Routes() http.Handler {
 	router.Get("/run/{id}", h.Run)
 	router.Get("/artifacts", h.Artifacts)
 	router.Get("/file/{id}", h.File)
+	router.Get("/file/{id}/search", h.SearchFile)
 	router.Get("/file/{id}/raw", h.RawFile)
 	router.Post("/query/execute", h.ExecuteQuery)
 	router.Get("/schema", h.Schema)
@@ -160,6 +162,94 @@ func (h *Handlers) File(w http.ResponseWriter, r *http.Request) {
 		"truncated":   truncated,
 		"preview":     preview,
 		"raw_url":     fmt.Sprintf("/api/v1/file/%d/raw", file.ID),
+	})
+}
+
+type logSearchMatch struct {
+	Line     int    `json:"line"`
+	Text     string `json:"text"`
+	Severity string `json:"severity"`
+}
+
+var severityPattern = regexp.MustCompile(`(?i)(?:^|[\s"'\[\]{}:=])(trace|debug|info|notice|warn(?:ing)?|error|fatal|panic|crit(?:ical)?)(?:$|[\s"'\[\]{}:=])`)
+
+func detectSeverity(line string) string {
+	match := severityPattern.FindStringSubmatch(line)
+	if len(match) < 2 {
+		return "unknown"
+	}
+	level := strings.ToLower(match[1])
+	switch level {
+	case "warning":
+		return "warn"
+	case "critical":
+		return "critical"
+	default:
+		return level
+	}
+}
+
+func (h *Handlers) SearchFile(w http.ResponseWriter, r *http.Request) {
+	file, err := h.loadFile(r)
+	if err != nil {
+		h.writeFileError(w, err)
+		return
+	}
+	content, available, _, err := h.fileBytes(r.Context(), file)
+	if err != nil {
+		h.writeAPIError(w, "load file content", ErrCodeQueryFailed, http.StatusInternalServerError, err)
+		return
+	}
+	if !available {
+		h.writeAPIError(w, "artifact bytes are unavailable; re-ingest the source archive", ErrCodeNotFound, http.StatusNotFound, nil)
+		return
+	}
+	if !isTextMediaType(file.MediaType) {
+		h.writeAPIError(w, "full-text search is only available for textual artifacts", ErrCodeInvalidInput, http.StatusBadRequest, nil)
+		return
+	}
+
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	severity := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("severity")))
+	if len(query) > 512 {
+		h.writeAPIError(w, "search query must be at most 512 characters", ErrCodeInvalidInput, http.StatusBadRequest, nil)
+		return
+	}
+	var expression *regexp.Regexp
+	if r.URL.Query().Get("regex") == "true" && query != "" {
+		expression, err = regexp.Compile(query)
+		if err != nil {
+			h.writeAPIError(w, "invalid regular expression", ErrCodeInvalidInput, http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	const resultLimit = 500
+	matches := make([]logSearchMatch, 0)
+	total := 0
+	for index, line := range strings.Split(string(content), "\n") {
+		level := detectSeverity(line)
+		if severity != "" && severity != "all" && level != severity {
+			continue
+		}
+		found := query == ""
+		if expression != nil {
+			found = expression.MatchString(line)
+		} else if query != "" {
+			found = strings.Contains(strings.ToLower(line), strings.ToLower(query))
+		}
+		if !found {
+			continue
+		}
+		total++
+		if len(matches) < resultLimit {
+			matches = append(matches, logSearchMatch{Line: index + 1, Text: line, Severity: level})
+		}
+	}
+	h.writeJSON(w, map[string]any{
+		"matches":   matches,
+		"total":     total,
+		"truncated": total > resultLimit,
 	})
 }
 

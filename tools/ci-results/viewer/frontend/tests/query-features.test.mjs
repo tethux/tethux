@@ -12,6 +12,12 @@ const artifacts = await readFile(
   new URL('../src/routes/artifacts/+page.svelte', import.meta.url),
   'utf8'
 );
+const sql = await readFile(new URL('../src/routes/query/sql.ts', import.meta.url), 'utf8');
+const dashboard = await readFile(new URL('../src/routes/+page.svelte', import.meta.url), 'utf8');
+const runDetail = await readFile(
+  new URL('../src/routes/run/[id]/+page.svelte', import.meta.url),
+  'utf8'
+);
 
 test('saved queries use a versioned local document and complete lifecycle controls', () => {
   assert.match(saved, /ci-results:saved-queries:v1/);
@@ -34,8 +40,29 @@ test('schema reload has explicit lifecycle and stale-response protection', () =>
   assert.match(query, /request !== schemaRequest/);
 });
 
+test('FROM and JOIN completion offers the complete scrollable schema object list', () => {
+  assert.match(sql, /FROM\|JOIN/);
+  assert.match(sql, /schema\.objects/);
+  assert.match(query, /scrollIntoView\(\{ block: 'nearest' \}\)/);
+  assert.match(query, /suggestions\.length} matches/);
+});
+
+test('query rows and headers share one stable grid', () => {
+  assert.doesNotMatch(results, /VirtualList/);
+  assert.match(results, /--query-columns/);
+  assert.match(results, /grid-template-columns: repeat\(var\(--query-columns\)/);
+});
+
 test('artifact workbench exposes filtering, preview, and exact-byte download', () => {
   assert.match(artifacts, /Artifact filters/);
   assert.match(artifacts, /Download exact bytes/);
   assert.match(artifacts, /Re-run ingestion/);
+});
+
+test('diagnostic overview keeps health, duration, recent runs, and workflow steps concise', () => {
+  assert.match(dashboard, /Project pulse/);
+  assert.match(dashboard, /Build duration/);
+  assert.match(dashboard, /Recent runs/);
+  assert.match(runDetail, /Workflow steps/);
+  assert.match(runDetail, /configs\/workflow\.json/);
 });

@@ -35,6 +35,13 @@ export type Run = {
   device_key: string;
 };
 
+export type ViewerSummary = {
+  run_count: number;
+  test_count: number;
+  passed_count: number;
+  failed_count: number;
+};
+
 export type RunRow = {
   id: number;
   run_uid: string;
@@ -131,6 +138,18 @@ export type ArtifactPreview = {
   truncated: boolean;
   preview: unknown;
   raw_url: string;
+};
+
+export type LogSearchMatch = {
+  line: number;
+  text: string;
+  severity: string;
+};
+
+export type LogSearchResult = {
+  matches: LogSearchMatch[];
+  total: number;
+  truncated: boolean;
 };
 
 export type RunDetail = { run: RunRow; tests: TestResult[]; files: ArchiveFile[] };

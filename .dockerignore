@@ -1,0 +1,8 @@
+.git
+.jj
+.direnv
+data
+result
+**/node_modules
+**/.svelte-kit
+**/frontend/build

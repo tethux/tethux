@@ -56,8 +56,7 @@ function columnSuggestion(object: SchemaObject, column: SchemaColumn): ColumnSug
 }
 
 export function getSuggestions(sqlBeforeCursor: string, schema: SchemaInfo): Suggestion[] {
-  const trimmed = sqlBeforeCursor.trimEnd();
-  const sourceMatch = trimmed.match(/\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)?$/i);
+  const sourceMatch = sqlBeforeCursor.match(/\b(?:FROM|JOIN)(?:\s+([A-Za-z_][A-Za-z0-9_]*))?\s*$/i);
 
   if (sourceMatch) {
     const prefix = sourceMatch[1] ?? '';
@@ -70,6 +69,7 @@ export function getSuggestions(sqlBeforeCursor: string, schema: SchemaInfo): Sug
       .map(objectSuggestion);
   }
 
+  const trimmed = sqlBeforeCursor.trimEnd();
   const qualifiedColumnMatch = trimmed.match(/([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z0-9_]*)$/);
   if (qualifiedColumnMatch) {
     const object = schema.objects.find(

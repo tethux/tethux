@@ -31,6 +31,15 @@ func TestArtifactListPreviewAndRaw(t *testing.T) {
 		t.Fatalf("preview response code=%d body=%s", previewResponse.Code, previewResponse.Body.String())
 	}
 
+	searchRequest := httptest.NewRequestWithContext(context.Background(), http.MethodGet, fmt.Sprintf("/file/%d/search?q=socket&severity=error", fileID), http.NoBody)
+	searchResponse := httptest.NewRecorder()
+	handler.ServeHTTP(searchResponse, searchRequest)
+	if searchResponse.Code != http.StatusOK ||
+		!strings.Contains(searchResponse.Body.String(), `"line":2`) ||
+		!strings.Contains(searchResponse.Body.String(), `"severity":"error"`) {
+		t.Fatalf("search response code=%d body=%s", searchResponse.Code, searchResponse.Body.String())
+	}
+
 	rawPath := fmt.Sprintf("/file/%d/raw", fileID)
 	rawRequest := httptest.NewRequestWithContext(context.Background(), http.MethodGet, rawPath, http.NoBody)
 	rawResponse := httptest.NewRecorder()
@@ -84,7 +93,7 @@ func artifactTestStore(t *testing.T) (*db.Store, int64, []byte) {
 			0, 0, 0, 0, 0, '{}', '{}', '{}', '{}'
 		)
 	`)
-	content := []byte("hello artifact\n")
+	content := []byte("hello artifact\nERROR socket connection failed\nINFO retry scheduled\n")
 	sum := fmt.Sprintf("%x", sha256.Sum256(content))
 	result, err := store.DB.ExecContext(ctx, `
 		INSERT INTO archive_files(

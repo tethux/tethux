@@ -5,6 +5,7 @@
   import type { Artifact, ArtifactPreview } from '$lib/api/types';
   import { nullStringValue } from '$lib/api/types';
   import CommitLink from '$lib/components/CommitLink.svelte';
+  import LogSearch from '$lib/components/LogSearch.svelte';
   import { sourceRepositories } from '$lib/repositories';
 
   let artifacts = $state<Artifact[]>([]);
@@ -30,6 +31,10 @@
 
   const fileName = (path: string) => path.split('/').at(-1) ?? path;
   const isImage = (media: string) => media.startsWith('image/');
+  const isSearchableLog = (file: Artifact) =>
+    file.file_type === 'log' ||
+    /(?:text|json|yaml|toml|xml|javascript)/i.test(file.media_type) ||
+    /\.(?:log|txt|jsonl?)$/i.test(file.archive_path);
 
   async function load(reset = true): Promise<void> {
     const id = ++requestID;
@@ -230,6 +235,9 @@
           <strong>Binary artifact</strong>
           <p>Preview is unavailable for this media type. The exact bytes are ready to download.</p>
         </div>
+      {/if}
+      {#if detail.available && isSearchableLog(selected)}
+        <LogSearch fileId={selected.id} />
       {/if}
       <dl>
         <div>

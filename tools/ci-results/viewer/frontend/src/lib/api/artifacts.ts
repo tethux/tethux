@@ -1,5 +1,5 @@
 import { fetchJson, type Fetch } from './http';
-import type { ArtifactPage, ArtifactPreview } from './types';
+import type { ArtifactPage, ArtifactPreview, LogSearchResult } from './types';
 
 export type ArtifactFilters = {
   q?: string;
@@ -24,4 +24,16 @@ export function listArtifacts(fetcher: Fetch, filters: ArtifactFilters = {}) {
 
 export function getArtifact(fetcher: Fetch, id: number) {
   return fetchJson<ArtifactPreview>(fetcher, `/api/v1/file/${id}`);
+}
+
+export function searchArtifact(
+  fetcher: Fetch,
+  id: number,
+  filters: { q?: string; regex?: boolean; severity?: string }
+) {
+  const params = new URLSearchParams();
+  if (filters.q) params.set('q', filters.q);
+  if (filters.regex) params.set('regex', 'true');
+  if (filters.severity && filters.severity !== 'all') params.set('severity', filters.severity);
+  return fetchJson<LogSearchResult>(fetcher, `/api/v1/file/${id}/search?${params}`);
 }

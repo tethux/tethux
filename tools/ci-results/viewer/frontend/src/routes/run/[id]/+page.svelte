@@ -1,11 +1,13 @@
 <script lang="ts">
   /* eslint-disable svelte/no-navigation-without-resolve */
+  import { onMount } from 'svelte';
   import type { NullString } from '$lib/api/types';
   import type { PageData } from './$types';
   import type { ArchiveFile, TestResult } from '$lib/api/types';
   import { sourceRepositories } from '$lib/repositories';
   import { getArtifact } from '$lib/api/artifacts';
   import CommitLink from '$lib/components/CommitLink.svelte';
+  import LogSearch from '$lib/components/LogSearch.svelte';
   import VirtualList from '@humanspeak/svelte-virtual-list';
   import { SvelteSet } from 'svelte/reactivity';
 
@@ -21,6 +23,16 @@
   let fileLoading = $state(false);
   let fileRawURL = $state('');
   let manifestMode = $state<'structured' | 'json'>('structured');
+  type WorkflowStep = {
+    name: string;
+    started_at: string;
+    finished_at: string;
+    duration: number;
+    exit_code: number;
+    error?: string;
+  };
+  let workflowSteps = $state<WorkflowStep[]>([]);
+  let stepsLoading = $state(false);
   let testSearch = $state('');
   let providerFilter = $state('all');
   const statusFilters = new SvelteSet<string>();
@@ -103,6 +115,10 @@
       : `${(bytes / 1024).toFixed(1)} KB`;
   const indexedFile = (path: string) =>
     data.detail?.files.find((file) => file.archive_path === path);
+  const isSearchableLog = (file: ArchiveFile) =>
+    file.file_type === 'log' ||
+    /(?:text|json|yaml|toml|xml|javascript)/i.test(file.media_type) ||
+    /\.(?:log|txt|jsonl?)$/i.test(file.archive_path);
   const flatEntries = (entry: unknown, prefix = ''): Array<[string, unknown]> => {
     if (entry === null || typeof entry !== 'object') return [[prefix || 'value', entry]];
     return Object.entries(entry).flatMap(([key, child]) => {
@@ -140,6 +156,29 @@
     if (suite.String === 'go') return 'Go Test';
     return suite.String.replace(/-/g, ' ');
   }
+  const stepDuration = (step: WorkflowStep) =>
+    step.duration
+      ? fmtDuration(Math.round(step.duration / 1_000_000))
+      : fmtDuration(new Date(step.finished_at).getTime() - new Date(step.started_at).getTime());
+
+  onMount(async () => {
+    const workflowFile = data.detail?.files.find(
+      (file) => file.archive_path === 'configs/workflow.json'
+    );
+    if (!workflowFile) return;
+    stepsLoading = true;
+    const response = await getArtifact(fetch, workflowFile.id);
+    response.match(
+      (payload) => {
+        const preview = payload.preview as { steps?: WorkflowStep[] } | null;
+        workflowSteps = Array.isArray(preview?.steps) ? preview.steps : [];
+      },
+      () => {
+        workflowSteps = [];
+      }
+    );
+    stepsLoading = false;
+  });
 </script>
 
 <svelte:head><title>Run #{data.detail?.run.id ?? ''} · CI results</title></svelte:head>
@@ -195,6 +234,46 @@
   </nav>
 
   {#if tab === 'overview'}
+    <section class="execution-strip" aria-labelledby="execution-title">
+      <header>
+        <div>
+          <small>EXECUTION</small>
+          <h2 id="execution-title">Workflow steps</h2>
+        </div>
+        <span>{workflowSteps.length ? `${workflowSteps.length} recorded` : 'archive summary'}</span>
+      </header>
+      {#if stepsLoading}
+        <div class="step-loading" aria-label="Loading workflow steps"></div>
+      {:else if workflowSteps.length}
+        <ol>
+          {#each workflowSteps as step, index (step.name)}
+            <li class:failed={step.exit_code !== 0}>
+              <span class="step-marker">{step.exit_code === 0 ? '✓' : '×'}</span>
+              <div>
+                <strong>{step.name}</strong>
+                <small
+                  >{step.error ||
+                    (step.exit_code === 0 ? 'completed' : `exit ${step.exit_code}`)}</small
+                >
+              </div>
+              <time>{stepDuration(step)}</time>
+              {#if index < workflowSteps.length - 1}<i aria-hidden="true"></i>{/if}
+            </li>
+          {/each}
+        </ol>
+      {:else}
+        <div class="legacy-steps">
+          <span class:failed={run.status !== 'passed'}>{run.status === 'passed' ? '✓' : '×'}</span>
+          <div>
+            <strong>{value(run.workflow) ?? 'Imported workflow'}</strong>
+            <small
+              >This archive predates per-step telemetry. The overall run is still available.</small
+            >
+          </div>
+          <time>{fmtDuration(run.duration_ms)}</time>
+        </div>
+      {/if}
+    </section>
     <div class="workspace">
       <section class="test-panel">
         <div class="panel-title">
@@ -474,6 +553,9 @@
             </div>{:else}<pre>{typeof fileContent === 'string'
                 ? fileContent
                 : JSON.stringify(fileContent, null, 2)}</pre>{/if}
+          {#if fileAvailable && isSearchableLog(openFile)}
+            <LogSearch fileId={openFile.id} />
+          {/if}
         {/if}
       </div>
     </div>
@@ -481,6 +563,117 @@
 {:else}<p>{data.error ?? 'Run not found'}</p>{/if}
 
 <style>
+  .execution-strip {
+    margin: 18px 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--base);
+  }
+  .execution-strip > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 54px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .execution-strip h2 {
+    margin: 2px 0 0;
+    font-size: 13px;
+  }
+  .execution-strip header small,
+  .execution-strip header span {
+    color: var(--muted);
+    font-size: 9px;
+  }
+  .execution-strip ol {
+    display: flex;
+    margin: 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    list-style: none;
+  }
+  .execution-strip li {
+    position: relative;
+    display: grid;
+    min-width: 170px;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 8px;
+    padding-right: 28px;
+  }
+  .step-marker,
+  .legacy-steps > span {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    z-index: 1;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--syntax-green) 14%, var(--base));
+    color: var(--syntax-green);
+    font-size: 10px;
+  }
+  .execution-strip li.failed .step-marker,
+  .legacy-steps > span.failed {
+    background: color-mix(in srgb, var(--love) 14%, var(--base));
+    color: var(--love);
+  }
+  .execution-strip li div,
+  .legacy-steps div {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+  .execution-strip li strong,
+  .legacy-steps strong {
+    overflow: hidden;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .execution-strip li small,
+  .legacy-steps small,
+  .execution-strip time {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .execution-strip li time {
+    grid-column: 2;
+  }
+  .execution-strip li i {
+    position: absolute;
+    top: 10px;
+    left: 20px;
+    width: calc(100% - 8px);
+    height: 1px;
+    background: var(--border);
+  }
+  .legacy-steps {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .legacy-steps time {
+    color: var(--muted);
+    font-size: 10px;
+  }
+  .step-loading {
+    height: 62px;
+    background: linear-gradient(90deg, var(--base), var(--surface), var(--base));
+    background-size: 200% 100%;
+    animation: step-pulse 1s linear infinite;
+  }
+  @keyframes step-pulse {
+    to {
+      background-position: -200% 0;
+    }
+  }
   :global(main) {
     width: min(1440px, 100%) !important;
     padding: 28px 34px 70px !important;

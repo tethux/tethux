@@ -72,6 +72,7 @@ func runIngestCommand(args []string) error {
 func runServeCommand(args []string) error {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	port := flags.Int("port", 8080, "HTTP port")
+	address := flags.String("address", "127.0.0.1", "HTTP bind address")
 	dbPath := flags.String("db", "data/ci/ci-res.db", "SQLite database path")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -79,7 +80,7 @@ func runServeCommand(args []string) error {
 	if *port < 1 || *port > 65535 {
 		return fmt.Errorf("port must be between 1 and 65535")
 	}
-	return viewer.Serve(context.Background(), "127.0.0.1:"+strconv.Itoa(*port), *dbPath)
+	return viewer.Serve(context.Background(), *address+":"+strconv.Itoa(*port), *dbPath)
 }
 
 func printUsage() {

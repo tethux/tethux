@@ -56,3 +56,28 @@ https://codeberg.org/tethux/tethux/src/branch/master/tools/ci-results/viewer
 The GitHub repository is a secondary mirror:
 
 https://github.com/tethux/tethux/tree/master/tools/ci-results/viewer
+
+## NAS deployment
+
+The NAS workflow builds the viewer image on the NAS runner, keeps its SQLite
+database under `/var/cache/tethux-ci/viewer`, and attaches the viewer and tunnel
+connector to the dedicated `tethux-ci-viewer` Docker network. The viewer
+publishes no host port; the connector reaches it at
+`http://tethux-ci-viewer:8080`.
+
+Run the `deploy-viewer` Woodpecker workflow manually, or push `master` after its
+CI dependency succeeds. The first deployment intentionally starts without a
+tunnel. Create a remotely managed Cloudflare Tunnel and configure its public
+hostname service as `http://tethux-ci-viewer:8080`, then install the token
+interactively on the NAS:
+
+```console
+ssh nas
+/Containers/homelab/tethux-ci-viewer/tethux-ci deploy tunnel-token
+```
+
+Input is hidden. The token is written with mode `0600` below
+`/Containers/homelab/tethux-ci-viewer/secrets`; it is never placed in Git, an
+environment variable, a command argument, or a Woodpecker secret. Running the
+deployment workflow again updates the viewer while preserving the database and
+tunnel token.

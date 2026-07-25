@@ -18,6 +18,7 @@
   let suggestions = $state<Suggestion[]>([]);
   let selectedSuggestionIndex = $state(0);
   let suggestionsOpen = $state(false);
+  let suggestionsList = $state<HTMLDivElement>();
 
   let schemaOpen = $state(false);
   let schemaWidth = $state(50);
@@ -71,6 +72,17 @@
       suggestionsOpen = false;
     }
   }
+
+  $effect(() => {
+    if (!suggestionsOpen || !suggestionsList) return;
+    const index = selectedSuggestionIndex;
+    requestAnimationFrame(() => {
+      suggestionsList
+        ?.querySelectorAll<HTMLElement>('[role="option"]')
+        .item(index)
+        ?.scrollIntoView({ block: 'nearest' });
+    });
+  });
 
   function insertSuggestion(suggestion: Suggestion): void {
     const cursor = queryInput.selectionStart ?? query.length;
@@ -320,7 +332,16 @@
           />
 
           {#if suggestionsOpen}
-            <div class="suggestions" role="listbox" aria-label="SQL suggestions">
+            <div
+              class="suggestions"
+              role="listbox"
+              aria-label="SQL suggestions"
+              bind:this={suggestionsList}
+            >
+              <div class="suggestion-summary">
+                <span>{suggestions.length} matches</span>
+                <small>↑↓ choose · ↵ insert</small>
+              </div>
               {#each suggestions as suggestion, index (`${suggestion.kind}:${suggestion.label}`)}
                 <button
                   type="button"
@@ -331,7 +352,10 @@
                   onclick={() => insertSuggestion(suggestion)}
                 >
                   <span class="suggestion-kind">{suggestion.kind}</span>
-                  <strong>{suggestion.label}</strong>
+                  <span class="suggestion-copy">
+                    <strong>{suggestion.label}</strong>
+                    {#if suggestion.detail}<small>{suggestion.detail}</small>{/if}
+                  </span>
                 </button>
               {/each}
             </div>
@@ -674,9 +698,9 @@
     top: calc(100% - 2px);
     left: 10px;
     width: max-content;
-    min-width: 180px;
-    max-width: min(300px, calc(100vw - 330px));
-    max-height: 260px;
+    min-width: 280px;
+    max-width: min(420px, calc(100vw - 330px));
+    max-height: 300px;
     overflow-y: auto;
     padding: 5px;
     border: 1px solid #c5c7be;
@@ -684,9 +708,27 @@
     background: #fff;
     box-shadow: 0 12px 30px rgb(31 34 28 / 14%);
   }
+  .suggestion-summary {
+    position: sticky;
+    z-index: 1;
+    top: -5px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 7px 9px;
+    border-bottom: 1px solid var(--border);
+    background: var(--base);
+    color: var(--muted);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .suggestion-summary small {
+    font-size: inherit;
+  }
   .suggestions button {
     display: grid;
-    grid-template-columns: 54px minmax(0, auto);
+    grid-template-columns: 54px minmax(0, 1fr);
     align-items: center;
     width: 100%;
     gap: 9px;
@@ -716,6 +758,18 @@
     font-size: 12px;
     font-weight: 700;
     text-overflow: ellipsis;
+  }
+  .suggestion-copy {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+  .suggestion-copy small {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .results-heading {
     display: flex;
