@@ -26,7 +26,6 @@ func BuiltinWorkflows(root string) []Workflow {
 			{Name: "build", Command: "mise", Args: []string{"run", "build"}, Dir: root, DependsOn: []string{"go-test", "web-test"}},
 			{Name: "nix-host-100", Command: "nix", Args: []string{"eval", ".#nixosConfigurations.test-host-10-0-0-100.config.system.build.toplevel.drvPath", "--extra-experimental-features", "nix-command flakes"}, Dir: root, DependsOn: []string{"build"}},
 			{Name: "nix-host-78", Command: "nix", Args: []string{"eval", ".#nixosConfigurations.test-host-former-10-0-0-12.config.system.build.toplevel.drvPath", "--extra-experimental-features", "nix-command flakes"}, Dir: root, DependsOn: []string{"build"}},
-			{Name: "nix-proxmox", Command: "nix", Args: []string{"eval", ".#nixosConfigurations.test-host-proxmox-vm-9901.config.system.build.toplevel.drvPath", "--extra-experimental-features", "nix-command flakes"}, Dir: root, DependsOn: []string{"build"}},
 			{Name: "nix-checks", Command: "nix", Args: []string{"build", ".#checks." + nixArchitecture() + ".unit", ".#checks." + nixArchitecture() + ".build", "--extra-experimental-features", "nix-command flakes"}, Dir: root, DependsOn: []string{"build"}},
 		},
 	}

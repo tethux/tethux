@@ -389,7 +389,9 @@ func runRemoteLaptop(ctx context.Context, root, target, jump, runtimeName, archi
 		"nix", "develop", ".#integration",
 		"--extra-experimental-features", "nix-command",
 		"--extra-experimental-features", "flakes",
-		"-c", "go", "run", "./tools/ci", "run", "laptop", "--runtime", runtimeName,
+		"-c", "go", "run", "./tools/ci", "run", "laptop",
+		"--runtime", runtimeName,
+		"--root", remoteDir,
 	}
 	if device != "" {
 		remoteArgs = append(remoteArgs, "--device", device)
