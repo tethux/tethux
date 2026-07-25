@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 )
@@ -52,5 +53,10 @@ func TestRemoteArgsDoNotUseShell(t *testing.T) {
 	}
 	if len(args) == 0 || args[len(args)-1] != "hostname" {
 		t.Fatalf("unexpected args: %#v", args)
+	}
+	for _, option := range []string{"BatchMode=yes", "StrictHostKeyChecking=yes", "UpdateHostKeys=no"} {
+		if !slices.Contains(args, option) {
+			t.Fatalf("missing SSH transport option %q in %#v", option, args)
+		}
 	}
 }

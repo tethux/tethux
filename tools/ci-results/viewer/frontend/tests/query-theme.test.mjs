@@ -24,6 +24,8 @@ const testsPage = await readFile(
   new URL('../src/routes/tests/+page.svelte', import.meta.url),
   'utf8'
 );
+const dashboard = await readFile(new URL('../src/routes/+page.svelte', import.meta.url), 'utf8');
+const repositories = await readFile(new URL('../src/lib/repositories.ts', import.meta.url), 'utf8');
 
 test('light and dark themes expose the complete query palette', () => {
   for (const token of [
@@ -92,4 +94,18 @@ test('shared sidebar keeps theme and source controls visible on every route', ()
   assert.match(layout, /tools\/ci-results\/viewer/);
   assert.match(layout, /github\.com\/tethux\/tethux/);
   assert.match(layout, /scrollbar-gutter: stable/);
+});
+
+test('dashboard actions stack before the sidebar can force horizontal overflow', () => {
+  assert.match(
+    dashboard,
+    /@media \(max-width: 860px\)[\s\S]+\.dashboard-header[\s\S]+flex-direction: column/
+  );
+  assert.match(dashboard, /@media \(max-width: 560px\)[\s\S]+\.header-actions a[\s\S]+width: 100%/);
+});
+
+test('GitHub is the active source and optional forges remain configuration-only', () => {
+  assert.match(repositories, /name: 'GitHub'[\s\S]+github\.com\/tethux\/tethux/);
+  assert.match(repositories, /\/\/\s+name: 'Codeberg'/);
+  assert.doesNotMatch(repositories, /^\s+name: 'Codeberg'/m);
 });

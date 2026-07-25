@@ -309,6 +309,7 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
+    min-width: 0;
   }
   .query-link,
   .failure-link {
@@ -697,6 +698,14 @@
     }
   }
   @media (max-width: 860px) {
+    .dashboard-header {
+      align-items: start;
+      flex-direction: column;
+    }
+    .header-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
     .health-grid {
       grid-template-columns: repeat(2, 1fr);
     }
@@ -711,12 +720,10 @@
     }
   }
   @media (max-width: 560px) {
-    .dashboard-header {
-      align-items: start;
-      flex-direction: column;
-    }
-    .header-actions {
-      justify-content: flex-start;
+    .header-actions a {
+      box-sizing: border-box;
+      justify-content: space-between;
+      width: 100%;
     }
     .health-grid {
       grid-template-columns: 1fr;

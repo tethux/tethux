@@ -24,6 +24,9 @@ steps:
         - RUNTIME_IMAGE=ci-registry:5000/library/alpine:3.23
       tags:
         - ${CI_COMMIT_SHA}
+    when:
+      - event: pull_request
+      - event: manual
 
   deploy-viewer-and-ingest:
     image: docker:dind

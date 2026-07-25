@@ -35,11 +35,19 @@ func (r Remote) scpBinary() string {
 	return "scp"
 }
 
+func remoteTransportArgs() []string {
+	return []string{
+		"-o", "BatchMode=yes",
+		"-o", "StrictHostKeyChecking=yes",
+		"-o", "UpdateHostKeys=no",
+	}
+}
+
 func (r Remote) SSHArgs(remoteArgs ...string) ([]string, error) {
 	if strings.TrimSpace(r.Target) == "" || strings.HasPrefix(r.Target, "-") {
 		return nil, errors.New("remote target is required")
 	}
-	args := []string{"-o", "BatchMode=yes", "-o", "UpdateHostKeys=no"}
+	args := remoteTransportArgs()
 	if r.JumpHost != "" {
 		args = append(args, "-J", r.JumpHost)
 	}
@@ -66,7 +74,7 @@ func (r Remote) CopyTo(ctx context.Context, source, destination string, stdout, 
 	if err != nil {
 		return err
 	}
-	args := []string{"-q", "-o", "UpdateHostKeys=no"}
+	args := append([]string{"-q"}, remoteTransportArgs()...)
 	if info.IsDir() {
 		args = append(args, "-r")
 	}
@@ -89,7 +97,7 @@ func (r Remote) CopyFrom(ctx context.Context, source, destination string, stdout
 	if err := os.MkdirAll(destination, 0o750); err != nil {
 		return err
 	}
-	args := []string{"-q", "-r", "-o", "UpdateHostKeys=no"}
+	args := append([]string{"-q", "-r"}, remoteTransportArgs()...)
 	if r.JumpHost != "" {
 		args = append(args, "-o", "ProxyJump="+r.JumpHost)
 	}
