@@ -243,7 +243,7 @@ func ingestGoTestJSONL(
 			event.Action,
 		)
 
-		// Store later.
+		// store after parsing.
 		_ = store
 		_ = record
 	}

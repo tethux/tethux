@@ -32,14 +32,13 @@ var (
 	ErrExecFailed               = errors.New("container exec failed")
 )
 
-// Deprecated aliases retained for callers compiled against the original names.
+// deprecated aliases kept for old callers.
 var (
 	ErrFailedToCreateClent = ErrFailedToCreateClient
 	ErrNoSockerFound       = ErrNoSocketFound
 )
 
-// OpError preserves both the stable container error category and the runtime's
-// underlying error while adding provider and target context.
+// keeps the stable category and runtime error with context.
 type OpError struct {
 	Provider string
 	Kind     error

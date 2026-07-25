@@ -13,9 +13,7 @@ type ContainerBridgeOptions struct {
 	MTU         int
 	UsePcap     bool
 	Immediate   bool
-	// LocalMiddleware is applied to the host-side container port; RemoteMiddleware
-	// is applied to the UDP uplink. Use NewPacketLossMiddleware and WithLatency
-	// to model an impaired link.
+	// local middleware wraps the container port; remote middleware wraps udp.
 	LocalMiddleware  []PortMiddleware
 	RemoteMiddleware []PortMiddleware
 }

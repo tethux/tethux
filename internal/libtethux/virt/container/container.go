@@ -24,7 +24,7 @@ type ContainerProvider interface {
 	RestartContainer(ctx context.Context, id string, opts *client.ContainerRestartOptions) error
 	SuspendContainer(ctx context.Context, id string, opts *client.ContainerPauseOptions) error
 	ResumeContainer(ctx context.Context, id string, opts *client.ContainerUnpauseOptions) error
-	// needs cleanup and prune funcs
+	// cleanup and prune are still missing.
 }
 
 type ContainerConfig struct {

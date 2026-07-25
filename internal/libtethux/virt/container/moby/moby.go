@@ -31,9 +31,6 @@ func New(name, socket string) (*Client, error) {
 	return &Client{cli: cli, name: name, socket: socket}, nil
 }
 
-// all of these funcs should not disragard things some may be useful i just didnt read into the docs enough yet
-// blabalba aobve prolyl missinfo bseides maybe nicer pull
-
 func (c *Client) StartContainer(ctx context.Context, id string, opts *mobyclient.ContainerStartOptions) error {
 	o := mobyclient.ContainerStartOptions{}
 	if opts != nil {
@@ -176,9 +173,7 @@ func (c *Client) Pull(ctx context.Context, ref string, opts *mobyclient.ImagePul
 	if opts != nil {
 		o = *opts
 	}
-	// some form of progress tracking would be cool and epic
-	// and also setting identity which would be global tho
-	// just make the mobyclient.ImagePullOptions configurable with a param
+	// progress output can be added when the caller needs it.
 	resp, err := c.cli.ImagePull(ctx, ref, mobyclient.ImagePullOptions{
 		All:           o.All,
 		RegistryAuth:  o.RegistryAuth,
@@ -277,8 +272,6 @@ func (c *Client) Inspect(ctx context.Context, id string, opts *mobyclient.Contai
 	}, nil
 }
 
-// for virt.Provider
-
 func (c *Client) Create(ctx context.Context, cfg *virt.NodeConfig) (*virt.Node, error) {
 	if cfg == nil {
 		return nil, errs.New(c.name, errs.ErrInvalidConfig, "config is nil")
@@ -323,7 +316,6 @@ func (c *Client) Name() string {
 func (c *Client) List(ctx context.Context) ([]*virt.Node, error) {
 	result, err := c.cli.ContainerList(ctx, mobyclient.ContainerListOptions{All: true})
 	if err != nil {
-		// idk if i should have here a err type form the contianer spakcage bc this is a method of the virt provider enot the container provider
 		return nil, errs.Wrap(c.name, errs.ErrFailedToListContainers, "", err)
 	}
 	var nodes []*virt.Node

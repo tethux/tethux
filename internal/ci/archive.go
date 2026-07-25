@@ -77,9 +77,7 @@ func NewArchiveWriter(options ArchiveOptions) (*ArchiveWriter, error) {
 	return &ArchiveWriter{Options: options, Stage: stage}, nil
 }
 
-// OpenArchiveWriter resumes a previously prepared partial archive directory.
-// It is intended for provider integrations that execute and finalize in separate
-// processes.
+// resumes a partial archive from another process.
 func OpenArchiveWriter(stage string, options ArchiveOptions) (*ArchiveWriter, error) {
 	info, err := os.Stat(stage)
 	if err != nil {

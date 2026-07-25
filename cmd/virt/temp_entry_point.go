@@ -196,7 +196,7 @@ func runRemoteSmoke(ctx context.Context, host, provider, socket, name, image str
 
 	remote := shellJoin(parts)
 	fmt.Printf("[%s] running remote smoke on %s\n", provider, host)
-	// #nosec G204 -- this command is the explicit SSH transport for the --host smoke-test flag.
+	// #nosec G204 -- --host is the requested ssh target.
 	ssh := osexec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", host, remote)
 	ssh.Stdin = os.Stdin
 	ssh.Stdout = os.Stdout

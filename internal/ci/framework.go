@@ -1,6 +1,4 @@
-// Package ci provides the declarative execution primitives used by repository
-// automation. It intentionally does not parse command-line flags; tools/ci is
-// the adapter between operators or CI providers and these reusable APIs.
+// package ci holds the test automation building blocks.
 package ci
 
 import (

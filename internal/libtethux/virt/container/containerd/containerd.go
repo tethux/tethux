@@ -257,7 +257,7 @@ func (c *Containerd) CreateContainer(ctx context.Context, cfg *container.Contain
 		specOpts = append(specOpts, oci.WithAnnotations(cfg.Labels))
 	}
 
-	// volumes as bind mounts
+	// volumes are bind mounts.
 	if len(cfg.Volumes) > 0 {
 		mounts := make([]specs.Mount, len(cfg.Volumes))
 		for i, v := range cfg.Volumes {
@@ -275,9 +275,7 @@ func (c *Containerd) CreateContainer(ctx context.Context, cfg *container.Contain
 		specOpts = append(specOpts, oci.WithMounts(mounts))
 	}
 
-	// Containerd itself does not configure CNI for direct client-created tasks.
-	// Host mode is still useful for the topology runner, while isolated mode
-	// gets the runtime's default network namespace.
+	// direct containerd tasks do not configure cni; host mode removes the namespace.
 	specOpts = append(specOpts, func(ctx context.Context, _ oci.Client, _ *containersspecs.Container, s *specs.Spec) error {
 		if cfg.NetworkMode == "host" {
 			s.Linux.Namespaces = slices.DeleteFunc(s.Linux.Namespaces, func(ns specs.LinuxNamespace) bool {
@@ -320,11 +318,8 @@ func (c *Containerd) CreateContainer(ctx context.Context, cfg *container.Contain
 	}, nil
 }
 
-// containerd's standard WithImageConfig option resolves supplementary groups
-// by mounting the snapshot in the client mount namespace. That cannot work
-// when this client talks to a rootless daemon living in RootlessKit's mount
-// namespace. Read the OCI config from the content store instead; runc applies
-// the rootless UID/GID mapping when it creates the task.
+// reads the oci config directly because rootlesskit hides the snapshot mount.
+// runc applies the uid and gid mapping when it creates the task.
 func rootlessImageSpecOpts(ctx context.Context, img containerd.Image) ([]oci.SpecOpts, error) {
 	descriptor, err := img.Config(ctx)
 	if err != nil {

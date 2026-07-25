@@ -1,6 +1,4 @@
-// bridge-backend-smoke is a privileged integration test for every bridge
-// transport. It uses libpcap as an independent packet injector/observer and
-// writes both structured JSON Lines and a pcap artifact for CI archives.
+// bridge-backend-smoke checks every transport with an independent pcap observer.
 package main
 
 import (
@@ -181,8 +179,7 @@ func testUDP(captures *captureWriter) (map[string]any, error) {
 	return packetMetrics(len(frames), len(frames), byteCount), nil
 }
 
-// testUDPPacketLoss proves that loss is imposed by the bridge, not merely
-// reported by its metrics: a real UDP observer must receive no frame.
+// checks that a real udp observer receives no dropped frame.
 func testUDPPacketLoss(_ *captureWriter) (map[string]any, error) {
 	leftObserver, err := listenUDP()
 	if err != nil {
@@ -232,9 +229,7 @@ func testUDPPacketLoss(_ *captureWriter) (map[string]any, error) {
 	return packetMetrics(1, 0, 0), nil
 }
 
-// testUDPPacketLossCLI verifies the public `tethux bridge ports` entry point,
-// rather than the library directly. It keeps the loss policy on the egress
-// port so the observer can prove the frame was not delivered.
+// checks packet loss through the public cli with a real observer.
 func testUDPPacketLossCLI(_ *captureWriter, tethuxPath string) (map[string]any, error) {
 	if tethuxPath == "" {
 		return nil, errors.New("--tethux is required for the bridge CLI conformance test")

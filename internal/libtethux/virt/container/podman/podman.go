@@ -10,7 +10,7 @@ import (
 	mobyimpl "github.com/0xveya/tethux/internal/libtethux/virt/container/moby"
 )
 
-// uncomment to check at compile time if methods are missing
+// uncomment for a compile-time interface check.
 // var _ container.ContainerProvider = (*Podman)(nil)
 
 type Option func(*config)

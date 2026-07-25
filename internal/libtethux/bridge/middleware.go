@@ -13,8 +13,7 @@ type middlewarePort struct {
 	writeHook func() error
 }
 
-// WrapPort applies middleware in declaration order. The first middleware is
-// the outermost wrapper, so it observes a frame before later middleware.
+// applies middleware in declaration order; the first is outermost.
 func WrapPort(port Port, middleware ...PortMiddleware) Port {
 	for i := len(middleware) - 1; i >= 0; i-- {
 		if middleware[i] != nil {
@@ -54,7 +53,7 @@ func (m *middlewarePort) Close() error {
 	return m.base.Close()
 }
 
-// Latency returns middleware that delays each ingress and egress frame.
+// delays each ingress and egress frame.
 func Latency(delay time.Duration) PortMiddleware {
 	if delay <= 0 {
 		return func(port Port) Port { return port }
@@ -75,16 +74,13 @@ func Latency(delay time.Duration) PortMiddleware {
 	}
 }
 
-// WithLatency wraps port with latency middleware.
+// wraps a port with latency.
 func WithLatency(port Port, delay time.Duration) Port {
 	return WrapPort(port, Latency(delay))
 }
 
-// PacketLossOptions configures a middleware which independently drops ingress
-// and egress frames. Probability must be in the inclusive range [0, 1].
-//
-// Random is primarily useful for deterministic tests. It must return a value
-// in [0, 1); a nil function uses math/rand's package-level source.
+// configures independent ingress and egress loss from 0 to 1.
+// random is optional and mainly useful for tests.
 type PacketLossOptions struct {
 	Probability float64
 	Random      func() float64
@@ -97,9 +93,7 @@ type packetLossPort struct {
 	mu          sync.Mutex
 }
 
-// NewPacketLossMiddleware constructs packet-loss middleware. A dropped frame
-// is intentionally reported as a successful read or write: loss is part of
-// the simulated link, not a failure of the underlying port.
+// builds packet loss middleware; dropped frames are successful operations.
 func NewPacketLossMiddleware(opts PacketLossOptions) (PortMiddleware, error) {
 	if opts.Probability < 0 || opts.Probability > 1 {
 		return nil, fmt.Errorf("packet loss probability must be between 0 and 1, got %g", opts.Probability)
@@ -120,7 +114,7 @@ func NewPacketLossMiddleware(opts PacketLossOptions) (PortMiddleware, error) {
 	}, nil
 }
 
-// WithPacketLoss wraps port with packet-loss middleware.
+// wraps a port with packet loss.
 func WithPacketLoss(port Port, opts PacketLossOptions) (Port, error) {
 	middleware, err := NewPacketLossMiddleware(opts)
 	if err != nil {

@@ -184,8 +184,7 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 		return err
 	}
 
-	// Exercise the base Provider.Create path independently; container images
-	// with short-lived defaults are valid here because creation is metadata-only.
+	// check provider creation separately; it only creates metadata.
 	baseName := name + "-base"
 	_ = p.Delete(ctx, baseName)
 	if err := call("create", func() error {
