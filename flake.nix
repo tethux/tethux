@@ -107,7 +107,6 @@
             };
             miseTaskTools = with pkgs; [
               air
-              bun
               go
               gofumpt
               golangci-lint
@@ -118,13 +117,31 @@
               sqlc
               sqlite
             ];
+            bunBaseline = pkgs.stdenvNoCC.mkDerivation {
+              pname = "bun-baseline";
+              version = "1.3.11";
+              src = pkgs.fetchurl {
+                url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-x64-baseline.zip";
+                hash = "sha256-q+NG9jQUVHzfazW3pkmkkMcouT0AYiYVaSORioTA5Zs=";
+              };
+              sourceRoot = "bun-linux-x64-baseline";
+              nativeBuildInputs = [
+                pkgs.autoPatchelfHook
+                pkgs.unzip
+              ];
+              buildInputs = [ pkgs.openssl ];
+              installPhase = ''
+                install -Dm755 bun $out/bin/bun
+                ln -s bun $out/bin/bunx
+              '';
+            };
           in
           {
             ci = pkgs.mkShell (
               cgoPcapEnv
               // {
                 MISE_ENABLE_TOOLS = "";
-                packages = miseTaskTools ++ (with pkgs; [
+                packages = [ bunBaseline ] ++ miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   docker-client
                   git
@@ -165,7 +182,7 @@
             default = pkgs.mkShell (
               cgoPcapEnv
               // {
-                packages = miseTaskTools ++ (with pkgs; [
+                packages = [ pkgs.bun ] ++ miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   bridge-utils
                   curl
