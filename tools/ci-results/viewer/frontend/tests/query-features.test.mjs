@@ -22,6 +22,10 @@ const logSearch = await readFile(
   new URL('../src/lib/components/LogSearch.svelte', import.meta.url),
   'utf8'
 );
+const logPreview = await readFile(
+  new URL('../src/lib/components/LogPreview.svelte', import.meta.url),
+  'utf8'
+);
 
 test('saved queries use a versioned local document and complete lifecycle controls', () => {
   assert.match(saved, /ci-results:saved-queries:v1/);
@@ -42,6 +46,9 @@ test('schema reload has explicit lifecycle and stale-response protection', () =>
   assert.match(query, /schemaStatus/);
   assert.match(query, /schemaRequest/);
   assert.match(query, /request !== schemaRequest/);
+  assert.match(query, /function toggleSchema/);
+  assert.match(query, /event\.metaKey \|\| event\.ctrlKey/);
+  assert.match(query, /aria-expanded=\{schemaOpen\}/);
 });
 
 test('FROM and JOIN completion offers the complete scrollable schema object list', () => {
@@ -61,6 +68,11 @@ test('artifact workbench exposes filtering, preview, and exact-byte download', (
   assert.match(artifacts, /Artifact filters/);
   assert.match(artifacts, /Download exact bytes/);
   assert.match(artifacts, /Re-run ingestion/);
+  assert.match(logPreview, /Parsed log/);
+  assert.match(logPreview, />JSON</);
+  assert.match(logPreview, /<details/);
+  assert.doesNotMatch(logPreview, /structured event/);
+  assert.match(logPreview, /JSONL is parsed one record per line/);
 });
 
 test('diagnostic overview keeps health, duration, recent runs, and workflow steps concise', () => {
@@ -69,7 +81,7 @@ test('diagnostic overview keeps health, duration, recent runs, and workflow step
   assert.match(dashboard, /Recent runs/);
   assert.match(dashboard, /class="y-axis"/);
   assert.match(dashboard, /chart-tooltip/);
-  for (const chart of ['Run status', 'Test outcomes', 'Runs by day', 'Device pace']) {
+  for (const chart of ['Pipeline health', 'Test outcomes', 'Failure hotspots', 'Device pace']) {
     assert.match(dashboard, new RegExp(chart));
   }
   assert.doesNotMatch(dashboard, /class="donut"/);

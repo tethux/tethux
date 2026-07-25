@@ -5,13 +5,17 @@
   import type { Artifact, ArtifactPreview } from '$lib/api/types';
   import { nullStringValue } from '$lib/api/types';
   import CommitLink from '$lib/components/CommitLink.svelte';
+  import CodePreview from '$lib/components/CodePreview.svelte';
   import LogSearch from '$lib/components/LogSearch.svelte';
+  import LogPreview from '$lib/components/LogPreview.svelte';
+  import SearchIcon from '$lib/components/SearchIcon.svelte';
   import { sourceRepositories } from '$lib/repositories';
 
   let artifacts = $state<Artifact[]>([]);
   let nextCursor = $state('');
   let loading = $state(true);
   let loadingMore = $state(false);
+  let searching = $state(false);
   let error = $state('');
   let q = $state('');
   let fileType = $state('');
@@ -38,7 +42,8 @@
 
   async function load(reset = true): Promise<void> {
     const id = ++requestID;
-    if (reset) loading = true;
+    if (reset && artifacts.length === 0) loading = true;
+    else if (reset) searching = true;
     else loadingMore = true;
     error = '';
     const result = await listArtifacts(fetch, {
@@ -61,11 +66,18 @@
     );
     loading = false;
     loadingMore = false;
+    searching = false;
   }
 
   function scheduleSearch(): void {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => load(), 220);
+  }
+
+  function submitSearch(event: SubmitEvent): void {
+    event.preventDefault();
+    clearTimeout(searchTimer);
+    void load();
   }
 
   async function inspect(file: Artifact): Promise<void> {
@@ -101,10 +113,13 @@
 </header>
 
 <section class="artifact-tools" aria-label="Artifact filters">
-  <label class="search">
-    <span aria-hidden="true">⌕</span>
-    <input bind:value={q} oninput={scheduleSearch} placeholder="Search paths, media, runs…" />
-  </label>
+  <form class="search" onsubmit={submitSearch}>
+    <label>
+      <span><SearchIcon size={17} /></span>
+      <input bind:value={q} oninput={scheduleSearch} placeholder="Search paths, media, runs…" />
+    </label>
+    <button aria-label="Search artifacts" disabled={searching}>{searching ? '···' : '↵'}</button>
+  </form>
   <label>
     <span>Kind</span>
     <select bind:value={fileType} onchange={() => load()}>
@@ -224,9 +239,13 @@
           <img src={detail.raw_url} alt={fileName(selected.archive_path)} />
         </div>
       {:else if detail.preview !== null}
-        <pre>{typeof detail.preview === 'string'
-            ? detail.preview
-            : JSON.stringify(detail.preview, null, 2)}</pre>
+        <div class="drawer-code">
+          {#if isSearchableLog(selected)}
+            <LogPreview value={detail.preview} />
+          {:else}
+            <CodePreview value={detail.preview} />
+          {/if}
+        </div>
         {#if detail.truncated}<p class="truncated">
             Preview truncated. Download for the complete file.
           </p>{/if}
@@ -237,7 +256,7 @@
         </div>
       {/if}
       {#if detail.available && isSearchableLog(selected)}
-        <LogSearch fileId={selected.id} />
+        <LogSearch fileId={selected.id} fileName={selected.archive_path} />
       {/if}
       <dl>
         <div>
@@ -328,15 +347,29 @@
   }
   .search {
     position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 38px;
+    gap: 5px;
     align-self: end;
   }
-  .search > span {
+  .search label {
+    position: relative;
+  }
+  .search label > span {
     position: absolute;
     z-index: 1;
     left: 11px;
     bottom: 8px;
     color: var(--focus) !important;
     font-size: 17px !important;
+  }
+  .search button {
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--focus);
+    cursor: pointer;
   }
   .artifact-index {
     border: 1px solid var(--border);
@@ -537,16 +570,8 @@
     color: var(--subtle);
     font-size: 11px;
   }
-  .drawer pre {
-    max-height: 55vh;
+  .drawer-code {
     margin: 20px 26px;
-    overflow: auto;
-    padding: 18px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
   }
   .unavailable {
     margin: 24px 26px;

@@ -1,17 +1,30 @@
 <script lang="ts">
   import { searchArtifact } from '$lib/api/artifacts';
-  import type { LogSearchMatch } from '$lib/api/types';
+  import type { ArchiveFile, LogSearchMatch } from '$lib/api/types';
 
-  let { fileId }: { fileId: number } = $props();
+  let {
+    fileId,
+    fileName = '',
+    files = []
+  }: { fileId?: number; fileName?: string; files?: ArchiveFile[] } = $props();
+  type LocatedMatch = LogSearchMatch & { fileId: number; fileName: string };
   let query = $state('');
   let regex = $state(false);
   let severity = $state('all');
-  let matches = $state<LogSearchMatch[]>([]);
+  let matches = $state<LocatedMatch[]>([]);
   let total = $state(0);
   let truncated = $state(false);
   let loading = $state(false);
   let error = $state('');
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let requestID = 0;
+  const targets = $derived(
+    files.length
+      ? files.map((file) => ({ id: file.id, name: file.archive_path }))
+      : fileId !== undefined
+        ? [{ id: fileId, name: fileName }]
+        : []
+  );
 
   const levels = [
     'all',
@@ -32,29 +45,48 @@
   }
 
   async function runSearch() {
+    clearTimeout(timer);
+    const id = ++requestID;
     loading = true;
     error = '';
-    const result = await searchArtifact(fetch, fileId, { q: query, regex, severity });
-    result.match(
-      (value) => {
-        matches = value.matches;
-        total = value.total;
-        truncated = value.truncated;
-      },
-      (apiError) => {
-        matches = [];
-        total = 0;
-        error = apiError.message;
-      }
+    const found: LocatedMatch[] = [];
+    let foundTotal = 0;
+    let wasTruncated = false;
+    let firstError = '';
+    await Promise.all(
+      targets.map(async (target) => {
+        const result = await searchArtifact(fetch, target.id, { q: query, regex, severity });
+        result.match(
+          (value) => {
+            found.push(
+              ...value.matches.map((match) => ({
+                ...match,
+                fileId: target.id,
+                fileName: target.name
+              }))
+            );
+            foundTotal += value.total;
+            wasTruncated ||= value.truncated;
+          },
+          (apiError) => {
+            firstError ||= apiError.message;
+          }
+        );
+      })
     );
+    if (id !== requestID) return;
+    matches = found.sort((a, b) => a.fileName.localeCompare(b.fileName) || a.line - b.line);
+    total = foundTotal;
+    truncated = wasTruncated;
+    error = firstError && found.length === 0 ? firstError : '';
     loading = false;
   }
 </script>
 
-<section class="log-search" aria-label="Search full log">
+<section class="log-search" aria-label={files.length ? 'Search all run logs' : 'Search full log'}>
   <header>
     <label>
-      <span>Full log search</span>
+      <span>{files.length ? `Search ${files.length} run logs` : 'Full log search'}</span>
       <input
         bind:value={query}
         oninput={scheduleSearch}
@@ -82,10 +114,12 @@
       {#if truncated}<em>showing first 500</em>{/if}
     </div>
     <ol>
-      {#each matches as match (match.line)}
+      {#each matches as match (`${match.fileId}:${match.line}`)}
         <li
+          class:multi={files.length > 0}
           class:flagged={['warn', 'error', 'fatal', 'panic', 'critical'].includes(match.severity)}
         >
+          {#if files.length}<span class="file" title={match.fileName}>{match.fileName}</span>{/if}
           <a href={`#L${match.line}`} aria-label={`Line ${match.line}`}>{match.line}</a>
           <span class="level" data-level={match.severity}>{match.severity}</span>
           <code>{match.text || ' '}</code>
@@ -95,7 +129,11 @@
   {:else if query || severity !== 'all'}
     <p class="empty">{loading ? 'Scanning the complete artifact…' : 'No matching lines.'}</p>
   {:else}
-    <p class="empty">Searches the complete stored artifact, beyond the bounded preview.</p>
+    <p class="empty">
+      {files.length
+        ? 'Searches every retained log in this run without opening files one by one.'
+        : 'Searches the complete stored artifact, beyond the bounded preview.'}
+    </p>
   {/if}
 </section>
 
@@ -178,6 +216,16 @@
     display: grid;
     grid-template-columns: 48px 58px minmax(0, 1fr);
     border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+  li.multi {
+    grid-template-columns: minmax(110px, 0.35fr) 48px 58px minmax(0, 1fr);
+  }
+  .file {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   li.flagged {
     background: color-mix(in srgb, var(--love) 5%, transparent);
