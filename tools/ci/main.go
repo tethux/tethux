@@ -213,10 +213,17 @@ func workflowFor(name, root, runtimeName, provider string) (ciframework.Workflow
 	providers, _ := registry.Workflow("provider")
 	topology, _ := registry.Workflow("topology")
 	backends, _ := registry.Workflow("bridge")
-	steps := make([]ciframework.Step, 0, len(backends.Steps)+len(providers.Steps)+len(topology.Steps))
+	cliPath := filepath.Join(root, "results", "current", "artifacts", "tethux")
+	steps := []ciframework.Step{{
+		Name: "build-cli", Command: "go", Args: []string{"build", "-o", cliPath, "./cmd/tethux"}, Dir: root,
+	}}
 	for _, group := range [][]ciframework.Step{backends.Steps, providers.Steps, topology.Steps} {
 		for _, step := range group {
 			step.DependsOn = nil
+			if step.Name == "bridge" {
+				step.Args = append(step.Args, "--tethux", cliPath)
+				step.DependsOn = []string{"build-cli"}
+			}
 			if step.Name == "topology" {
 				step.Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", runtimeName}
 			}
