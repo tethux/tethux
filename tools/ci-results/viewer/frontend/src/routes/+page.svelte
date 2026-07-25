@@ -26,12 +26,41 @@
     const values = recent.map((run) => run.duration_ms).sort((a, b) => a - b);
     return values[Math.floor(values.length / 2)];
   });
-  const passedRuns = $derived(recent.filter((run) => run.status === 'passed').length);
   const totalTests = $derived(recent.reduce((sum, run) => sum + run.total_count, 0));
   const passedTests = $derived(recent.reduce((sum, run) => sum + run.passed_count, 0));
   const failedTests = $derived(
     recent.reduce((sum, run) => sum + run.failed_count + run.errored_count, 0)
   );
+  const pipelineHealth = $derived.by(() => {
+    const groups = new SvelteMap<string, { total: number; passed: number; failures: number }>();
+    for (const run of recent) {
+      const pipeline = nullStringValue(run.workflow) ?? run.project_key;
+      const current = groups.get(pipeline) ?? { total: 0, passed: 0, failures: 0 };
+      current.total++;
+      current.passed += run.status === 'passed' ? 1 : 0;
+      current.failures += run.failed_count + run.errored_count;
+      groups.set(pipeline, current);
+    }
+    return [...groups]
+      .map(([pipeline, values]) => ({ pipeline, ...values }))
+      .sort((a, b) => b.failures - a.failures || a.pipeline.localeCompare(b.pipeline))
+      .slice(0, 4);
+  });
+  const failureHotspots = $derived.by(() => {
+    const groups = new SvelteMap<string, number>();
+    for (const run of recent) {
+      const failures = run.failed_count + run.errored_count;
+      if (!failures) continue;
+      const pipeline = nullStringValue(run.workflow) ?? run.project_key;
+      const location = `${pipeline} · ${run.device_key}`;
+      groups.set(location, (groups.get(location) ?? 0) + failures);
+    }
+    return [...groups]
+      .map(([location, failures]) => ({ location, failures }))
+      .sort((a, b) => b.failures - a.failures)
+      .slice(0, 4);
+  });
+  const hotspotPeak = $derived(Math.max(...failureHotspots.map((item) => item.failures), 1));
   const deviceDurations = $derived.by(() => {
     const groups = new SvelteMap<string, number[]>();
     for (const run of recent) {
@@ -45,19 +74,6 @@
     }));
   });
   const devicePeak = $derived(Math.max(...deviceDurations.map((item) => item.average), 1));
-  const runDays = $derived.by(() => {
-    const counts = new SvelteMap<string, number>();
-    for (const run of recent) {
-      const day = new Date(run.started_at).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric'
-      });
-      counts.set(day, (counts.get(day) ?? 0) + 1);
-    }
-    return [...counts].reverse().slice(-7);
-  });
-  const dayPeak = $derived(Math.max(...runDays.map(([, count]) => count), 1));
-
   onMount(async () => {
     const [summaryResult, runsResult] = await Promise.all([getSummary(fetch), getRuns(fetch)]);
     summaryResult.match(
@@ -169,11 +185,17 @@
     </div>
     <div class="small-charts">
       <article>
-        <header><span>Run status</span><strong>{passedRuns}/{recent.length}</strong></header>
-        <div class="status-bars" aria-label={`${passedRuns} of ${recent.length} runs passed`}>
-          <i style:width={`${successRate}%`}></i><b style:width={`${100 - successRate}%`}></b>
+        <header><span>Pipeline health</span><strong>{pipelineHealth.length}</strong></header>
+        <div class="diagnostic-list">
+          {#each pipelineHealth as item (item.pipeline)}
+            <span title={`${item.pipeline}: ${item.passed} of ${item.total} runs passed`}>
+              <small>{item.pipeline}</small>
+              <i><b style:width={`${(item.passed / item.total) * 100}%`}></b></i>
+              <em>{item.failures}</em>
+            </span>
+          {/each}
         </div>
-        <small>{successRate}% passed</small>
+        <small>failed tests by pipeline</small>
       </article>
       <article>
         <header><span>Test outcomes</span><strong>{totalTests}</strong></header>
@@ -184,15 +206,19 @@
         <small>{failedTests} need attention</small>
       </article>
       <article>
-        <header><span>Runs by day</span><strong>{runDays.length}d</strong></header>
-        <div class="day-chart">
-          {#each runDays as [day, count] (day)}
-            <span title={`${day}: ${count} runs`}
-              ><i style:height={`${(count / dayPeak) * 100}%`}></i></span
-            >
+        <header><span>Failure hotspots</span><strong>{failedTests}</strong></header>
+        <div class="diagnostic-list hotspots">
+          {#each failureHotspots as item (item.location)}
+            <span title={`${item.location}: ${item.failures} failed tests`}>
+              <small>{item.location}</small>
+              <i><b style:width={`${(item.failures / hotspotPeak) * 100}%`}></b></i>
+              <em>{item.failures}</em>
+            </span>
+          {:else}
+            <span class="all-clear">No failures in recent runs</span>
           {/each}
         </div>
-        <small>archive throughput</small>
+        <small>pipeline and test host</small>
       </article>
       <article>
         <header><span>Device pace</span><strong>{deviceDurations.length}</strong></header>
@@ -457,38 +483,57 @@
   .small-charts header strong {
     font-size: 10px;
   }
-  .status-bars,
   .test-mix {
     display: flex;
     height: 7px;
     overflow: hidden;
     background: var(--border);
   }
-  .status-bars i,
   .test-mix i {
     background: var(--syntax-green);
   }
-  .status-bars b,
   .test-mix b {
     background: var(--love);
   }
-  .day-chart {
-    display: flex;
-    height: 28px;
-    align-items: end;
+  .diagnostic-list {
+    display: grid;
     gap: 4px;
   }
-  .day-chart span {
-    display: flex;
-    height: 100%;
-    flex: 1;
-    align-items: end;
-    background: color-mix(in srgb, var(--syntax-blue) 8%, transparent);
+  .diagnostic-list > span {
+    display: grid;
+    grid-template-columns: minmax(64px, 1fr) minmax(34px, 0.8fr) 18px;
+    align-items: center;
+    gap: 6px;
   }
-  .day-chart i {
-    width: 100%;
-    min-height: 3px;
-    background: var(--syntax-blue);
+  .diagnostic-list small {
+    overflow: hidden;
+    color: var(--subtle);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .diagnostic-list i {
+    height: 4px;
+    overflow: hidden;
+    background: var(--border);
+  }
+  .diagnostic-list b {
+    display: block;
+    height: 100%;
+    background: var(--syntax-green);
+  }
+  .diagnostic-list em {
+    color: var(--muted);
+    font-size: 8px;
+    font-style: normal;
+    text-align: right;
+  }
+  .diagnostic-list.hotspots b {
+    background: var(--love);
+  }
+  .diagnostic-list .all-clear {
+    display: block;
+    color: var(--syntax-green);
+    font-size: 9px;
   }
   .device-chart {
     display: grid;

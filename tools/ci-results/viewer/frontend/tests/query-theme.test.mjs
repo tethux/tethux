@@ -59,11 +59,12 @@ test('all query status families have semantic theme colors', () => {
 
 test('query controls keep their responsive interaction contracts', () => {
   assert.match(queryPage, /class:active=\{schemaOpen\}/);
-  assert.match(queryPage, /onclick=\{\(\) => \(schemaOpen = true\)\}/);
+  assert.match(queryPage, /onclick=\{toggleSchema\}/);
   assert.match(queryPage, /onclick=\{\(\) => \(schemaOpen = false\)\}/);
   assert.match(queryPage, /aria-controls="schema-panel"/);
   assert.match(queryPage, /calc\(100% - var\(--schema-width\) - 10px\)/);
-  assert.match(queryPage, /width: max-content/);
+  assert.match(queryPage, /width: fit-content/);
+  assert.match(queryPage, /min-width: min\(200px/);
   assert.match(queryPage, /background: var\(--syntax-blue\)/);
   assert.match(queryPage, /\.suggestions button\.selected[^}]+var\(--focus\)/s);
   assert.match(queryResults, /Intl\.DateTimeFormat/);

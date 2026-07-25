@@ -23,6 +23,7 @@ export type Run = {
   run_uid: string;
   status: string;
   branch: NullString;
+  workflow: NullString;
   commit_sha: string;
   started_at: string;
   duration_ms: number;

@@ -33,9 +33,12 @@
   let savedError = $state('');
   const highlightedQuery = $derived(tokenizeSql(query));
 
-  function handleInput(): void {
-    const cursor = queryInput.selectionStart ?? query.length;
-    const sqlBeforeCursor = query.slice(0, cursor);
+  function handleInput(event?: Event): void {
+    const input =
+      event?.currentTarget instanceof HTMLInputElement ? event.currentTarget : queryInput;
+    const currentQuery = input?.value ?? query;
+    const cursor = input?.selectionStart ?? currentQuery.length;
+    const sqlBeforeCursor = currentQuery.slice(0, cursor);
 
     suggestions = getSuggestions(sqlBeforeCursor, schemaInfo);
     selectedSuggestionIndex = 0;
@@ -124,6 +127,10 @@
 
     window.addEventListener('pointermove', resize);
     window.addEventListener('pointerup', stop);
+  }
+
+  function toggleSchema(): void {
+    schemaOpen = !schemaOpen;
   }
 
   let result = $state<ExecuteQueryResponse | null>(null);
@@ -221,6 +228,15 @@
     schemaOpen = localStorage.getItem('ci-results:schema-open') === 'true';
     const width = Number(localStorage.getItem('ci-results:schema-width'));
     if (width >= 30 && width <= 70) schemaWidth = width;
+
+    const handleShortcut = (event: KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        toggleSchema();
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
   });
 
   $effect(() => {
@@ -264,9 +280,11 @@
             class="view-tab"
             class:active={schemaOpen}
             type="button"
-            onclick={() => (schemaOpen = true)}
+            onclick={toggleSchema}
             aria-pressed={schemaOpen}
+            aria-expanded={schemaOpen}
             aria-controls="schema-panel"
+            title="Toggle schema (Ctrl/⌘ Shift S)"
           >
             <span aria-hidden="true">▧</span>
             Schema
@@ -423,7 +441,7 @@
           </div>
         {:else if schemaInfo.objects.length}
           <div class="schema-list">
-            {#each schemaInfo.objects as object (object.name)}
+            {#each schemaInfo.objects as object (`${object.kind}:${object.name}`)}
               <section class="schema-object">
                 <header>
                   <strong>{object.name}</strong>
@@ -451,11 +469,11 @@
 
 <style>
   .query-workspace {
-    --paper: #f8f8f5;
-    --ink: #242621;
-    --muted: #74786e;
-    --line: #d8d9d2;
-    --accent: #315f4a;
+    --paper: var(--base);
+    --ink: var(--text);
+    --muted: var(--subtle);
+    --line: var(--border);
+    --accent: var(--syntax-blue);
     --run-text: #fff;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -486,7 +504,7 @@
     min-height: 68px;
     padding: 0 clamp(22px, 3vw, 42px);
     border-bottom: 1px solid var(--line);
-    background: #fdfdfb;
+    background: var(--base);
   }
   .title-lockup {
     display: flex;
@@ -494,7 +512,7 @@
   }
   .eyebrow {
     margin: 0 0 1px;
-    color: #777a70;
+    color: var(--muted);
     font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.14em;
@@ -583,7 +601,7 @@
     min-height: 62px;
     padding: 11px clamp(22px, 3vw, 42px);
     border-bottom: 1px solid var(--line);
-    background: #f2f2ee;
+    background: var(--surface);
   }
   .saved-query-bar {
     display: grid;
@@ -631,8 +649,8 @@
     box-shadow: inset 0 1px 0 rgb(24 27 21 / 3%);
   }
   .query-bar:focus-within {
-    border-color: #547161;
-    box-shadow: 0 0 0 2px rgb(49 95 74 / 10%);
+    border-color: var(--focus);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 14%, transparent);
   }
   .prompt {
     padding-left: 16px;
@@ -672,7 +690,7 @@
     color: transparent;
   }
   .query-editor input::placeholder {
-    color: #96998f;
+    color: var(--muted);
   }
   .query-highlight {
     z-index: 0;
@@ -681,7 +699,6 @@
   }
   .token-keyword {
     color: #9a651c;
-    font-weight: 650;
   }
   .token-string {
     color: #21845d;
@@ -697,15 +714,15 @@
     z-index: 5;
     top: calc(100% - 2px);
     left: 10px;
-    width: max-content;
-    min-width: 280px;
-    max-width: min(420px, calc(100vw - 330px));
+    width: fit-content;
+    min-width: min(200px, calc(100vw - 32px));
+    max-width: min(420px, calc(100vw - 32px));
     max-height: 300px;
     overflow-y: auto;
     padding: 5px;
-    border: 1px solid #c5c7be;
+    border: 1px solid var(--border);
     border-radius: 3px;
-    background: #fff;
+    background: var(--base);
     box-shadow: 0 12px 30px rgb(31 34 28 / 14%);
   }
   .suggestion-summary {
@@ -779,7 +796,7 @@
     padding: 0 clamp(22px, 3vw, 42px);
     border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
-    background: #fdfdfb;
+    background: var(--base);
   }
   .results-heading div {
     display: flex;
@@ -807,18 +824,18 @@
     position: relative;
     z-index: 2;
     cursor: col-resize;
-    background: #d8d7d1;
+    background: var(--border);
   }
   .resize-handle:hover,
   .resize-handle:active {
-    background: #20211e;
+    background: var(--focus);
   }
   .schema-panel {
     display: flex;
     flex-direction: column;
     position: relative;
-    border-left: 1px solid #d8d7d1;
-    background: #f0f0eb;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
   }
   .schema-actions {
     position: absolute;
@@ -831,8 +848,8 @@
   .icon-button {
     width: 32px;
     height: 32px;
-    border: 1px solid #bfc0b8;
-    background: #fbfaf7;
+    border: 1px solid var(--border);
+    background: var(--base);
     color: var(--ink);
     font-size: 20px;
     line-height: 1;
@@ -861,17 +878,17 @@
   }
   .schema-object {
     overflow: hidden;
-    border: 1px solid #d2d3cc;
+    border: 1px solid var(--border);
     border-radius: 3px;
-    background: #fff;
+    background: var(--base);
   }
   .schema-object header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 10px 12px;
-    border-bottom: 1px solid #dedfd9;
-    background: #f7f7f3;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
   }
   .schema-object header strong {
     color: var(--ink);
@@ -894,20 +911,20 @@
     align-items: center;
     gap: 9px;
     padding: 6px 12px;
-    color: #4a4d46;
+    color: var(--text);
     font-size: 11px;
   }
   .schema-object li:hover {
-    background: #f7f8f4;
+    background: var(--overlay);
   }
   .schema-object li small {
-    color: #8a8e84;
+    color: var(--muted);
     font-size: 9px;
     text-transform: uppercase;
   }
   .schema-object abbr {
     border: 0;
-    color: #966c28;
+    color: var(--gold);
     font-size: 8px;
     text-decoration: none;
   }
@@ -921,16 +938,16 @@
     margin: 0;
   }
   .schema-error {
-    color: #a3362a;
+    color: var(--love);
   }
   .schema-message button {
-    border: 1px solid #bfc0b8;
-    background: #fff;
+    border: 1px solid var(--border);
+    background: var(--base);
     padding: 8px 12px;
   }
   .empty-state pre {
     overflow-x: auto;
-    color: #8a3028;
+    color: var(--love);
     white-space: pre-wrap;
   }
   :global(html.dark) .query-workspace {
@@ -996,10 +1013,13 @@
     background: var(--border);
   }
   @media (max-width: 760px) {
+    .query-workspace {
+      height: auto;
+      min-height: 70vh;
+      overflow: visible;
+    }
     .query-workspace.split {
       grid-template-columns: 1fr;
-      height: auto;
-      overflow: visible;
     }
     .resize-handle {
       display: none;

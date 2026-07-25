@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SearchIcon from '$lib/components/SearchIcon.svelte';
   import { onMount } from 'svelte';
   import type { ExecuteQueryResponse, QueryColumn } from '$lib/api/types';
 
@@ -363,7 +364,7 @@
     {#if detailView === 'fields'}
       <div class="detail-controls">
         <label>
-          <span aria-hidden="true">⌕</span>
+          <span><SearchIcon size={15} /></span>
           <input
             bind:value={detailFilter}
             placeholder="Filter fields…"
