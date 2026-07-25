@@ -28,6 +28,7 @@ steps:
     privileged: true
     volumes:
       - tethux-ci-nix:/nix
+      - /root/.ssh:/root/.ssh:ro
       - /var/cache/tethux-ci/go-build:/root/.cache/go-build
       - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
       - /var/cache/tethux-ci/archive:/var/lib/tethux-ci/archive
