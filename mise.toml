@@ -129,6 +129,7 @@ depends = ["lint:go", "lint:web"]
 
 [tasks."lint:go"]
 description = "Run Go linter"
+depends = ["build:viewer-frontend"]
 run = "golangci-lint run -c .golangci.yml"
 
 [tasks."lint:web"]
