@@ -17,5 +17,10 @@ steps:
       containerfile: tools/ci-results/viewer/Dockerfile
       dry_run: true
       cache: true
+      tls_verify: false
+      build_args:
+        - BUN_IMAGE=ci-registry:5000/oven/bun:1-alpine
+        - GO_IMAGE=ci-registry:5000/library/golang:1.26-alpine
+        - RUNTIME_IMAGE=ci-registry:5000/library/alpine:3.23
       tags:
         - ${CI_COMMIT_SHA}
