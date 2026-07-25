@@ -12,6 +12,8 @@ steps:
   lint-test-build-and-nix:
     image: nixos/nix
     pull: false
+    environment:
+      TETHUX_TEST_ARCHIVE_ROOT: /var/lib/tethux-ci/archive
     volumes:
       - tethux-ci-nix:/nix
       - /var/cache/tethux-ci/go-build:/root/.cache/go-build

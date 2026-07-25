@@ -37,8 +37,7 @@ mise run check
 
 ## NAS deployment
 
-Deployment is manual. `compose.yaml` defines one Docker network and three
-containers:
+`compose.yaml` defines one Docker network and three containers:
 
 - `tethux-ci-viewer` serves the UI and API;
 - `tethux-ci-viewer-ingest` watches the archive bind mount read-only;
@@ -66,7 +65,12 @@ printf '%s\n' 'TUNNEL_TOKEN=replace-with-your-token' \
 chmod 600 /Containers/homelab/tethux-ci-viewer/.env
 ```
 
-Build the image, copy `compose.yaml` beside `.env`, and apply it manually:
+The Woodpecker `viewer-image` workflow validates the image with Podman on every
+push and pull request. Pushes to `master` also build the host image and recreate
+the viewer and ingester. Both containers keep using the persistent host paths,
+so deployment does not replace the SQLite database or archive.
+
+For a manual recovery deployment:
 
 ```console
 docker build -t tethux-ci-viewer:latest \

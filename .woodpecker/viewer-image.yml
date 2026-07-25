@@ -20,7 +20,19 @@ steps:
       tls_verify: false
       build_args:
         - BUN_IMAGE=ci-registry:5000/oven/bun:1-alpine
-        - GO_IMAGE=ci-registry:5000/library/golang:1.26-alpine
+        - GO_IMAGE=ci-registry:5000/library/golang:1.26.4-alpine
         - RUNTIME_IMAGE=ci-registry:5000/library/alpine:3.23
       tags:
         - ${CI_COMMIT_SHA}
+
+  deploy-viewer-and-ingest:
+    image: docker:dind
+    pull: false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - docker build --pull=false -t tethux-ci-viewer:latest -f tools/ci-results/viewer/Dockerfile .
+      - docker compose -f tools/ci-results/viewer/compose.yaml up -d --force-recreate viewer ingest
+    when:
+      - event: push
+        branch: master

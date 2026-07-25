@@ -68,6 +68,10 @@ Archive-aware runs write:
 /var/cache/tethux-ci/archive/<commit>/<workflow>/<uuidv7>.tar.zst
 ```
 
+Woodpecker mounts that host directory at `/var/lib/tethux-ci/archive` and sets
+`TETHUX_TEST_ARCHIVE_ROOT` accordingly. The archive therefore survives the
+disposable workflow container and is immediately visible to the ingester.
+
 The writer first creates `.partial`, atomically renames the validated archive,
 then writes `<archive>.done` containing its SHA-256. Consumers wait for the
 marker and verify it before ingestion. The viewer watcher uses filesystem

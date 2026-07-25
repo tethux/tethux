@@ -1,5 +1,5 @@
 ARG BUN_IMAGE=docker.io/oven/bun:1-alpine
-ARG GO_IMAGE=docker.io/library/golang:1.26-alpine
+ARG GO_IMAGE=docker.io/library/golang:1.26.4-alpine
 ARG RUNTIME_IMAGE=docker.io/library/alpine:3.23
 
 FROM ${BUN_IMAGE} AS web

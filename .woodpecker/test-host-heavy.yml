@@ -12,6 +12,8 @@ steps:
     image: nixos/nix
     pull: false
     privileged: true
+    environment:
+      TETHUX_TEST_ARCHIVE_ROOT: /var/lib/tethux-ci/archive
     volumes:
       - tethux-ci-nix:/nix
       - /var/cache/tethux-ci/go-build:/root/.cache/go-build
@@ -30,6 +32,7 @@ steps:
       - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
       - /var/cache/tethux-ci/archive:/var/lib/tethux-ci/archive
     environment:
+      TETHUX_TEST_ARCHIVE_ROOT: /var/lib/tethux-ci/archive
       TETHUX_TOPOLOGY_SMALL_N: "4"
       TETHUX_TOPOLOGY_LARGE_N: "32"
       TETHUX_TOPOLOGY_PARALLEL_JOBS: "8"
