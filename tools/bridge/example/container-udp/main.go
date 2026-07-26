@@ -210,8 +210,8 @@ func makeNodes(cfg config, suffix string) []node {
 	return nodes
 }
 
-func startSwitch(root, bin string, cfg config, suffix string, n *node) (*exec.Cmd, error) {
-	args := []string{"bridge", "container", "--pid", n.pid, "--interface-mode", "create-veth", "--host-if", n.hostIf, "--container-if", n.containerIf, "--mtu", fmt.Sprint(cfg.mtu)}
+func bridgeCommandArgs(cfg config, n node) []string {
+	args := []string{"container", "--pid", n.pid, "--interface-mode", "create-veth", "--host-if", n.hostIf, "--container-if", n.containerIf, "--mtu", fmt.Sprint(cfg.mtu)}
 	if n.index > 1 {
 		left := n.index - 1
 		args = append(args, "--port", fmt.Sprintf("id=sw%d-left,scheme=udp,listen=127.0.0.1:%d,remote=127.0.0.1:%d,mtu=%d", n.index, linkPortRight(cfg, left), linkPortLeft(cfg, left), cfg.mtu))
@@ -219,6 +219,11 @@ func startSwitch(root, bin string, cfg config, suffix string, n *node) (*exec.Cm
 	if n.index < cfg.n {
 		args = append(args, "--port", fmt.Sprintf("id=sw%d-right,scheme=udp,listen=127.0.0.1:%d,remote=127.0.0.1:%d,mtu=%d", n.index, linkPortLeft(cfg, n.index), linkPortRight(cfg, n.index), cfg.mtu))
 	}
+	return args
+}
+
+func startSwitch(root, bin string, cfg config, suffix string, n *node) (*exec.Cmd, error) {
+	args := bridgeCommandArgs(cfg, *n)
 
 	logFile, err := os.Create(filepath.Join(os.TempDir(), fmt.Sprintf("tethux-switch-%s-%d.log", suffix, n.index)))
 	if err != nil {
