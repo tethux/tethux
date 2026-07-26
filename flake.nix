@@ -214,6 +214,10 @@
             '';
             checkPhase = ''
               runHook preCheck
+              # The viewer embeds generated frontend output. Unit checks only need a
+              # placeholder so every Go package can compile without building the web UI.
+              mkdir -p tools/ci-results/viewer/frontend/build
+              touch tools/ci-results/viewer/frontend/build/.keep
               go test ./...
               runHook postCheck
             '';
