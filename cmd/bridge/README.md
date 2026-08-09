@@ -45,7 +45,7 @@ observer. The run emits JSON Lines with packet/byte/loss metrics
 and a standard pcap file:
 
 ```bash
-TETHUX_RUN_INTEGRATION=1 mise run test:bridge-backends:local
+mise run test:bridge:integration
 ```
 
 This is deliberately opt-in because it creates temporary veth, TAP, and Linux

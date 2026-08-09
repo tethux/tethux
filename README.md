@@ -19,9 +19,9 @@ subsystem.
 | `bridge/` | Public Ethernet switch, transports, and network primitives | [README](bridge/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/bridge) |
 | `storage/` | Public storage abstractions and local provider | [README](storage/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/storage) |
 | `virt/` | Public virtualization APIs and container providers | [README](virt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt) |
-| `tools/ci/` | Repository test, archive, and host CLI | [`internal/ci/README.md`](internal/ci/README.md) |
+| `tools/` | Repository CI, archive, host, and results tooling | [`tools/README.md`](tools/README.md) |
+| `tools/ci/` | Unified repository test, archive, and host CLI | [`tools/ci/README.md`](tools/ci/README.md) |
 | `tools/ci-results/` | CI archive ingestion, SQLite store, API, and web viewer | [`tools/ci-results/viewer/README.md`](tools/ci-results/viewer/README.md) |
-| `tools/bridge/` | Standalone bridge examples and conformance drivers | [`tools/bridge/README.md`](tools/bridge/README.md) |
 | `nix/` | Development shells, NixOS test hosts, fixture registry, and CI operations | [`nix/README.md`](nix/README.md) |
 | `.woodpecker/` | Ordered NAS and two-laptop CI workflows | [`nix/README.md`](nix/README.md#woodpecker-topology) |
 
@@ -60,7 +60,7 @@ import (
 )
 ```
 
-The current release is `v0.0.2`; replace `latest` with `v0.0.2` for a
+The current release is `v0.0.4`; replace `latest` with `v0.0.4` for a
 reproducible install. Browse the complete module on
 [pkg.go.dev](https://pkg.go.dev/github.com/tethux/tethux).
 

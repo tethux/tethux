@@ -286,7 +286,7 @@ run = "go run ./tools/ci run local --integration --runtime ${RUNTIME:?set RUNTIM
 
 [tasks."test:bridge"]
 description = "Run bridge unit and parser tests"
-run = "go test -tags debug ./cmd/bridge/... ./internal/libtethux/bridge/..."
+run = "go test -tags debug ./cmd/bridge/... ./bridge/..."
 
 [tasks."test:bridge:integration"]
 description = "Run and archive UDP/raw/pcap/TAP bridge conformance tests"

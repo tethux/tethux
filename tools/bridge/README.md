@@ -1,7 +1,8 @@
-# Bridge examples and test tools
+# Private bridge integration drivers
 
-The tools in this directory exercise bridge behavior without becoming part of
-the public `tethux` command surface.
+The programs in this directory implement bridge integration scenarios for the
+unified `tools/ci` command. They are not separate operator-facing commands and
+are not part of the public `tethux` command surface.
 
 `example/container-udp` creates network-isolated Docker or Podman containers,
 attaches deterministic interfaces, connects tethux switches over UDP, and
@@ -18,5 +19,5 @@ and TAP conformance checks. Use the archive-aware wrapper:
 go run ./tools/ci bridge test --archive
 ```
 
-CI and local automation invoke the reusable APIs in `internal/ci`; these
-programs remain focused examples or test drivers.
+CI and local automation invoke these drivers through `tools/ci`. See the
+[`tools/ci` README](../ci/README.md) for the supported command surface.

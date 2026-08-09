@@ -10,9 +10,9 @@ port, err := bridge.NewUDPPort(&bridge.PortOptions{Address: "127.0.0.1:9000"})
 ```
 
 Import it as `github.com/tethux/tethux/bridge`. Some transports and namespace
-operations require Linux capabilities or root privileges. See
-[`tools/bridge`](../tools/bridge/README.md) for runnable examples and backend
-conformance tests.
+operations require Linux capabilities or root privileges. See the unified
+[`tools/ci` command](../tools/ci/README.md#bridge-integration) for runnable
+topology and backend conformance tests.
 
 API reference: [bridge](https://pkg.go.dev/github.com/tethux/tethux/bridge) ·
 [bridge/errs](https://pkg.go.dev/github.com/tethux/tethux/bridge/errs) ·
