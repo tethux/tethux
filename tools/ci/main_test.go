@@ -123,6 +123,21 @@ func TestResolveRunIDCanonicalizesBeforeWorkflowConstruction(t *testing.T) {
 	}
 }
 
+func TestRemoteLaptopExplicitlyMarksNonInteractiveCIRunner(t *testing.T) {
+	args := remoteLaptopArgs("/tmp/tethux-ci-deadbeef", "docker", "laptop-100")
+	joined := strings.Join(args, " ")
+	for _, expected := range []string{
+		"env -C /tmp/tethux-ci-deadbeef",
+		"-c env TETHUX_CI_RUNNER=1 go run ./tools/ci run laptop",
+		"--runtime docker",
+		"--device laptop-100",
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("remote command %q does not contain %q", joined, expected)
+		}
+	}
+}
+
 func workflowStep(t *testing.T, workflow *ciframework.Workflow, name string) *ciframework.Step {
 	t.Helper()
 	for index := range workflow.Steps {

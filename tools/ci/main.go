@@ -582,19 +582,9 @@ func runRemoteLaptop(ctx context.Context, root, target, jump, runtimeName, archi
 	if err := streamRepository(ctx, remote, root, remoteDir); err != nil {
 		return err
 	}
-	remoteArgs := []string{
-		"nix", "develop", ".#integration",
-		"--extra-experimental-features", "nix-command",
-		"--extra-experimental-features", "flakes",
-		"-c", "go", "run", "./tools/ci", "run", "laptop",
-		"--runtime", runtimeName,
-		"--root", remoteDir,
-	}
-	if device != "" {
-		remoteArgs = append(remoteArgs, "--device", device)
-	}
+	remoteArgs := remoteLaptopArgs(remoteDir, runtimeName, device)
 	if !archive {
-		return remote.Run(ctx, os.Stdout, os.Stderr, append([]string{"env", "-C", remoteDir}, remoteArgs...)...)
+		return remote.Run(ctx, os.Stdout, os.Stderr, remoteArgs...)
 	}
 
 	started := time.Now().UTC()
@@ -612,7 +602,7 @@ func runRemoteLaptop(ctx context.Context, root, target, jump, runtimeName, archi
 	}
 	defer logFile.Close()
 	output := io.MultiWriter(os.Stdout, logFile)
-	runErr := remote.Run(ctx, output, io.MultiWriter(os.Stderr, logFile), append([]string{"env", "-C", remoteDir}, remoteArgs...)...)
+	runErr := remote.Run(ctx, output, io.MultiWriter(os.Stderr, logFile), remoteArgs...)
 	copyErr := remote.CopyFrom(ctx, remoteDir+"/results/current/artifacts/.", writer.ArtifactDir(), output, os.Stderr)
 	writer.Options.FinishedAt = time.Now().UTC()
 	writer.Options.CommandErr = errors.Join(runErr, copyErr)
@@ -626,6 +616,23 @@ func runRemoteLaptop(ctx context.Context, root, target, jump, runtimeName, archi
 		fmt.Fprintf(os.Stdout, "test archive: %s\n", archivePath)
 	}
 	return errors.Join(runErr, copyErr, finalizeErr)
+}
+
+func remoteLaptopArgs(remoteDir, runtimeName, device string) []string {
+	args := []string{
+		"env", "-C", remoteDir,
+		"nix", "develop", ".#integration",
+		"--extra-experimental-features", "nix-command",
+		"--extra-experimental-features", "flakes",
+		"-c", "env", ciframework.CIEnvironmentVariable + "=1",
+		"go", "run", "./tools/ci", "run", "laptop",
+		"--runtime", runtimeName,
+		"--root", remoteDir,
+	}
+	if device != "" {
+		args = append(args, "--device", device)
+	}
+	return args
 }
 
 func runCrossLaptop(ctx context.Context, root, hostA, hostB, archiveRoot, device string, archive, dryRun bool) error {
