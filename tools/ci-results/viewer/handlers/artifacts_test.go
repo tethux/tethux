@@ -61,6 +61,51 @@ func TestArtifactListPreviewAndRaw(t *testing.T) {
 	}
 }
 
+func TestExecuteQueryCapsUnboundedResults(t *testing.T) {
+	store, err := db.NewStore(filepath.Join(t.TempDir(), "results.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	result, err := executeQuery(context.Background(), store, `
+		WITH RECURSIVE numbers(value) AS (
+			SELECT 1 UNION ALL SELECT value + 1 FROM numbers WHERE value < 750
+		) SELECT value FROM numbers;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Rows) != 500 || result.RowCount != 500 || !result.Truncated {
+		t.Fatalf("rows=%d count=%d truncated=%t", len(result.Rows), result.RowCount, result.Truncated)
+	}
+}
+
+func TestExecuteQueryDoesNotReturnArtifactSizedCells(t *testing.T) {
+	store, err := db.NewStore(filepath.Join(t.TempDir(), "results.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	result, err := executeQuery(
+		context.Background(),
+		store,
+		`SELECT randomblob(1048576) AS content, printf('%.*c', 20000, 'x') AS long_text;`,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, _ := result.Rows[0]["content"].(string)
+	longText, _ := result.Rows[0]["long_text"].(string)
+	if content != "<BLOB 1048576 bytes — use the artifact viewer to inspect or download>" {
+		t.Fatalf("content descriptor = %q", content)
+	}
+	if len(longText) > maxQueryTextBytes+100 || !strings.Contains(longText, "truncated from 20000 bytes") {
+		t.Fatalf("long text was not bounded: length=%d suffix=%q", len(longText), longText[len(longText)-40:])
+	}
+}
+
 func artifactTestStore(t *testing.T) (*db.Store, int64, []byte) {
 	t.Helper()
 	store, err := db.NewStore(filepath.Join(t.TempDir(), "results.db"))

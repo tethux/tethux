@@ -93,10 +93,15 @@
     left: anchor(left);
     width: min(272px, calc(100vw - 32px));
     margin: 0 0 8px;
+    box-sizing: border-box;
+    max-height: min(420px, calc(100vh - 32px));
+    overflow: auto;
     padding: 12px;
-    border: 1px solid #999;
-    background: #fff;
-    box-shadow: 0 10px 24px rgb(0 0 0 / 16%);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--base);
+    color: var(--text);
+    box-shadow: 0 10px 24px rgb(0 0 0 / 24%);
     position-try-fallbacks: flip-block, flip-inline;
   }
 
@@ -106,7 +111,7 @@
   }
 
   .popover-header code {
-    color: #666;
+    color: var(--subtle);
     overflow-wrap: anywhere;
   }
 
@@ -119,9 +124,10 @@
   .repository-links a,
   .copy {
     padding: 8px 10px;
-    border: 1px solid #aaa;
-    background: #fff;
-    color: inherit;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--text);
     font: inherit;
     text-align: left;
     text-decoration: none;
@@ -130,7 +136,8 @@
 
   .repository-links a:hover,
   .copy:hover {
-    background: #f3f3f3;
+    border-color: var(--focus);
+    background: var(--overlay);
   }
 
   .copy {

@@ -327,7 +327,12 @@
     border-color: color-mix(in srgb, var(--love) 45%, var(--border));
   }
   .failure-link span {
+    display: grid;
+    place-items: center;
+    align-self: stretch;
     color: var(--love);
+    line-height: 1;
+    transform: translateY(-1px);
   }
   .query-link span {
     color: var(--muted);

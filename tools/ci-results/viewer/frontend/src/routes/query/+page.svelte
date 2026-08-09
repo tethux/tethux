@@ -388,7 +388,7 @@
         </div>
 
         <span class="result-count">
-          {result ? `${result.row_count} rows` : '— rows'}
+          {result ? `${result.row_count}${result.truncated ? '+' : ''} rows` : '— rows'}
         </span>
       </div>
 
@@ -398,6 +398,12 @@
         </div>
       {:else if result && result.rows.length > 0}
         {@const queryResult = result}
+
+        {#if result.truncated}
+          <p class="result-limit" role="status">
+            Showing the first {result.row_count} rows. Add a LIMIT clause to narrow the result.
+          </p>
+        {/if}
 
         <QueryResults result={queryResult} source={querySource(query)} />
       {:else}
@@ -480,6 +486,15 @@
     height: 100vh;
     overflow: hidden;
     background: var(--paper);
+  }
+
+  .result-limit {
+    margin: 0;
+    padding: 8px 22px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--yellow) 8%, var(--base));
+    color: var(--subtle);
+    font-size: 11px;
   }
   .query-workspace.split {
     grid-template-columns: minmax(0, calc(100% - var(--schema-width) - 10px)) 10px minmax(
