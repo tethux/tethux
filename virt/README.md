@@ -13,5 +13,11 @@ info := provider.Info()
 Import these packages beneath `github.com/tethux/tethux/virt`. Provider
 operations require their corresponding runtime socket and may require elevated
 host privileges. The command workflows are documented in
-[`cmd/virt`](../cmd/virt/README.md); use `go doc github.com/tethux/tethux/virt`
-and `go doc github.com/tethux/tethux/virt/container` for API details.
+[`cmd/virt`](../cmd/virt/README.md).
+
+API reference: [virt](https://pkg.go.dev/github.com/tethux/tethux/virt) ·
+[virt/container](https://pkg.go.dev/github.com/tethux/tethux/virt/container) ·
+[virt/domain](https://pkg.go.dev/github.com/tethux/tethux/virt/domain) ·
+[Docker](https://pkg.go.dev/github.com/tethux/tethux/virt/container/docker) ·
+[Podman](https://pkg.go.dev/github.com/tethux/tethux/virt/container/podman) ·
+[containerd](https://pkg.go.dev/github.com/tethux/tethux/virt/container/containerd)
