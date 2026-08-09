@@ -2,6 +2,7 @@ package virt
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
+	ciframework "github.com/0xveya/tethux/internal/ci"
 	libvirt "github.com/0xveya/tethux/internal/libtethux/virt"
 	"github.com/0xveya/tethux/internal/libtethux/virt/container"
 )
@@ -30,6 +32,7 @@ type testOptions struct {
 	host     string
 	output   string
 	images   []string
+	runID    string
 }
 
 type testEvent struct {
@@ -105,6 +108,11 @@ func testCmd() *cobra.Command {
 			if len(opts.images) < 2 {
 				return fmt.Errorf("provider tests require at least two images")
 			}
+			runID, err := resolveTestRunID(opts.runID)
+			if err != nil {
+				return err
+			}
+			opts.runID = runID
 			if opts.host != "" {
 				return runRemoteTest(c.Context(), &opts)
 			}
@@ -117,7 +125,7 @@ func testCmd() *cobra.Command {
 				providers = []string{"docker", "podman", "containerd"}
 			}
 			for _, provider := range providers {
-				if err := runProviderTest(c.Context(), writer, provider, opts.socket, opts.images); err != nil {
+				if err := runProviderTest(c.Context(), writer, provider, opts.socket, opts.images, opts.runID); err != nil {
 					return err
 				}
 			}
@@ -128,10 +136,18 @@ func testCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.host, "host", os.Getenv(testHostEnv), "SSH host for remote provider test, or "+testHostEnv)
 	c.Flags().StringVarP(&opts.output, "output", "o", "json", "output format: json or text")
 	c.Flags().StringSliceVar(&opts.images, "images", slices.Clone(defaultTestImages), "two or more image references to test")
+	c.Flags().StringVar(&opts.runID, "run-id", os.Getenv("TETHUX_RUN_ID"), "run identifier used to isolate provider resources")
 	return c
 }
 
-func runProviderTest(ctx context.Context, writer *eventWriter, provider, socket string, images []string) error {
+func resolveTestRunID(value string) (string, error) {
+	if value == "" {
+		return ciframework.NewRunID()
+	}
+	return ciframework.NormalizeRunID(value)
+}
+
+func runProviderTest(ctx context.Context, writer *eventWriter, provider, socket string, images []string, runID string) error {
 	started := time.Now().UTC()
 	p, err := newProvider(provider, socket)
 	if err != nil {
@@ -149,15 +165,16 @@ func runProviderTest(ctx context.Context, writer *eventWriter, provider, socket 
 		if index%2 == 1 {
 			api = "container"
 		}
-		if err := runImageTest(ctx, writer, p, provider, image, api, index); err != nil {
+		if err := runImageTest(ctx, writer, p, provider, image, api, index, runID); err != nil {
 			return err
 		}
 	}
 	return writer.emit(&testEvent{Provider: provider, Operation: "summary", Status: "passed", Details: map[string]any{"images": len(images)}})
 }
 
-func runImageTest(ctx context.Context, writer *eventWriter, p container.ContainerProvider, provider, image, api string, index int) (resultErr error) {
-	name := fmt.Sprintf("tethux-ci-%s-%d", provider, index)
+func runImageTest(ctx context.Context, writer *eventWriter, p container.ContainerProvider, provider, image, api string, index int, runID string) (resultErr error) {
+	name := providerResourceName(provider, runID, index)
+	containerCreated := false
 	call := func(operation string, fn func() error) error {
 		started := time.Now().UTC()
 		err := fn()
@@ -173,9 +190,8 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 		return err
 	}
 
-	_ = p.Delete(ctx, name)
 	defer func() {
-		if resultErr != nil {
+		if resultErr != nil && containerCreated {
 			_ = p.DeleteContainer(context.WithoutCancel(ctx), name, &client.ContainerRemoveOptions{Force: true})
 		}
 	}()
@@ -186,9 +202,17 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 
 	// check provider creation separately; it only creates metadata.
 	baseName := name + "-base"
-	_ = p.Delete(ctx, baseName)
+	baseCreated := false
+	defer func() {
+		if resultErr != nil && baseCreated {
+			_ = p.Delete(context.WithoutCancel(ctx), baseName)
+		}
+	}()
 	if err := call("create", func() error {
 		_, err := p.Create(ctx, &libvirt.NodeConfig{Name: baseName, Image: image})
+		if err == nil {
+			baseCreated = true
+		}
 		return err
 	}); err != nil {
 		return err
@@ -196,6 +220,7 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 	if err := call("delete", func() error { return p.Delete(ctx, baseName) }); err != nil {
 		return err
 	}
+	baseCreated = false
 
 	var node *container.ContainerNode
 	if err := call("create-container", func() error {
@@ -204,8 +229,11 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 			NodeConfig: libvirt.NodeConfig{Name: name, Image: image},
 			Cmd:        []string{"sh", "-c", "echo tethux-ready; trap 'exit 0' TERM; while :; do sleep 1; done"},
 			Env:        []string{"TETHUX_TEST=structured"},
-			Labels:     map[string]string{"io.tethux.test": "provider-suite", "io.tethux.api": api},
+			Labels:     map[string]string{"io.tethux.test": "provider-suite", "io.tethux.api": api, "io.tethux.run": runID},
 		})
+		if err == nil {
+			containerCreated = true
+		}
 		return err
 	}); err != nil {
 		return err
@@ -356,6 +384,11 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 	return call("delete-container", remove)
 }
 
+func providerResourceName(provider, runID string, index int) string {
+	scope := sha256.Sum256([]byte(runID))
+	return fmt.Sprintf("tethux-ci-%s-%x-%d", provider, scope[:6], index)
+}
+
 func runRemoteTest(ctx context.Context, opts *testOptions) error {
 	parts := []string{"sudo", "-n", "env", testHostEnv + "=", "tethux", "virt", "test", "--provider", opts.provider, "--output", opts.output}
 	if opts.socket != "" {
@@ -363,6 +396,9 @@ func runRemoteTest(ctx context.Context, opts *testOptions) error {
 	}
 	for _, image := range opts.images {
 		parts = append(parts, "--images", image)
+	}
+	if opts.runID != "" {
+		parts = append(parts, "--run-id", opts.runID)
 	}
 	ssh := osexec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", opts.host, shellJoin(parts)) // #nosec G204 -- explicit --host transport.
 	ssh.Stdin = os.Stdin

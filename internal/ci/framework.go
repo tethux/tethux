@@ -194,7 +194,7 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 
 func rootCommandArgs(command string, args, environment []string) []string {
 	sudoArgs := []string{"-n", "env"}
-	for _, name := range []string{"PATH", "CGO_ENABLED", "CGO_CFLAGS", "CGO_LDFLAGS", "LD_LIBRARY_PATH"} {
+	for _, name := range []string{"PATH", "CGO_ENABLED", "CGO_CFLAGS", "CGO_LDFLAGS", "LD_LIBRARY_PATH", "TETHUX_RUN_ID"} {
 		prefix := name + "="
 		for _, value := range environment {
 			if strings.HasPrefix(value, prefix) {

@@ -62,11 +62,17 @@ func NewArchiveWriter(options ArchiveOptions) (*ArchiveWriter, error) {
 		options.Revision = revision
 	}
 	if options.RunID == "" {
-		id, err := uuid.NewV7()
+		runID, err := NewRunID()
 		if err != nil {
-			return nil, fmt.Errorf("create UUIDv7: %w", err)
+			return nil, err
 		}
-		options.RunID = id.String()
+		options.RunID = runID
+	} else {
+		canonical, err := NormalizeRunID(options.RunID)
+		if err != nil {
+			return nil, err
+		}
+		options.RunID = canonical
 	}
 	stage := filepath.Join(options.Root, options.Revision, options.Workflow, "."+options.RunID+".partial")
 	for _, directory := range []string{"logs", "configs", "artifacts"} {
@@ -75,6 +81,25 @@ func NewArchiveWriter(options ArchiveOptions) (*ArchiveWriter, error) {
 		}
 	}
 	return &ArchiveWriter{Options: options, Stage: stage}, nil
+}
+
+func NewRunID() (string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("create UUIDv7: %w", err)
+	}
+	return id.String(), nil
+}
+
+func NormalizeRunID(value string) (string, error) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return "", fmt.Errorf("archive run ID must be a UUIDv7: %w", err)
+	}
+	if id.Version() != 7 {
+		return "", fmt.Errorf("archive run ID must be a UUIDv7, got version %d", id.Version())
+	}
+	return id.String(), nil
 }
 
 // resumes a partial archive from another process.
@@ -89,6 +114,11 @@ func OpenArchiveWriter(stage string, options ArchiveOptions) (*ArchiveWriter, er
 	if options.Workflow == "" || options.Revision == "" || options.RunID == "" {
 		return nil, errors.New("workflow, revision, and run ID are required to resume an archive")
 	}
+	canonical, err := NormalizeRunID(options.RunID)
+	if err != nil {
+		return nil, err
+	}
+	options.RunID = canonical
 	for _, directory := range []string{"logs", "configs", "artifacts"} {
 		if err := os.MkdirAll(filepath.Join(stage, directory), 0o750); err != nil {
 			return nil, err

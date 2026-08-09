@@ -107,20 +107,31 @@ func runCommand(ctx context.Context, args []string) error {
 		*archiveEnabled = true
 	}
 
-	workflow, err := workflowFor(name, *root, *runtimeName, *provider)
+	runID, err := resolveRunID(os.Getenv("TETHUX_RUN_ID"))
+	if err != nil {
+		return err
+	}
+	workflow, err := workflowFor(name, *root, *runtimeName, *provider, runID)
 	if err != nil {
 		return err
 	}
 	return executeWorkflow(ctx, workflow, executeOptions{
 		Root: *root, Runtime: *runtimeName, Device: *device, Archive: *archiveEnabled,
-		ArchiveRoot: *archiveRoot, DryRun: *dryRun,
+		ArchiveRoot: *archiveRoot, RunID: runID, DryRun: *dryRun,
 	})
 }
 
+func resolveRunID(value string) (string, error) {
+	if value == "" {
+		return ciframework.NewRunID()
+	}
+	return ciframework.NormalizeRunID(value)
+}
+
 type executeOptions struct {
-	Root, Runtime, Device, ArchiveRoot string
-	Archive                            bool
-	DryRun                             bool
+	Root, Runtime, Device, ArchiveRoot, RunID string
+	Archive                                   bool
+	DryRun                                    bool
 }
 
 func executeWorkflow(ctx context.Context, workflow ciframework.Workflow, options executeOptions) error {
@@ -131,7 +142,7 @@ func executeWorkflow(ctx context.Context, workflow ciframework.Workflow, options
 	if options.Archive {
 		writer, err = ciframework.NewArchiveWriter(ciframework.ArchiveOptions{
 			Root: options.ArchiveRoot, Repository: options.Root, Workflow: workflow.Name,
-			DeviceID: options.Device, Runtime: options.Runtime, StartedAt: started,
+			DeviceID: options.Device, Runtime: options.Runtime, RunID: options.RunID, StartedAt: started,
 		})
 		if err != nil {
 			return err
@@ -151,12 +162,14 @@ func executeWorkflow(ctx context.Context, workflow ciframework.Workflow, options
 	}
 	runner := ciframework.NewRunner(stdout, io.MultiWriter(os.Stderr, stdout))
 	runner.DryRun = options.DryRun
+	runner.BaseEnv = map[string]string{}
+	if options.RunID != "" {
+		runner.BaseEnv["TETHUX_RUN_ID"] = options.RunID
+	}
 	if writer != nil {
-		runner.BaseEnv = map[string]string{
-			"TETHUX_CI_ARCHIVE_DIR": writer.Stage,
-			"TETHUX_RESULTS_DIR":    writer.ArtifactDir(),
-			"TETHUX_RUN_ID":         writer.Options.RunID,
-		}
+		runner.BaseEnv["TETHUX_CI_ARCHIVE_DIR"] = writer.Stage
+		runner.BaseEnv["TETHUX_RESULTS_DIR"] = writer.ArtifactDir()
+		runner.BaseEnv["TETHUX_RUN_ID"] = writer.Options.RunID
 	}
 	result, runErr := runner.Run(ctx, workflow)
 	if writer != nil && !options.DryRun {
@@ -180,12 +193,15 @@ func executeWorkflow(ctx context.Context, workflow ciframework.Workflow, options
 	return runErr
 }
 
-func workflowFor(name, root, runtimeName, provider string) (ciframework.Workflow, error) {
+func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.Workflow, error) {
 	registry, err := ciframework.DefaultRegistry(root)
 	if err != nil {
 		return ciframework.Workflow{}, err
 	}
 	if workflow, ok := registry.Workflow(name); ok {
+		if name == "hypervisors" {
+			workflow = scopeHypervisorInterfaces(workflow, runID)
+		}
 		if name == "provider" {
 			workflow.Steps[0].Args = []string{"run", "./cmd/tethux", "virt", "test", "--provider", provider, "--output", "json"}
 		}
@@ -213,6 +229,8 @@ func workflowFor(name, root, runtimeName, provider string) (ciframework.Workflow
 	providers, _ := registry.Workflow("provider")
 	topology, _ := registry.Workflow("topology")
 	backends, _ := registry.Workflow("bridge")
+	hypervisors, _ := registry.Workflow("hypervisors")
+	hypervisors = scopeHypervisorInterfaces(hypervisors, runID)
 	cliPath := filepath.Join(root, "results", "current", "artifacts", "tethux")
 	steps := []ciframework.Step{{
 		Name: "build-cli", Command: "go", Args: []string{"build", "-o", cliPath, "./cmd/tethux"}, Dir: root,
@@ -234,7 +252,29 @@ func workflowFor(name, root, runtimeName, provider string) (ciframework.Workflow
 			steps = append(steps, step)
 		}
 	}
+	steps = append(steps, hypervisors.Steps...)
 	return ciframework.Workflow{Name: "laptop-" + runtimeName, Description: "complete test host integration", Steps: steps}, nil
+}
+
+func scopeHypervisorInterfaces(workflow ciframework.Workflow, runID string) ciframework.Workflow {
+	dummyInterface, tapInterface := ciInterfaceNames(runID)
+	for stepIndex := range workflow.Steps {
+		for argIndex, arg := range workflow.Steps[stepIndex].Args {
+			switch arg {
+			case "tethux-dummy0":
+				workflow.Steps[stepIndex].Args[argIndex] = dummyInterface
+			case "tethux-tap0":
+				workflow.Steps[stepIndex].Args[argIndex] = tapInterface
+			}
+		}
+	}
+	return workflow
+}
+
+func ciInterfaceNames(runID string) (dummy, tap string) {
+	scope := sha256.Sum256([]byte(runID))
+	suffix := fmt.Sprintf("%x", scope[:5])
+	return "txd-" + suffix, "txt-" + suffix
 }
 
 func archiveCommand(ctx context.Context, args []string) error {
@@ -418,6 +458,7 @@ func runRemoteLaptop(ctx context.Context, root, target, jump, runtimeName, archi
 	if err != nil {
 		return err
 	}
+	remoteArgs = append([]string{"env", "TETHUX_RUN_ID=" + writer.Options.RunID}, remoteArgs...)
 	logFile, err := os.OpenFile(filepath.Join(writer.LogDir(), "runner.log"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o640)
 	if err != nil {
 		return err
@@ -561,6 +602,9 @@ func auditHost(ctx context.Context, target, jump string, output io.Writer) error
 		{"docker", "--version"},
 		{"podman", "--version"},
 		{"ctr", "version"},
+		{"qemu-system-x86_64", "--version"},
+		{"virsh", "uri"},
+		{"virsh", "list", "--all"},
 	}
 	var auditErr error
 	for _, command := range commands {
