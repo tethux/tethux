@@ -477,6 +477,7 @@ func executeQuery(
 	store *db.Store,
 	query string,
 ) (*types.ExecuteQueryResponse, error) {
+	started := time.Now()
 	conn, err := store.DB.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -511,9 +512,15 @@ func executeQuery(
 		}
 	}
 
-	resultRows := make([]map[string]any, 0)
+	const maxQueryResultRows = 500
+	resultRows := make([]map[string]any, 0, maxQueryResultRows)
+	truncated := false
 
 	for rows.Next() {
+		if len(resultRows) == maxQueryResultRows {
+			truncated = true
+			break
+		}
 		values := make([]any, len(columnNames))
 		destinations := make([]any, len(columnNames))
 
@@ -528,13 +535,7 @@ func executeQuery(
 		row := make(map[string]any, len(columnNames))
 
 		for i, name := range columnNames {
-			value := values[i]
-
-			if bytes, ok := value.([]byte); ok {
-				value = string(bytes)
-			}
-
-			row[name] = value
+			row[name] = queryResultValue(values[i])
 		}
 
 		resultRows = append(resultRows, row)
@@ -545,8 +546,24 @@ func executeQuery(
 	}
 
 	return &types.ExecuteQueryResponse{
-		Columns:  columns,
-		Rows:     resultRows,
-		RowCount: len(resultRows),
+		Columns: columns, Rows: resultRows, RowCount: len(resultRows),
+		DurationMS: time.Since(started).Milliseconds(), Truncated: truncated,
 	}, nil
+}
+
+const maxQueryTextBytes = 16 << 10
+
+func queryResultValue(value any) any {
+	switch typed := value.(type) {
+	case []byte:
+		return fmt.Sprintf("<BLOB %d bytes — use the artifact viewer to inspect or download>", len(typed))
+	case string:
+		if len(typed) <= maxQueryTextBytes {
+			return typed
+		}
+		preview := strings.ToValidUTF8(typed[:maxQueryTextBytes], "�")
+		return fmt.Sprintf("%s… <truncated from %d bytes>", preview, len(typed))
+	default:
+		return value
+	}
 }

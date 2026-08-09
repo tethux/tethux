@@ -11,6 +11,7 @@
   import LogSearch from '$lib/components/LogSearch.svelte';
   import LogPreview from '$lib/components/LogPreview.svelte';
   import SearchIcon from '$lib/components/SearchIcon.svelte';
+  import StatusIcon from '$lib/components/StatusIcon.svelte';
   import ChevronIcon from '$lib/components/ChevronIcon.svelte';
   import VirtualList from '@humanspeak/svelte-virtual-list';
   import { SvelteSet } from 'svelte/reactivity';
@@ -339,9 +340,9 @@
               class:selected={selected?.id === test.id}
               onclick={() => (selected = test)}
             >
-              <span class:bad-dot={test.status !== 'passed'} class="dot"
-                >{test.status === 'passed' ? '✓' : '×'}</span
-              >
+              <span class:bad-dot={test.status !== 'passed'} class="dot">
+                <StatusIcon passed={test.status === 'passed'} size={13} />
+              </span>
               <span class="test-name"
                 ><strong>{test.test_name}</strong><small>{value(test.suite) ?? test.test_key}</small
                 ></span
