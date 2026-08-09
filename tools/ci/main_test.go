@@ -42,6 +42,22 @@ func TestLaptopWorkflowRunsContainerAndHypervisorHostIntegration(t *testing.T) {
 	}
 }
 
+func TestBridgeWorkflowBuildsCLIForConformanceTest(t *testing.T) {
+	workflow, err := workflowFor("bridge", t.TempDir(), "", "", "test-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	build := workflowStep(t, &workflow, "build-cli")
+	bridge := workflowStep(t, &workflow, "bridge")
+	if len(bridge.DependsOn) != 1 || bridge.DependsOn[0] != build.Name {
+		t.Fatalf("bridge dependencies = %#v, want build-cli", bridge.DependsOn)
+	}
+	if !slices.Contains(bridge.Args, "--tethux") {
+		t.Fatalf("bridge arguments do not provide the CLI binary: %#v", bridge.Args)
+	}
+}
+
 func TestLaptopWorkflowScopesHostInterfacesToCompleteRunID(t *testing.T) {
 	first, err := workflowFor("laptop", t.TempDir(), "docker", "all", "same-prefix-aaa")
 	if err != nil {

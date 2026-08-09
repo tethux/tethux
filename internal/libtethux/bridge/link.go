@@ -10,6 +10,7 @@ import (
 	"github.com/vishvananda/netns"
 )
 
+// NamespaceInterfaceOptions configures attachment of an interface to a network namespace.
 type NamespaceInterfaceOptions struct {
 	Mode              models.NamespaceInterfaceMode
 	PID               int
@@ -18,6 +19,7 @@ type NamespaceInterfaceOptions struct {
 	MTU               int
 }
 
+// AttachNamespaceInterface creates or prepares an interface according to opts.
 func AttachNamespaceInterface(opts NamespaceInterfaceOptions) error {
 	switch opts.Mode {
 	case "", models.NamespaceInterfaceCreateVeth:
@@ -29,6 +31,7 @@ func AttachNamespaceInterface(opts NamespaceInterfaceOptions) error {
 	}
 }
 
+// AttachVethToNamespace creates a veth pair and moves its peer into a process namespace.
 func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu int) error {
 	peerName := peerInterfaceName(hostSideName)
 	err := SetupLinkWithNames(models.SetupLinkParams{
@@ -69,6 +72,7 @@ func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu 
 	return netlink.LinkSetUp(link)
 }
 
+// PrepareExistingInterface configures and enables an existing host interface.
 func PrepareExistingInterface(hostSideName string, mtu int) error {
 	link, err := netlink.LinkByName(hostSideName)
 	if err != nil {
@@ -96,6 +100,7 @@ func peerInterfaceName(hostSideName string) string {
 	return name[:15]
 }
 
+// SetupLinkWithNames creates a configured veth pair and moves its peer into a namespace.
 func SetupLinkWithNames(params models.SetupLinkParams) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -143,6 +148,7 @@ func SetupLinkWithNames(params models.SetupLinkParams) error {
 	return nil
 }
 
+// CleanupLink removes a host link when it exists.
 func CleanupLink(hostName string) {
 	link, err := netlink.LinkByName(hostName)
 	if err == nil {
@@ -153,6 +159,7 @@ func CleanupLink(hostName string) {
 	}
 }
 
+// EnterNamespace enters a process network namespace and returns a restoration function.
 func EnterNamespace(pid int) (func(), error) {
 	runtime.LockOSThread()
 

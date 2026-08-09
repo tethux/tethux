@@ -17,10 +17,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tethux/tethux/internal/ciresults/db"
-	"github.com/tethux/tethux/tools/ci-results/viewer/handlers"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/tethux/tethux/internal/ciresults/db"
+	"github.com/tethux/tethux/tools/ci-results/viewer/handlers"
 )
 
 //go:embed all:frontend/build

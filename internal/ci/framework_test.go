@@ -112,3 +112,38 @@ func TestRootCommandPreservesOnlyToolchainEnvironment(t *testing.T) {
 		t.Fatalf("unexpected environment leak in %#v", args)
 	}
 }
+
+func TestRootCopyCommandIsInteractiveAndShellQuoted(t *testing.T) {
+	command := rootCopyCommand(
+		"/tmp/repository with spaces",
+		"go",
+		[]string{"run", "./tools/example", "value with spaces"},
+		[]string{"PATH=/nix/store/bin", "SECRET=not-for-root"},
+	)
+	for _, expected := range []string{
+		"cd '/tmp/repository with spaces' && sudo env",
+		"PATH=/nix/store/bin",
+		"'value with spaces'",
+	} {
+		if !strings.Contains(command, expected) {
+			t.Fatalf("copy command %q does not contain %q", command, expected)
+		}
+	}
+	if strings.Contains(command, "-n") {
+		t.Fatalf("copy command must allow interactive sudo: %q", command)
+	}
+	if strings.Contains(command, "SECRET=") {
+		t.Fatalf("copy command leaked unrelated environment: %q", command)
+	}
+}
+
+func TestIsCIUsesExplicitRunnerMarker(t *testing.T) {
+	t.Setenv(CIEnvironmentVariable, "")
+	if IsCI() {
+		t.Fatal("local environment detected as CI")
+	}
+	t.Setenv(CIEnvironmentVariable, "1")
+	if !IsCI() {
+		t.Fatal("explicit tethux CI runner was not detected")
+	}
+}

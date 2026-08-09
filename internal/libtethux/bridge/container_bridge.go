@@ -2,6 +2,7 @@ package bridge
 
 import "github.com/tethux/tethux/internal/libtethux/bridge/errs"
 
+// ContainerBridgeOptions configures a bridge between a container interface and UDP.
 type ContainerBridgeOptions struct {
 	PID         int
 	HostIf      string
@@ -16,11 +17,13 @@ type ContainerBridgeOptions struct {
 	RemoteMiddleware []PortMiddleware
 }
 
+// ContainerBridge owns a running switch and its host-side interface.
 type ContainerBridge struct {
 	switcher *Switch
 	hostIf   string
 }
 
+// StartContainerBridge creates the interfaces, ports, and running switch described by opts.
 func StartContainerBridge(opts *ContainerBridgeOptions) (*ContainerBridge, error) {
 	if opts == nil {
 		return nil, errs.New("start container bridge", errs.ErrInvalidOptions, "options are nil")
@@ -91,6 +94,7 @@ func StartContainerBridge(opts *ContainerBridgeOptions) (*ContainerBridge, error
 	return &ContainerBridge{switcher: sw, hostIf: opts.HostIf}, nil
 }
 
+// Close stops the switch and cleans up its host-side interface.
 func (b *ContainerBridge) Close() error {
 	if b == nil {
 		return nil

@@ -38,7 +38,7 @@ func New(root string, opts ...Option) (*Provider, error) {
 		return nil, fmt.Errorf("resolve local storage root: %w", err)
 	}
 
-	if err := os.MkdirAll(abs, 0o755); err != nil {
+	if err := os.MkdirAll(abs, 0o750); err != nil {
 		return nil, fmt.Errorf("create local storage root %q: %w", abs, err)
 	}
 
@@ -105,6 +105,7 @@ func (p *Provider) Open(
 		return nil, err
 	}
 
+	// #nosec G304 -- pathFor rejects absolute, escaping, and symlinked refs.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", ref, err)
@@ -131,8 +132,8 @@ func (p *Provider) Put(
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create parent directory for %s: %w", ref, err)
+	if mkdirErr := os.MkdirAll(filepath.Dir(path), 0o750); mkdirErr != nil {
+		return fmt.Errorf("create parent directory for %s: %w", ref, mkdirErr)
 	}
 
 	mode := fs.FileMode(opts.Mode)

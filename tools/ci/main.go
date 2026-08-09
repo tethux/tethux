@@ -39,14 +39,14 @@ func dispatch(ctx context.Context, args []string) error {
 		return usageError("")
 	}
 	switch args[0] {
+	case "bridge":
+		return bridgeCommand(ctx, args[1:])
 	case "run":
 		return runCommand(ctx, args[1:])
 	case "archive":
 		return archiveCommand(ctx, args[1:])
 	case "host":
 		return hostCommand(ctx, args[1:])
-	case "topology":
-		return topologyCommand(ctx, args[1:])
 	case "help", "-h", "--help":
 		printUsage(os.Stdout)
 		return nil
@@ -75,6 +75,7 @@ func runCommand(ctx context.Context, args []string) error {
 	archiveRoot := flags.String("archive-root", envDefault("TETHUX_TEST_ARCHIVE_ROOT", ""), "archive root")
 	dryRun := flags.Bool("dry-run", false, "print steps without running them")
 	integration := flags.Bool("integration", false, "confirm privileged local integration")
+	bridgeOnly := flags.String("only", "", "comma-separated bridge backends (bridge workflow only)")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -115,10 +116,132 @@ func runCommand(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	if name == "bridge" && *bridgeOnly != "" {
+		bridgeStep := workflowStepByName(&workflow, "bridge")
+		bridgeStep.Args = append(bridgeStep.Args, "--only", *bridgeOnly)
+	}
 	return executeWorkflow(ctx, workflow, executeOptions{
 		Root: *root, Runtime: *runtimeName, Device: *device, Archive: *archiveEnabled,
 		ArchiveRoot: *archiveRoot, RunID: runID, DryRun: *dryRun,
 	})
+}
+
+func bridgeCommand(ctx context.Context, args []string) error {
+	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
+		printBridgeUsage(os.Stdout)
+		return nil
+	}
+	if args[0] != "list" && os.Geteuid() != 0 && !ciframework.IsCI() {
+		fmt.Fprintln(os.Stderr, "bridge testing requires root; copy and run:")
+		fmt.Fprintf(os.Stderr, "\n    sudo env PATH=%s go run ./tools/ci bridge", commandArg(os.Getenv("PATH")))
+		for _, arg := range args {
+			// #nosec G705 -- commandArg shell-quotes operator-supplied CLI arguments for stderr only.
+			fmt.Fprintf(os.Stderr, " %s", commandArg(arg))
+		}
+		fmt.Fprintln(os.Stderr)
+		return errors.New("root privileges required; copy the command printed above")
+	}
+	switch args[0] {
+	case "list":
+		_, _ = fmt.Fprintln(os.Stdout, `bridge test cases:
+  udp           UDP forwarding
+  udp-loss      packet-loss middleware with a real observer
+  udp-loss-cli  packet loss through the built tethux CLI
+  raw           Linux raw-socket forwarding
+  pcap          pcap capture and injection
+  tap           TAP forwarding through a Linux bridge
+  topology      multi-container UDP topology`)
+		return nil
+	case "test":
+		return runCommand(ctx, append([]string{"bridge"}, args[1:]...))
+	case "udp-loss":
+		return runCommand(ctx, append([]string{"bridge", "--only", "udp-loss,udp-loss-cli"}, args[1:]...))
+	case "topology":
+		return topologyCommand(ctx, append([]string{"container-udp"}, args[1:]...))
+	case "all":
+		return bridgeAllCommand(ctx, args[1:])
+	default:
+		return usageError("unknown bridge command " + args[0])
+	}
+}
+
+func commandArg(value string) string {
+	if value != "" && !strings.ContainsAny(value, " \t\n'\"\\$`;&|<>(){}[]*?!") {
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func bridgeAllCommand(ctx context.Context, args []string) error {
+	flags := flag.NewFlagSet("bridge all", flag.ContinueOnError)
+	runtimeName := flags.String("runtime", "podman", "docker or podman")
+	count := flags.Int("n", 4, "container count")
+	parallel := flags.Int("parallel-jobs", 4, "parallel topology jobs")
+	image := flags.String("image", envDefault("IMAGE", "127.0.0.1:5000/tethux/fixture-a:1"), "container image with ip and ping")
+	archiveRoot := flags.String("archive-root", envDefault("TETHUX_TEST_ARCHIVE_ROOT", "./ingestion/archive"), "archive root")
+	dryRun := flags.Bool("dry-run", false, "print steps without running them")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	root, err := ciframework.RepositoryRoot()
+	if err != nil {
+		return err
+	}
+	runID, err := resolveRunID(os.Getenv("TETHUX_RUN_ID"))
+	if err != nil {
+		return err
+	}
+	backends, err := workflowFor("bridge", root, *runtimeName, "", runID)
+	if err != nil {
+		return err
+	}
+	topology, err := workflowFor("topology", root, *runtimeName, "", runID)
+	if err != nil {
+		return err
+	}
+	for index := range topology.Steps {
+		topology.Steps[index].Args = append(topology.Steps[index].Args,
+			"--n", strconv.Itoa(*count), "--parallel-jobs", strconv.Itoa(*parallel), "--image", *image)
+		topology.Steps[index].DependsOn = []string{"bridge"}
+	}
+	workflow := ciframework.Workflow{
+		Name: "bridge-all", Description: "bridge backends and container topology",
+		Steps: append(backends.Steps, topology.Steps...),
+	}
+	return executeWorkflow(ctx, workflow, executeOptions{
+		Root: root, Runtime: *runtimeName, Archive: true, ArchiveRoot: *archiveRoot,
+		RunID: runID, DryRun: *dryRun,
+	})
+}
+
+func workflowStepByName(workflow *ciframework.Workflow, name string) *ciframework.Step {
+	for index := range workflow.Steps {
+		if workflow.Steps[index].Name == name {
+			return &workflow.Steps[index]
+		}
+	}
+	panic("validated workflow is missing step " + name)
+}
+
+func printBridgeUsage(output io.Writer) {
+	_, _ = fmt.Fprintln(output, `usage: tethux-ci bridge COMMAND [flags]
+
+commands:
+  list       list backend and topology test cases (no root required)
+  test       run backend conformance tests; use --only udp,raw (root)
+  udp-loss   run both UDP packet-loss cases (root)
+  topology   run the multi-container UDP topology (root)
+  all        run and archive every backend plus the topology (root)
+
+Privilege handling:
+	On a laptop, root commands print an interactive sudo command to copy and run.
+	Runners marked TETHUX_CI_RUNNER=1 use non-interactive sudo -n and never prompt.
+
+Examples:
+  tethux-ci bridge list
+  tethux-ci bridge test --only udp,udp-loss --archive
+  tethux-ci bridge topology --runtime podman --n 4
+  tethux-ci bridge all --runtime podman`)
 }
 
 func resolveRunID(value string) (string, error) {
@@ -159,8 +282,20 @@ func executeWorkflow(ctx context.Context, workflow ciframework.Workflow, options
 		}
 		defer logFile.Close()
 		stdout = io.MultiWriter(os.Stdout, logFile)
+		runner := ciframework.NewRunner(stdout, io.MultiWriter(os.Stderr, logFile))
+		return executeWithRunner(ctx, workflow, options, writer, runner)
 	}
-	runner := ciframework.NewRunner(stdout, io.MultiWriter(os.Stderr, stdout))
+	runner := ciframework.NewRunner(stdout, os.Stderr)
+	return executeWithRunner(ctx, workflow, options, writer, runner)
+}
+
+func executeWithRunner(
+	ctx context.Context,
+	workflow ciframework.Workflow,
+	options executeOptions,
+	writer *ciframework.ArchiveWriter,
+	runner *ciframework.Runner,
+) error {
 	runner.DryRun = options.DryRun
 	runner.BaseEnv = map[string]string{}
 	if options.RunID != "" {
@@ -217,6 +352,14 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 			} else {
 				workflow.Steps[0].Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", runtimeName}
 			}
+		}
+		if name == "bridge" {
+			cliPath := filepath.Join(root, "results", "current", "artifacts", "tethux")
+			workflow.Steps[0].Args = append(workflow.Steps[0].Args, "--tethux", cliPath)
+			workflow.Steps[0].DependsOn = []string{"build-cli"}
+			workflow.Steps = append([]ciframework.Step{{
+				Name: "build-cli", Command: "go", Args: []string{"build", "-tags", "debug", "-o", cliPath, "./cmd/tethux"}, Dir: root,
+			}}, workflow.Steps...)
 		}
 		return workflow, nil
 	}
@@ -395,6 +538,8 @@ func topologyCommand(ctx context.Context, args []string) error {
 	runtimeName := flags.String("runtime", "podman", "docker or podman")
 	count := flags.Int("n", 4, "container count")
 	parallel := flags.Int("parallel-jobs", 4, "parallel jobs")
+	image := flags.String("image", envDefault("IMAGE", "127.0.0.1:5000/tethux/fixture-a:1"), "container image with ip and ping")
+	dryRun := flags.Bool("dry-run", false, "print the topology command without running it")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -404,10 +549,12 @@ func topologyCommand(ctx context.Context, args []string) error {
 	}
 	step := ciframework.Step{
 		Name: "container-udp", Command: "go",
-		Args: []string{"run", "./tools/bridge/example/container-udp", "--runtime", *runtimeName, "--n", strconv.Itoa(*count), "--parallel-jobs", strconv.Itoa(*parallel)},
+		Args: []string{"run", "./tools/bridge/example/container-udp", "--runtime", *runtimeName, "--n", strconv.Itoa(*count), "--parallel-jobs", strconv.Itoa(*parallel), "--image", *image},
 		Dir:  root, Privilege: ciframework.PrivilegeRoot,
 	}
-	_, err = ciframework.NewRunner(os.Stdout, os.Stderr).Run(ctx, ciframework.Workflow{Name: "container-udp", Steps: []ciframework.Step{step}})
+	runner := ciframework.NewRunner(os.Stdout, os.Stderr)
+	runner.DryRun = *dryRun
+	_, err = runner.Run(ctx, ciframework.Workflow{Name: "container-udp", Steps: []ciframework.Step{step}})
 	return err
 }
 
@@ -752,11 +899,11 @@ func printUsage(output io.Writer) {
 	_, _ = fmt.Fprintln(output, `usage: tethux-ci GROUP COMMAND [flags]
 
 groups:
-  run       normal, laptop, local, remote-laptop, cross-laptop,
+	bridge    list, test, udp-loss, topology, all
+	run       normal, laptop, local, remote-laptop, cross-laptop,
             provider, topology, bridge, hypervisors
   archive   run, finalize, publish, inventory
   host      discover, audit, install
-  topology  container-udp
 
 All commands use the standard library flag parser. Flags override environment
 defaults. Use -h after a command for its complete flag list.`)

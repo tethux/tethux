@@ -8,14 +8,14 @@ attaches deterministic interfaces, connects tethux switches over UDP, and
 verifies the complete path:
 
 ```console
-go run ./tools/ci topology container-udp --runtime podman --n 4
+go run ./tools/ci bridge topology --runtime podman --n 4
 ```
 
 `testing/backend-smoke` performs privileged, byte-exact UDP, raw-socket, pcap,
 and TAP conformance checks. Use the archive-aware wrapper:
 
 ```console
-go run ./tools/ci run bridge --archive
+go run ./tools/ci bridge test --archive
 ```
 
 CI and local automation invoke the reusable APIs in `internal/ci`; these

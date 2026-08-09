@@ -16,8 +16,8 @@ func TestPrepareDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(root, "nodes", "router", "data")
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.MkdirAll(path, 0o750); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
 	prepared, err := provider.Prepare(context.Background(), storage.PrepareRequest{Ref: storage.Ref{Provider: DefaultName, Key: "nodes/router/data"}})
 	if err != nil {

@@ -15,15 +15,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	bridge "github.com/tethux/tethux/internal/libtethux/bridge"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/pcapgo"
+	bridge "github.com/tethux/tethux/internal/libtethux/bridge"
 )
 
 const (
@@ -58,16 +59,83 @@ func run() int {
 	var outputPath string
 	var capturePath string
 	var tethuxPath string
-	flag.StringVar(&outputPath, "output", "bridge-backends.jsonl", "structured JSON Lines output")
-	flag.StringVar(&capturePath, "pcap", "bridge-backends.pcap", "packet capture artifact")
-	flag.StringVar(&tethuxPath, "tethux", "", "path to the tethux CLI binary for CLI conformance tests")
-	flag.Parse()
-
-	if os.Geteuid() != 0 {
-		fmt.Fprintln(os.Stderr, "bridge backend smoke tests require root")
+	var only string
+	var list bool
+	flags := flag.NewFlagSet("bridge-backend-smoke", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	flags.StringVar(&outputPath, "output", "bridge-backends.jsonl", "write JSON Lines results to this path")
+	flags.StringVar(&capturePath, "pcap", "bridge-backends.pcap", "write captured packets to this pcap path")
+	flags.StringVar(&tethuxPath, "tethux", "", "path to the tethux CLI binary for CLI conformance tests")
+	flags.StringVar(&only, "only", "", "run only these comma-separated backends")
+	flags.BoolVar(&list, "list", false, "list available backends and exit")
+	flags.Usage = func() {
+		_, _ = fmt.Fprintln(flags.Output(), "Usage: bridge-backend-smoke [options]")
+		_, _ = fmt.Fprintln(flags.Output(), "\nRuns byte-exact bridge transport conformance tests.")
+		_, _ = fmt.Fprintln(flags.Output(), "Use --list to see backend names or --only udp,raw to select tests.")
+		_, _ = fmt.Fprintln(flags.Output())
+		flags.PrintDefaults()
+	}
+	if err := flags.Parse(os.Args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 
+	tests := []struct {
+		name string
+		run  func(*captureWriter) (map[string]any, error)
+	}{
+		{name: "udp", run: testUDP},
+		{name: "udp-loss", run: testUDPPacketLoss},
+		{name: "udp-loss-cli", run: func(c *captureWriter) (map[string]any, error) { return testUDPPacketLossCLI(c, tethuxPath) }},
+		{name: "raw", run: func(c *captureWriter) (map[string]any, error) { return testVethBackend(c, bridge.RawScheme) }},
+		{name: "pcap", run: func(c *captureWriter) (map[string]any, error) { return testVethBackend(c, bridge.PcapScheme) }},
+		{name: "tap", run: testTAP},
+	}
+	if list {
+		for _, test := range tests {
+			fmt.Println(test.name)
+		}
+		return 0
+	}
+	if only != "" {
+		requested := make(map[string]bool)
+		for _, name := range strings.Split(only, ",") {
+			requested[strings.TrimSpace(name)] = true
+		}
+		selected := tests[:0]
+		for _, test := range tests {
+			if requested[test.name] {
+				selected = append(selected, test)
+				delete(requested, test.name)
+			}
+		}
+		if len(requested) > 0 {
+			unknown := make([]string, 0, len(requested))
+			for name := range requested {
+				unknown = append(unknown, name)
+			}
+			sort.Strings(unknown)
+			fmt.Fprintf(os.Stderr, "unknown backend(s): %s; use --list to see valid names\n", strings.Join(unknown, ", "))
+			return 2
+		}
+		tests = selected
+	}
+
+	if os.Geteuid() != 0 {
+		fmt.Fprintln(os.Stderr, "bridge backend conformance tests require root")
+		fmt.Fprintln(os.Stderr, "copy and run:")
+		fmt.Fprintf(os.Stderr, "  sudo env PATH=%s go run ./tools/bridge/testing/backend-smoke", shellArg(os.Getenv("PATH")))
+		for _, arg := range os.Args[1:] {
+			fmt.Fprintf(os.Stderr, " %s", shellArg(arg))
+		}
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "or run the archived suite with: mise run test:bridge:integration")
+		return 2
+	}
+
+	fmt.Printf("bridge backend conformance: running %d test(s)\n", len(tests))
 	output, err := createOutput(outputPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -83,17 +151,6 @@ func run() int {
 	defer func() { _ = captures.Close() }()
 
 	encoder := json.NewEncoder(output)
-	tests := []struct {
-		name string
-		run  func(*captureWriter) (map[string]any, error)
-	}{
-		{name: "udp", run: testUDP},
-		{name: "udp-loss", run: testUDPPacketLoss},
-		{name: "udp-loss-cli", run: func(c *captureWriter) (map[string]any, error) { return testUDPPacketLossCLI(c, tethuxPath) }},
-		{name: "raw", run: func(c *captureWriter) (map[string]any, error) { return testVethBackend(c, bridge.RawScheme) }},
-		{name: "pcap", run: func(c *captureWriter) (map[string]any, error) { return testVethBackend(c, bridge.PcapScheme) }},
-		{name: "tap", run: testTAP},
-	}
 
 	failed := false
 	for _, test := range tests {
@@ -127,6 +184,13 @@ func run() int {
 		return 1
 	}
 	return 0
+}
+
+func shellArg(value string) string {
+	if value != "" && !strings.ContainsAny(value, " \t\n'\"\\$`;&|<>(){}[]*?!") {
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func testUDP(captures *captureWriter) (map[string]any, error) {

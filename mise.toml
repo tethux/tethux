@@ -48,19 +48,90 @@ run = "bun install --frozen-lockfile"
 
 [tasks."dev:container-udp"]
 description = "Run UDP container topology"
-run = "go run ./tools/ci topology container-udp --runtime ${RUNTIME:-podman} --n ${N:-4}"
+depends = ["fixture-registry:start"]
+run = "go run -tags debug ./tools/ci bridge topology --runtime ${RUNTIME:-podman} --n ${N:-4}"
+
+[tasks."fixture-registry:start"]
+description = "Start and seed the local topology fixture registry sidecar"
+run = '''
+runtime="${RUNTIME:-podman}"
+registry_name="tethux-fixture-registry"
+seed_name="tethux-fixture-seed"
+registry="127.0.0.1:5000"
+base_image="docker.io/library/alpine:3.22"
+network_flag=""
+if [ "$runtime" = "podman" ]; then
+  network_flag="--network=pasta"
+fi
+
+if "$runtime" container inspect "$registry_name" >/dev/null 2>&1; then
+  "$runtime" start "$registry_name" >/dev/null
+else
+  "$runtime" run -d \
+    $network_flag \
+    --name "$registry_name" \
+    --restart unless-stopped \
+    -p 127.0.0.1:5000:5000 \
+    docker.io/library/registry:2 >/dev/null
+fi
+
+for attempt in $(seq 1 30); do
+  if curl --fail --silent "http://$registry/v2/" >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 30 ]; then
+    echo "fixture registry did not become ready at http://$registry" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+"$runtime" rm -f "$seed_name" >/dev/null 2>&1 || true
+"$runtime" pull "$base_image" >/dev/null
+"$runtime" run $network_flag --name "$seed_name" "$base_image" \
+  sh -c 'apk add --no-cache iproute2 iputils >/dev/null'
+"$runtime" commit "$seed_name" "$registry/tethux/fixture-a:1" >/dev/null
+"$runtime" tag "$registry/tethux/fixture-a:1" "$registry/tethux/fixture-b:1"
+
+if [ "$runtime" = "podman" ]; then
+  "$runtime" push --tls-verify=false "$registry/tethux/fixture-a:1" >/dev/null
+  "$runtime" push --tls-verify=false "$registry/tethux/fixture-b:1" >/dev/null
+else
+  "$runtime" push "$registry/tethux/fixture-a:1" >/dev/null
+  "$runtime" push "$registry/tethux/fixture-b:1" >/dev/null
+fi
+
+"$runtime" rm -f "$seed_name" >/dev/null
+echo "fixture registry ready: $registry/tethux/fixture-a:1"
+'''
+
+[tasks."fixture-registry:status"]
+description = "Show local fixture registry sidecar status and catalog"
+run = '''
+runtime="${RUNTIME:-podman}"
+"$runtime" ps --filter name=tethux-fixture-registry
+curl --fail --silent http://127.0.0.1:5000/v2/_catalog
+echo
+'''
+
+[tasks."fixture-registry:stop"]
+description = "Stop and remove the local fixture registry sidecar"
+run = '''
+runtime="${RUNTIME:-podman}"
+"$runtime" rm -f tethux-fixture-registry
+'''
 
 [tasks."run:tethux"]
 description = "Run multicall help"
-run = "go run ./cmd/tethux"
+run = "go run -tags debug ./cmd/tethux"
 
 [tasks."run:bridge"]
 description = "Run standalone bridge"
-run = "go run ./cmd/bridge/main"
+run = "go run -tags debug ./cmd/bridge/main"
 
 [tasks."run:virt"]
 description = "Run standalone virt"
-run = "go run ./cmd/virt/main"
+run = "go run -tags debug ./cmd/virt/main"
 
 # build
 
@@ -80,16 +151,16 @@ hide = true
 run = "mkdir -p ./bin"
 
 [tasks."build:go"]
-description = "Build multicall binary"
+description = "Build multicall binary with development assertions"
 depends = ["build:create-bin-dir"]
-run = "go build -o ./bin/tethux ./cmd/tethux"
+run = "go build -tags debug -o ./bin/tethux ./cmd/tethux"
 
 [tasks."build:standalone"]
-description = "Build standalone binaries"
+description = "Build standalone binaries with development assertions"
 depends = ["build:create-bin-dir"]
 run = """
-go build -o ./bin/tethux-bridge ./cmd/bridge/main
-go build -o ./bin/tethux-virt ./cmd/virt/main
+go build -tags debug -o ./bin/tethux-bridge ./cmd/bridge/main
+go build -tags debug -o ./bin/tethux-virt ./cmd/virt/main
 """
 
 [tasks."build:viewer-frontend"]
@@ -125,7 +196,11 @@ depends = ["check:format", "lint", "test", "build"]
 
 [tasks.lint]
 description = "Run all linters"
-depends = ["lint:go", "lint:web"]
+depends = ["lint:asserts", "lint:go", "lint:web"]
+
+[tasks."lint:asserts"]
+description = "Reject expensive invariant scans in release builds"
+run = "go run ./tools/assertlint ."
 
 [tasks."lint:go"]
 description = "Run Go linter"
@@ -163,7 +238,7 @@ depends = ["test:go", "test:web"]
 [tasks."test:go"]
 description = "Run Go tests"
 depends = ["build:viewer-frontend"]
-run = "go list ./... | rg -v '/node_modules/' | xargs go test"
+run = "go list -tags debug ./... | rg -v '/node_modules/' | xargs go test -tags debug"
 
 [tasks."test:web"]
 description = "Validate the CI viewer frontend"
@@ -211,11 +286,34 @@ run = "go run ./tools/ci run local --integration --runtime ${RUNTIME:?set RUNTIM
 
 [tasks."test:bridge"]
 description = "Run bridge unit and parser tests"
-run = "go test ./cmd/bridge/... ./internal/libtethux/bridge/..."
+run = "go test -tags debug ./cmd/bridge/... ./internal/libtethux/bridge/..."
 
 [tasks."test:bridge:integration"]
-description = "Opt-in archived UDP/raw/pcap/TAP exact-frame tests"
-run = "go run ./tools/ci run bridge --archive"
+description = "Run and archive UDP/raw/pcap/TAP bridge conformance tests"
+run = "go run ./tools/ci bridge test --archive --archive-root ${ARCHIVE_ROOT:-./ingestion/archive}"
+
+[tasks."test:bridge:integration:list"]
+description = "List bridge conformance backends without requiring root"
+run = "go run ./tools/ci bridge list"
+
+[tasks.topology]
+description = "Run an archived container topology, then ingest it into the local results database"
+depends = ["fixture-registry:start"]
+run = '''
+archive_root="${ARCHIVE_ROOT:-./ingestion/archive}"
+results_db="${RESULTS_DB:-./data/ci/ci-res.db}"
+runtime="${RUNTIME:-podman}"
+
+go run ./tools/ci bridge all \
+	--runtime "$runtime" \
+	--archive-root "$archive_root"
+
+go run ./tools/ci-results ingest --path "$archive_root" --db "$results_db"
+'''
+
+[tasks."topology:ingest"]
+description = "Ingest existing local topology/test archives into SQLite"
+run = "go run ./tools/ci-results ingest --path ${ARCHIVE_ROOT:-./ingestion/archive} --db ${RESULTS_DB:-./data/ci/ci-res.db}"
 
 [tasks."test:integration:nas"]
 description = "Opt-in local integration run, atomically published to the NAS"
@@ -223,15 +321,15 @@ run = "TETHUX_ARCHIVE_NAS_HOST=${NAS_HOST:-nas} go run ./tools/ci run local --in
 
 [tasks."test:bridge:integration:nas"]
 description = "Opt-in backend packet tests, atomically published to the NAS"
-run = "TETHUX_ARCHIVE_NAS_HOST=${NAS_HOST:-nas} go run ./tools/ci run bridge --archive"
+run = "TETHUX_ARCHIVE_NAS_HOST=${NAS_HOST:-nas} go run ./tools/ci bridge test --archive"
 
 [tasks."archive:nas:inventory"]
 description = "Write a local ignored inventory of NAS test archives and schemas"
 run = "go run ./tools/ci archive inventory --host ${NAS_HOST:-nas}"
 
 [tasks."test:host:topology"]
-description = "Run privileged bridge topology smoke tests"
-run = "go run ./tools/ci run topology --runtime all"
+description = "Run and ingest the privileged bridge topology smoke test"
+run = "mise run topology"
 
 [tasks."test:host:hypervisors"]
 description = "Run privileged network and hypervisor smoke tests"

@@ -47,6 +47,8 @@ go.work
 *.sqlite3
 coverage/
 coverage.out
+/bridge-backends.jsonl
+/bridge-backends.pcap
 
 # CI viewer generated frontend output and dependencies
 /tools/ci-results/viewer/frontend/.svelte-kit/

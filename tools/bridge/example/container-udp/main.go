@@ -46,11 +46,14 @@ func main() {
 
 	cfg := parseFlags()
 	if os.Geteuid() != 0 {
-		log.Fatalf("this demo needs root for veth/raw sockets: go run ./tools/ci topology container-udp --runtime %s --n %d", cfg.runtime, cfg.n)
+		log.Fatalf("this demo needs root for veth/raw sockets: sudo go run ./tools/ci bridge topology --runtime %s --n %d", cfg.runtime, cfg.n)
 	}
 
 	if _, err := exec.LookPath(cfg.runtime); err != nil {
 		log.Fatalf("%s is required: %v", cfg.runtime, err)
+	}
+	if err := ensureContainerImage(cfg); err != nil {
+		log.Fatal(err)
 	}
 
 	root, err := repoRoot()
@@ -322,6 +325,34 @@ func cleanupStaleDemoState(cfg config) {
 	}
 
 	deleteStaleHostLinks()
+}
+
+func ensureContainerImage(cfg config) error {
+	cmd := exec.Command(cfg.runtime, "image", "inspect", cfg.image)
+	_, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	pullArgs := []string{"pull"}
+	if cfg.runtime == "podman" {
+		pullArgs = append(pullArgs, "--tls-verify=false")
+	}
+	pullArgs = append(pullArgs, cfg.image)
+	pull := exec.Command(cfg.runtime, pullArgs...)
+	output, err := pull.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	detail := strings.TrimSpace(string(output))
+	if detail == "" {
+		detail = err.Error()
+	}
+	return fmt.Errorf(
+		"topology image %q is unavailable to %s; start the fixture registry or pass --image/IMAGE with an image containing ip and ping: %s",
+		cfg.image,
+		cfg.runtime,
+		detail,
+	)
 }
 
 func deleteStaleHostLinks() {

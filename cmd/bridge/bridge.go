@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
 	libtethux_br "github.com/tethux/tethux/internal/libtethux/bridge"
 	"github.com/tethux/tethux/internal/libtethux/bridge/models"
-	"github.com/spf13/cobra"
 )
 
 type portSpec struct {

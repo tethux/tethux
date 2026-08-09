@@ -10,6 +10,8 @@ jobs:
   test:
     name: Format, Lint, Test, and Build
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    env:
+      TETHUX_CI_RUNNER: "1"
     steps:
       - name: Install system dependencies
         run: |

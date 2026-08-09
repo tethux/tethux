@@ -20,6 +20,8 @@ type Privilege string
 const (
 	PrivilegeUser Privilege = "user"
 	PrivilegeRoot Privilege = "root"
+	// CIEnvironmentVariable explicitly marks a non-interactive tethux CI runner.
+	CIEnvironmentVariable = "TETHUX_CI_RUNNER"
 )
 
 type Output struct {
@@ -143,9 +145,25 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 
 	command, args := step.Command, append([]string(nil), step.Args...)
 	environment := mergedEnvironment(r.BaseEnv, step.Env)
-	if step.Privilege == PrivilegeRoot && os.Geteuid() != 0 {
-		args = rootCommandArgs(command, args, environment)
-		command = "sudo"
+	if step.Privilege == PrivilegeRoot && os.Geteuid() != 0 && !r.DryRun {
+		if !IsCI() {
+			copyCommand := rootCopyCommand(step.Dir, command, args, environment)
+			fmt.Fprintf(r.Stderr, "root privileges are required; copy and run:\n\n    %s\n\n", copyCommand)
+			result.FinishedAt = time.Now().UTC()
+			result.ExitCode = 1
+			result.Error = "root privileges required"
+			return result, errors.New("root privileges required; copy the command printed above")
+		} else if err := exec.CommandContext(stepCtx, "sudo", "-n", "true").Run(); err != nil {
+			copyCommand := rootCopyCommand(step.Dir, command, args, environment)
+			fmt.Fprintf(r.Stderr, "CI runner lacks passwordless sudo; command was:\n\n    %s\n\n", copyCommand)
+			result.FinishedAt = time.Now().UTC()
+			result.ExitCode = 1
+			result.Error = "CI runner lacks passwordless sudo"
+			return result, errors.New("CI runner lacks passwordless sudo")
+		} else {
+			args = rootCommandArgs(command, args, environment)
+			command = "sudo"
+		}
 	}
 	fmt.Fprintf(r.Stdout, "==> %s\n    %s %s\n", step.Name, command, strings.Join(args, " "))
 	if r.DryRun {
@@ -196,9 +214,44 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 	return result, err
 }
 
+// IsCI reports whether the explicit tethux runner marker is enabled.
+func IsCI() bool {
+	return os.Getenv(CIEnvironmentVariable) == "1"
+}
+
+func privilegedCommandArgs(command string, args, environment []string) []string {
+	rootArgs := rootCommandArgs(command, args, environment)
+	return slices.DeleteFunc(rootArgs, func(value string) bool { return value == "-n" })
+}
+
+func rootCopyCommand(dir, command string, args, environment []string) string {
+	rootArgs := privilegedCommandArgs(command, args, environment)
+	parts := make([]string, 0, len(rootArgs)+3)
+	if dir != "" {
+		parts = append(parts, "cd", shellQuote(dir), "&&")
+	}
+	parts = append(parts, "sudo")
+	for _, arg := range rootArgs {
+		parts = append(parts, shellQuote(arg))
+	}
+	return strings.Join(parts, " ")
+}
+
+func shellQuote(value string) string {
+	if value != "" && strings.IndexFunc(value, func(r rune) bool {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+			return false
+		}
+		return !strings.ContainsRune("_@%+=:,./-", r)
+	}) == -1 {
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
 func rootCommandArgs(command string, args, environment []string) []string {
 	sudoArgs := []string{"-n", "env"}
-	for _, name := range []string{"PATH", "CGO_ENABLED", "CGO_CFLAGS", "CGO_LDFLAGS", "LD_LIBRARY_PATH", "TETHUX_RUN_ID"} {
+	for _, name := range []string{"PATH", "CGO_ENABLED", "CGO_CFLAGS", "CGO_LDFLAGS", "LD_LIBRARY_PATH", "TETHUX_RUN_ID", CIEnvironmentVariable} {
 		prefix := name + "="
 		for _, value := range environment {
 			if strings.HasPrefix(value, prefix) {

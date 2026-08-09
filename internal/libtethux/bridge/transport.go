@@ -17,15 +17,21 @@ func init() {
 	RegisterPortFactory("udp", NewUDPPort)
 }
 
+// AvailableScheme identifies a registered port transport.
 type AvailableScheme string
 
 const (
-	RawScheme  AvailableScheme = "raw"
+	// RawScheme selects the Linux raw-socket transport.
+	RawScheme AvailableScheme = "raw"
+	// PcapScheme selects the pcap transport.
 	PcapScheme AvailableScheme = "pcap"
-	TAPScheme  AvailableScheme = "tap"
-	UDPScheme  AvailableScheme = "udp"
+	// TAPScheme selects the TAP-interface transport.
+	TAPScheme AvailableScheme = "tap"
+	// UDPScheme selects the UDP datagram transport.
+	UDPScheme AvailableScheme = "udp"
 )
 
+// PortOptions configures a concrete frame transport.
 type PortOptions struct {
 	ID            string
 	Interface     string
@@ -36,8 +42,10 @@ type PortOptions struct {
 	SnapLen       int
 }
 
+// PortFactory creates a port from transport options.
 type PortFactory func(opts *PortOptions) (Port, error)
 
+// PortRegistry maps transport scheme names to factories.
 type PortRegistry struct {
 	mu        sync.RWMutex
 	factories map[string]PortFactory
@@ -47,6 +55,7 @@ var defaultRegistry = &PortRegistry{
 	factories: make(map[string]PortFactory),
 }
 
+// NewPort creates a port using the factory registered for scheme.
 func NewPort(scheme AvailableScheme, opts *PortOptions) (Port, error) {
 	factory, ok := defaultRegistry.Get(string(scheme))
 	if !ok {
@@ -56,6 +65,7 @@ func NewPort(scheme AvailableScheme, opts *PortOptions) (Port, error) {
 	return factory(opts)
 }
 
+// NewRawSocketPort opens a Linux raw-socket port using opts.
 func NewRawSocketPort(opts *PortOptions) (Port, error) {
 	ifi, err := net.InterfaceByName(opts.Interface)
 	if err != nil {
@@ -92,6 +102,7 @@ func NewRawSocketPort(opts *PortOptions) (Port, error) {
 	}, nil
 }
 
+// NewPcapPort opens a pcap-backed port using opts.
 func NewPcapPort(opts *PortOptions) (Port, error) {
 	inactive, errInactive := pcap.NewInactiveHandle(opts.Interface)
 	if errInactive != nil {
@@ -130,6 +141,7 @@ func NewPcapPort(opts *PortOptions) (Port, error) {
 	}, nil
 }
 
+// NewUDPPort opens a UDP-backed port using opts.
 func NewUDPPort(opts *PortOptions) (Port, error) {
 	addr, err := net.ResolveUDPAddr("udp", opts.Remote)
 	if err != nil {
@@ -162,6 +174,7 @@ func NewUDPPort(opts *PortOptions) (Port, error) {
 	}, nil
 }
 
+// RegisterPortFactory registers a transport factory in the default registry.
 func RegisterPortFactory(name string, f PortFactory) {
 	defaultRegistry.mu.Lock()
 	defer defaultRegistry.mu.Unlock()
@@ -169,6 +182,7 @@ func RegisterPortFactory(name string, f PortFactory) {
 	defaultRegistry.factories[name] = f
 }
 
+// Get returns the factory registered under name.
 func (r *PortRegistry) Get(name string) (PortFactory, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

@@ -797,12 +797,12 @@ func (c *Containerd) StartContainer(
 	}
 
 	if status.Status == containerd.Paused {
-		if err := task.Resume(ctx); err != nil {
+		if resumeErr := task.Resume(ctx); resumeErr != nil {
 			return errs.Wrap(
 				"containerd",
 				errs.ErrFailedToStartContainer,
 				id,
-				err,
+				resumeErr,
 			)
 		}
 
@@ -1380,15 +1380,15 @@ func (c *Containerd) Exec(
 		"fifo",
 	)
 
-	if err := os.MkdirAll(
+	if mkdirErr := os.MkdirAll(
 		fifoDir,
 		0o700,
-	); err != nil {
+	); mkdirErr != nil {
 		return nil, nil, errs.Wrap(
 			"containerd",
 			errs.ErrFailedToPrepareIO,
 			id,
-			err,
+			mkdirErr,
 		)
 	}
 
