@@ -56,7 +56,7 @@ func BuiltinWorkflows(root string) []Workflow {
 			{Name: "tap-delete", Command: "ip", Args: []string{"link", "delete", "tethux-tap0"}, Privilege: PrivilegeRoot, DependsOn: []string{"tap-add"}, Always: true},
 			{Name: "qemu-version", Command: "qemu-system-x86_64", Args: []string{"--version"}, Timeout: time.Minute, AllowMissing: true},
 			{Name: "virsh-list", Command: "virsh", Args: []string{"list", "--all"}, Timeout: time.Minute, AllowMissing: true},
-			{Name: "dynamips-version", Command: "dynamips", Args: []string{"--version"}, Timeout: time.Minute, AllowMissing: true},
+			{Name: "dynamips-version", Command: "dynamips", Args: []string{"--version"}, Timeout: time.Minute, AllowMissing: true, AllowedExitCodes: []int{1}},
 			{Name: "virtualbox-list", Command: "VBoxManage", Args: []string{"list", "vms"}, Timeout: time.Minute, AllowMissing: true},
 			{Name: "vmware-version", Command: "vmrun", Timeout: time.Minute, AllowMissing: true},
 		}, ContinueOnError: true},

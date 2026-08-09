@@ -3,6 +3,7 @@ package ci
 import (
 	"bytes"
 	"context"
+	"errors"
 	"runtime"
 	"slices"
 	"strings"
@@ -30,6 +31,37 @@ func TestRunnerPreservesExitCode(t *testing.T) {
 	})
 	if err == nil || result.ExitCode != 17 {
 		t.Fatalf("expected exit 17, got result=%+v err=%v", result, err)
+	}
+}
+
+func TestRunnerAcceptsConfiguredExitCode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix helper")
+	}
+	runner := NewRunner(&bytes.Buffer{}, &bytes.Buffer{})
+	result, err := runner.RunStep(context.Background(), Step{
+		Name: "version-probe", Command: "sh", Args: []string{"-c", "exit 1"},
+		AllowedExitCodes: []int{1},
+	})
+	if err != nil {
+		t.Fatalf("configured exit code should pass: result=%+v err=%v", result, err)
+	}
+	if result.ExitCode != 1 {
+		t.Fatalf("exit code = %d, want 1", result.ExitCode)
+	}
+}
+
+func TestRunnerDoesNotLetAllowedExitCodeMaskTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix helper")
+	}
+	runner := NewRunner(&bytes.Buffer{}, &bytes.Buffer{})
+	result, err := runner.RunStep(context.Background(), Step{
+		Name: "timeout", Command: "sh", Args: []string{"-c", "sleep 5"},
+		Timeout: 10 * time.Millisecond, AllowedExitCodes: []int{-1},
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("timeout was masked: result=%+v err=%v", result, err)
 	}
 }
 

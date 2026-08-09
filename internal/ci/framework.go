@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -28,18 +29,19 @@ type Output struct {
 }
 
 type Step struct {
-	Name          string
-	Command       string
-	Args          []string
-	Env           map[string]string
-	Dir           string
-	DependsOn     []string
-	Privilege     Privilege
-	Outputs       []Output
-	CaptureStdout string
-	Timeout       time.Duration
-	Always        bool
-	AllowMissing  bool
+	Name             string
+	Command          string
+	Args             []string
+	Env              map[string]string
+	Dir              string
+	DependsOn        []string
+	Privilege        Privilege
+	Outputs          []Output
+	CaptureStdout    string
+	Timeout          time.Duration
+	Always           bool
+	AllowMissing     bool
+	AllowedExitCodes []int
 }
 
 type Workflow struct {
@@ -187,6 +189,8 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 	}
 	if stepCtx.Err() != nil {
 		err = stepCtx.Err()
+	} else if exitErr != nil && slices.Contains(step.AllowedExitCodes, result.ExitCode) {
+		return result, nil
 	}
 	result.Error = err.Error()
 	return result, err
