@@ -24,7 +24,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/pcapgo"
-	bridge "github.com/tethux/tethux/internal/libtethux/bridge"
+	bridge "github.com/tethux/tethux/bridge"
 )
 
 const (

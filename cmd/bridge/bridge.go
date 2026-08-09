@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	libtethux_br "github.com/tethux/tethux/internal/libtethux/bridge"
-	"github.com/tethux/tethux/internal/libtethux/bridge/models"
+	libtethux_br "github.com/tethux/tethux/bridge"
+	"github.com/tethux/tethux/bridge/models"
 )
 
 type portSpec struct {

@@ -16,7 +16,9 @@ subsystem.
 | `cmd/` | Public CLI packages and executable entrypoints | [`cmd/README.md`](cmd/README.md) |
 | `cmd/bridge/` | Ethernet switch and namespace/container bridge commands | [`cmd/bridge/README.md`](cmd/bridge/README.md) |
 | `cmd/virt/` | Docker, Podman, and containerd providers and integration CLI | [`cmd/virt/README.md`](cmd/virt/README.md) |
-| `internal/libtethux/` | Switch, transport, bridge, and provider libraries | package Go documentation |
+| `bridge/` | Public Ethernet switch, transports, and network primitives | [`bridge/README.md`](bridge/README.md) |
+| `storage/` | Public storage abstractions and local provider | [`storage/README.md`](storage/README.md) |
+| `virt/` | Public virtualization APIs and container providers | [`virt/README.md`](virt/README.md) |
 | `tools/ci/` | Repository test, archive, and host CLI | [`internal/ci/README.md`](internal/ci/README.md) |
 | `tools/ci-results/` | CI archive ingestion, SQLite store, API, and web viewer | [`tools/ci-results/viewer/README.md`](tools/ci-results/viewer/README.md) |
 | `tools/bridge/` | Standalone bridge examples and conformance drivers | [`tools/bridge/README.md`](tools/bridge/README.md) |
@@ -36,6 +38,37 @@ subsystem.
 - byte-exact libpcap-observed tests for every bridge transport backend.
 
 ## Quick start
+
+Install the command at the repository's current module version:
+
+```bash
+go install github.com/tethux/tethux/cmd/tethux@latest
+```
+
+Libraries share the repository's single module version. Add the module, then
+import only the packages required by your application:
+
+```bash
+go get github.com/tethux/tethux@latest
+```
+
+```go
+import (
+	"github.com/tethux/tethux/bridge"
+	"github.com/tethux/tethux/storage"
+	"github.com/tethux/tethux/virt"
+)
+```
+
+The first release is intended to be tagged `v0.0.1`; replace `latest` with
+`v0.0.1` after that tag is published.
+
+## Architecture
+
+The public `bridge`, `storage`, and `virt` packages form the reusable API.
+Commands under `cmd` compose those packages, while repository automation and
+CI-result ingestion remain private under `internal`. All packages are released
+together from the root `github.com/tethux/tethux` Go module.
 
 Enter the development shell and run the normal checks:
 

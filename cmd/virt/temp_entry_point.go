@@ -11,11 +11,11 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
-	"github.com/tethux/tethux/internal/libtethux/virt"
-	"github.com/tethux/tethux/internal/libtethux/virt/container"
-	containerdimpl "github.com/tethux/tethux/internal/libtethux/virt/container/containerd"
-	"github.com/tethux/tethux/internal/libtethux/virt/container/docker"
-	"github.com/tethux/tethux/internal/libtethux/virt/container/podman"
+	"github.com/tethux/tethux/virt"
+	"github.com/tethux/tethux/virt/container"
+	containerdimpl "github.com/tethux/tethux/virt/container/containerd"
+	"github.com/tethux/tethux/virt/container/docker"
+	"github.com/tethux/tethux/virt/container/podman"
 )
 
 const testHostEnv = "TETHUX_VIRT_TEST_HOST"

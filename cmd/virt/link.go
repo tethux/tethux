@@ -16,9 +16,9 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
-	libbridge "github.com/tethux/tethux/internal/libtethux/bridge"
-	libvirt "github.com/tethux/tethux/internal/libtethux/virt"
-	"github.com/tethux/tethux/internal/libtethux/virt/container"
+	libbridge "github.com/tethux/tethux/bridge"
+	libvirt "github.com/tethux/tethux/virt"
+	"github.com/tethux/tethux/virt/container"
 )
 
 type linkEvent struct {

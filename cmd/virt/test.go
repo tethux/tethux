@@ -17,8 +17,8 @@ import (
 	"github.com/spf13/cobra"
 
 	ciframework "github.com/tethux/tethux/internal/ci"
-	libvirt "github.com/tethux/tethux/internal/libtethux/virt"
-	"github.com/tethux/tethux/internal/libtethux/virt/container"
+	libvirt "github.com/tethux/tethux/virt"
+	"github.com/tethux/tethux/virt/container"
 )
 
 var defaultTestImages = []string{

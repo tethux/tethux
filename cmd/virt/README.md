@@ -89,6 +89,6 @@ endpoint and its container are removed on completion or signal.
 ## Errors
 
 Runtime implementations return typed errors from
-`internal/libtethux/virt/container/errs`. Callers can use `errors.Is` with the
+`virt/container/errs`. Callers can use `errors.Is` with the
 stable category (for example `ErrFailedToStartContainer`) while retaining the
 Docker, Podman, or containerd daemon error as the underlying cause.
