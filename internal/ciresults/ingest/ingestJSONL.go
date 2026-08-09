@@ -9,9 +9,9 @@ import (
 	"io"
 	"time"
 
-	"github.com/0xveya/tethux/internal/ciresults/db"
-	"github.com/0xveya/tethux/internal/ciresults/ingest/archiveformat"
-	"github.com/0xveya/tethux/internal/ciresults/ingest/crosshostlink"
+	"github.com/tethux/tethux/internal/ciresults/db"
+	"github.com/tethux/tethux/internal/ciresults/ingest/archiveformat"
+	"github.com/tethux/tethux/internal/ciresults/ingest/crosshostlink"
 )
 
 type goTestEvent struct {

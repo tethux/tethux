@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/0xveya/tethux/cmd/bridge"
-	"github.com/0xveya/tethux/cmd/virt"
+	"github.com/tethux/tethux/cmd/bridge"
+	"github.com/tethux/tethux/cmd/virt"
 )
 
 func init() {

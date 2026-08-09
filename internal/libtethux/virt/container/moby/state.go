@@ -1,7 +1,7 @@
 package moby
 
 import (
-	"github.com/0xveya/tethux/internal/libtethux/virt"
+	"github.com/tethux/tethux/internal/libtethux/virt"
 
 	moby "github.com/moby/moby/api/types/container"
 )

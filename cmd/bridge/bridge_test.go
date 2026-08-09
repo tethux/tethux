@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	libtethux_br "github.com/0xveya/tethux/internal/libtethux/bridge"
+	libtethux_br "github.com/tethux/tethux/internal/libtethux/bridge"
 )
 
 func TestParsePortSpecs(t *testing.T) {

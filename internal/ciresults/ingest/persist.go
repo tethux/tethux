@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xveya/tethux/internal/ciresults/db"
-	dbgen "github.com/0xveya/tethux/internal/ciresults/db/sqlc"
-	"github.com/0xveya/tethux/internal/ciresults/ingest/archiveformat"
+	"github.com/tethux/tethux/internal/ciresults/db"
+	dbgen "github.com/tethux/tethux/internal/ciresults/db/sqlc"
+	"github.com/tethux/tethux/internal/ciresults/ingest/archiveformat"
 )
 
 var errArtifactBackfillComplete = errors.New("artifact backfill complete")
@@ -141,7 +141,10 @@ func persistRun(ctx context.Context, store *db.Store, record IngestionRecord, ma
 		return err
 	}
 
-	for _, test := range results.Tests {
+	// Older archive producers could emit repeated structured events with the
+	// same generated test ID and attempt. Preserve each event by assigning the
+	// next free attempt instead of rejecting the entire archive.
+	for _, test := range normalizeTestAttempts(results.Tests) {
 		testCase, err := q.UpsertTestCase(ctx, dbgen.UpsertTestCaseParams{
 			ProjectID: project.ID, TestKey: test.TestID, Name: test.Name, Suite: nullString(test.Suite), ResultKind: "go_test",
 			SourceFile: resultSourceFile(test.Source), SourceSymbol: resultSourceSymbol(test.Source),
@@ -202,6 +205,23 @@ func persistRun(ctx context.Context, store *db.Store, record IngestionRecord, ma
 		return fmt.Errorf("commit ingestion transaction: %w", err)
 	}
 	return nil
+}
+
+func normalizeTestAttempts(tests []archiveformat.TestResult) []archiveformat.TestResult {
+	normalized := make([]archiveformat.TestResult, len(tests))
+	copy(normalized, tests)
+	attempts := make(map[string]int64)
+	for index := range normalized {
+		test := &normalized[index]
+		if test.Attempt < 1 {
+			test.Attempt = 1
+		}
+		if test.Attempt <= attempts[test.TestID] {
+			test.Attempt = attempts[test.TestID] + 1
+		}
+		attempts[test.TestID] = test.Attempt
+	}
+	return normalized
 }
 
 const maxStoredArtifactBytes = 512 << 20

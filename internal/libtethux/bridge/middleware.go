@@ -1,10 +1,11 @@
 package bridge
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"sync"
 	"time"
+
+	"github.com/tethux/tethux/internal/libtethux/bridge/errs"
 )
 
 type middlewarePort struct {
@@ -96,7 +97,7 @@ type packetLossPort struct {
 // builds packet loss middleware; dropped frames are successful operations.
 func NewPacketLossMiddleware(opts PacketLossOptions) (PortMiddleware, error) {
 	if opts.Probability < 0 || opts.Probability > 1 {
-		return nil, fmt.Errorf("packet loss probability must be between 0 and 1, got %g", opts.Probability)
+		return nil, errs.New("packet loss", errs.ErrInvalidOptions, "probability must be between 0 and 1")
 	}
 	if opts.Random == nil {
 		opts.Random = rand.Float64

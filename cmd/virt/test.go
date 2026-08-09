@@ -16,9 +16,9 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
-	ciframework "github.com/0xveya/tethux/internal/ci"
-	libvirt "github.com/0xveya/tethux/internal/libtethux/virt"
-	"github.com/0xveya/tethux/internal/libtethux/virt/container"
+	ciframework "github.com/tethux/tethux/internal/ci"
+	libvirt "github.com/tethux/tethux/internal/libtethux/virt"
+	"github.com/tethux/tethux/internal/libtethux/virt/container"
 )
 
 var defaultTestImages = []string{
@@ -200,33 +200,12 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 		return err
 	}
 
-	// check provider creation separately; it only creates metadata.
-	baseName := name + "-base"
-	baseCreated := false
-	defer func() {
-		if resultErr != nil && baseCreated {
-			_ = p.Delete(context.WithoutCancel(ctx), baseName)
-		}
-	}()
-	if err := call("create", func() error {
-		_, err := p.Create(ctx, &libvirt.NodeConfig{Name: baseName, Image: image})
-		if err == nil {
-			baseCreated = true
-		}
-		return err
-	}); err != nil {
-		return err
-	}
-	if err := call("delete", func() error { return p.Delete(ctx, baseName) }); err != nil {
-		return err
-	}
-	baseCreated = false
-
 	var node *container.ContainerNode
 	if err := call("create-container", func() error {
 		var err error
-		node, err = p.CreateContainer(ctx, &container.ContainerConfig{
-			NodeConfig: libvirt.NodeConfig{Name: name, Image: image},
+		node, err = p.CreateContainer(ctx, &container.RuntimeConfig{
+			NodeConfig: libvirt.NodeConfig{Name: name},
+			Image:      container.ParseImage(image),
 			Cmd:        []string{"sh", "-c", "echo tethux-ready; trap 'exit 0' TERM; while :; do sleep 1; done"},
 			Env:        []string{"TETHUX_TEST=structured"},
 			Labels:     map[string]string{"io.tethux.test": "provider-suite", "io.tethux.api": api, "io.tethux.run": runID},

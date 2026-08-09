@@ -11,11 +11,11 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
-	"github.com/0xveya/tethux/internal/libtethux/virt"
-	"github.com/0xveya/tethux/internal/libtethux/virt/container"
-	containerdimpl "github.com/0xveya/tethux/internal/libtethux/virt/container/containerd"
-	"github.com/0xveya/tethux/internal/libtethux/virt/container/docker"
-	"github.com/0xveya/tethux/internal/libtethux/virt/container/podman"
+	"github.com/tethux/tethux/internal/libtethux/virt"
+	"github.com/tethux/tethux/internal/libtethux/virt/container"
+	containerdimpl "github.com/tethux/tethux/internal/libtethux/virt/container/containerd"
+	"github.com/tethux/tethux/internal/libtethux/virt/container/docker"
+	"github.com/tethux/tethux/internal/libtethux/virt/container/podman"
 )
 
 const testHostEnv = "TETHUX_VIRT_TEST_HOST"
@@ -82,12 +82,12 @@ func smokeCmd() *cobra.Command {
 
 			_ = p.Delete(ctx, name)
 
-			node, err := p.CreateContainer(ctx, &container.ContainerConfig{
+			node, err := p.CreateContainer(ctx, &container.RuntimeConfig{
 				NodeConfig: virt.NodeConfig{
-					Name:  name,
-					Image: image,
+					Name: name,
 				},
-				Cmd: cmd,
+				Image: container.ParseImage(image),
+				Cmd:   cmd,
 			})
 			if err != nil {
 				return err

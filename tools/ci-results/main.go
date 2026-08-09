@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -10,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xveya/tethux/internal/ciresults/db"
-	"github.com/0xveya/tethux/internal/ciresults/ingest"
-	"github.com/0xveya/tethux/tools/ci-results/viewer"
 	"github.com/fsnotify/fsnotify"
+	"github.com/tethux/tethux/internal/ciresults/db"
+	"github.com/tethux/tethux/internal/ciresults/ingest"
+	"github.com/tethux/tethux/tools/ci-results/viewer"
 )
 
 func main() {
@@ -122,6 +123,7 @@ func ingestCandidates(ctx context.Context, dbPath string, candidates []ingest.Ar
 	defer store.Close()
 	fmt.Printf("found %d candidate(s)\n", len(candidates))
 
+	var ingestErrors []error
 	for candidateIndex, candidate := range candidates {
 		fmt.Printf(
 			"\n[%d/%d] archive %s / run %s / %d variant(s)\n",
@@ -132,37 +134,26 @@ func ingestCandidates(ctx context.Context, dbPath string, candidates []ingest.Ar
 			len(candidate.Variants),
 		)
 
-		extracted, err := ingest.ExtractCandidate(ctx, candidate)
-		if err != nil {
-			return fmt.Errorf(
-				"extract candidate %s/%s: %w",
-				candidate.Hash,
-				candidate.RunID,
-				err,
-			)
-		}
-
-		if err := processExtractedCandidate(ctx, store, extracted); err != nil {
-			_ = extracted.Close()
-
-			return fmt.Errorf(
-				"process candidate %s/%s: %w",
-				candidate.Hash,
-				candidate.RunID,
-				err,
-			)
-		}
-
-		if err := extracted.Close(); err != nil {
-			return fmt.Errorf(
-				"remove extracted candidate %s/%s: %w",
-				candidate.Hash,
-				candidate.RunID,
-				err,
-			)
+		if err := ingestCandidate(ctx, store, candidate); err != nil {
+			ingestErrors = append(ingestErrors, err)
 		}
 	}
 
+	return errors.Join(ingestErrors...)
+}
+
+func ingestCandidate(ctx context.Context, store *db.Store, candidate ingest.ArchiveRef) error {
+	extracted, err := ingest.ExtractCandidate(ctx, candidate)
+	if err != nil {
+		return fmt.Errorf("extract candidate %s/%s: %w", candidate.Hash, candidate.RunID, err)
+	}
+	if err := processExtractedCandidate(ctx, store, extracted); err != nil {
+		_ = extracted.Close()
+		return fmt.Errorf("process candidate %s/%s: %w", candidate.Hash, candidate.RunID, err)
+	}
+	if err := extracted.Close(); err != nil {
+		return fmt.Errorf("remove extracted candidate %s/%s: %w", candidate.Hash, candidate.RunID, err)
+	}
 	return nil
 }
 
@@ -204,13 +195,19 @@ func runWatchCommand(args []string) error {
 		if len(pending) == 0 {
 			return
 		}
-		if err := ingestCandidates(ctx, *dbPath, pending); err != nil {
-			fmt.Fprintf(os.Stderr, "ci-results watch: %v\n", err)
+		store, openErr := db.NewStore(*dbPath)
+		if openErr != nil {
+			fmt.Fprintf(os.Stderr, "ci-results watch: %v\n", openErr)
 			return
 		}
 		for _, candidate := range pending {
+			if err := ingestCandidate(ctx, store, candidate); err != nil {
+				fmt.Fprintf(os.Stderr, "ci-results watch: %v\n", err)
+				continue
+			}
 			seen[candidate.Hash+"/"+candidate.RunID] = struct{}{}
 		}
+		_ = store.Close()
 	}
 	reconcile()
 	ticker := time.NewTicker(*poll)

@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/0xveya/tethux/cmd/bridge"
+	"github.com/tethux/tethux/cmd/bridge"
 )
 
 func init() {

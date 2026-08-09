@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/0xveya/tethux/internal/ciresults/db"
-	"github.com/0xveya/tethux/internal/ciresults/ingest/archiveformat"
+	"github.com/tethux/tethux/internal/ciresults/db"
+	"github.com/tethux/tethux/internal/ciresults/ingest/archiveformat"
 )
 
 func DecodeManifest(r io.Reader) (archiveformat.Manifest, error) {
@@ -383,7 +383,10 @@ func ingestSchemaJSONL(
 			source,
 			scanner.Bytes(),
 		); err != nil {
-			return fmt.Errorf("line %d: %w", lineNumber, err)
+			// Structured decoding is best-effort enrichment. The verified raw
+			// artifact is already stored in SQLite, and legacy archives can contain
+			// human-readable output under a .jsonl filename.
+			fmt.Printf("skipping structured artifact source=%s line=%d: %v\n", file.Path, lineNumber, err)
 		}
 	}
 

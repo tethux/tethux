@@ -1,4 +1,4 @@
-module github.com/0xveya/tethux
+module github.com/tethux/tethux
 
 go 1.26.4
 

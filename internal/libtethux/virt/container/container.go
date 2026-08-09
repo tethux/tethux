@@ -3,65 +3,78 @@ package container
 import (
 	"context"
 	"io"
-	"net/netip"
 
-	"github.com/0xveya/tethux/internal/libtethux/virt"
 	"github.com/moby/moby/client"
+	"github.com/tethux/tethux/internal/libtethux/virt"
 )
 
 type ContainerProvider interface {
 	virt.Provider
 
-	CreateContainer(ctx context.Context, cfg *ContainerConfig) (*ContainerNode, error)
-	Pull(ctx context.Context, ref string, opts *client.ImagePullOptions) error
-	Exec(ctx context.Context, id string, cmd []string, execOpts *client.ExecCreateOptions, attachOpts *client.ExecAttachOptions) (stdout, stderr []byte, err error)
-	Logs(ctx context.Context, id string, opts *client.ContainerLogsOptions) (io.ReadCloser, error)
-	Inspect(ctx context.Context, id string, opts *client.ContainerInspectOptions) (*ContainerNode, error)
+	CreateContainer(
+		ctx context.Context,
+		cfg *RuntimeConfig,
+	) (*ContainerNode, error)
 
-	StartContainer(ctx context.Context, id string, opts *client.ContainerStartOptions) error
-	StopContainer(ctx context.Context, id string, opts *client.ContainerStopOptions) error
-	DeleteContainer(ctx context.Context, id string, opts *client.ContainerRemoveOptions) error
-	RestartContainer(ctx context.Context, id string, opts *client.ContainerRestartOptions) error
-	SuspendContainer(ctx context.Context, id string, opts *client.ContainerPauseOptions) error
-	ResumeContainer(ctx context.Context, id string, opts *client.ContainerUnpauseOptions) error
-	// cleanup and prune are still missing.
-}
+	Pull(
+		ctx context.Context,
+		ref string,
+		opts *client.ImagePullOptions,
+	) error
 
-type ContainerConfig struct {
-	virt.NodeConfig
+	Exec(
+		ctx context.Context,
+		id string,
+		cmd []string,
+		execOpts *client.ExecCreateOptions,
+		attachOpts *client.ExecAttachOptions,
+	) (stdout, stderr []byte, err error)
 
-	Registry string
-	Tag      string
-	Digest   string
+	Logs(
+		ctx context.Context,
+		id string,
+		opts *client.ContainerLogsOptions,
+	) (io.ReadCloser, error)
 
-	Entrypoint  []string
-	Cmd         []string
-	Env         []string
-	Volumes     []VolumeMount
-	CapAdd      []string
-	CapDrop     []string
-	Privileged  bool
-	NetworkMode string
+	Inspect(
+		ctx context.Context,
+		id string,
+		opts *client.ContainerInspectOptions,
+	) (*ContainerNode, error)
 
-	Hostname   string
-	DNS        []netip.Addr
-	ExtraHosts []string
+	StartContainer(
+		ctx context.Context,
+		id string,
+		opts *client.ContainerStartOptions,
+	) error
 
-	Labels map[string]string
-}
+	StopContainer(
+		ctx context.Context,
+		id string,
+		opts *client.ContainerStopOptions,
+	) error
 
-type VolumeMount struct {
-	Source   string
-	Target   string
-	ReadOnly bool
-}
+	DeleteContainer(
+		ctx context.Context,
+		id string,
+		opts *client.ContainerRemoveOptions,
+	) error
 
-type ContainerNode struct {
-	virt.Node
+	RestartContainer(
+		ctx context.Context,
+		id string,
+		opts *client.ContainerRestartOptions,
+	) error
 
-	PID       uint32
-	ImageID   string
-	ImageName string
-	Labels    map[string]string
-	Networks  []string
+	SuspendContainer(
+		ctx context.Context,
+		id string,
+		opts *client.ContainerPauseOptions,
+	) error
+
+	ResumeContainer(
+		ctx context.Context,
+		id string,
+		opts *client.ContainerUnpauseOptions,
+	) error
 }

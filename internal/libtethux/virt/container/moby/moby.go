@@ -6,13 +6,13 @@ import (
 	"io"
 	"strings"
 
-	"github.com/0xveya/tethux/internal/libtethux/virt"
 	mobycontainer "github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
+	"github.com/tethux/tethux/internal/libtethux/virt"
 
-	"github.com/0xveya/tethux/internal/libtethux/virt/container"
-	"github.com/0xveya/tethux/internal/libtethux/virt/container/errs"
 	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/tethux/tethux/internal/libtethux/virt/container"
+	"github.com/tethux/tethux/internal/libtethux/virt/container/errs"
 )
 
 type Client struct {
@@ -123,38 +123,61 @@ func (c *Client) RestartContainer(ctx context.Context, id string, opts *mobyclie
 	return err
 }
 
-func (c *Client) CreateContainer(ctx context.Context, cfg *container.ContainerConfig) (*container.ContainerNode, error) {
-	binds := make([]string, len(cfg.Volumes))
-	for i, v := range cfg.Volumes {
+func (c *Client) CreateContainer(
+	ctx context.Context,
+	cfg *container.RuntimeConfig,
+) (*container.ContainerNode, error) {
+	if cfg == nil {
+		return nil, errs.New(c.name, errs.ErrInvalidConfig, "config is nil")
+	}
+	image := cfg.Image.String()
+	if image == "" {
+		return nil, errs.New(c.name, errs.ErrInvalidConfig, "image is required")
+	}
+	binds := make([]string, 0, len(cfg.Volumes))
+
+	for _, v := range cfg.Volumes {
 		bind := v.Source + ":" + v.Target
+
 		if v.ReadOnly {
 			bind += ":ro"
 		}
-		binds[i] = bind
+
+		binds = append(binds, bind)
 	}
 
-	resp, err := c.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
-		Name: cfg.Name,
-		Config: &mobycontainer.Config{
-			Image:      cfg.Image,
-			Cmd:        cfg.Cmd,
-			Entrypoint: cfg.Entrypoint,
-			Env:        cfg.Env,
-			Labels:     cfg.Labels,
-			Hostname:   cfg.Hostname,
+	resp, err := c.cli.ContainerCreate(
+		ctx,
+		mobyclient.ContainerCreateOptions{
+			Name: cfg.Name,
+
+			Config: &mobycontainer.Config{
+				Image:      image,
+				Cmd:        cfg.Cmd,
+				Entrypoint: cfg.Entrypoint,
+				Env:        cfg.Env,
+				Labels:     cfg.Labels,
+				Hostname:   cfg.Hostname,
+			},
+
+			HostConfig: &mobycontainer.HostConfig{
+				Binds:       binds,
+				CapAdd:      cfg.CapAdd,
+				CapDrop:     cfg.CapDrop,
+				Privileged:  cfg.Privileged,
+				NetworkMode: mobycontainer.NetworkMode(cfg.NetworkMode),
+				DNS:         cfg.DNS,
+				ExtraHosts:  cfg.ExtraHosts,
+			},
 		},
-		HostConfig: &mobycontainer.HostConfig{
-			Binds:       binds,
-			CapAdd:      cfg.CapAdd,
-			CapDrop:     cfg.CapDrop,
-			Privileged:  cfg.Privileged,
-			NetworkMode: mobycontainer.NetworkMode(cfg.NetworkMode),
-			DNS:         cfg.DNS,
-			ExtraHosts:  cfg.ExtraHosts,
-		},
-	})
+	)
 	if err != nil {
-		return nil, errs.Wrap(c.name, errs.ErrFailedToCreateContainer, cfg.Name, err)
+		return nil, errs.Wrap(
+			c.name,
+			errs.ErrFailedToCreateContainer,
+			cfg.Name,
+			err,
+		)
 	}
 
 	return &container.ContainerNode{
@@ -163,7 +186,7 @@ func (c *Client) CreateContainer(ctx context.Context, cfg *container.ContainerCo
 			Name:  cfg.Name,
 			State: virt.NodeStopped,
 		},
-		ImageName: cfg.Image,
+		ImageName: image,
 		Labels:    cfg.Labels,
 	}, nil
 }
@@ -270,19 +293,6 @@ func (c *Client) Inspect(ctx context.Context, id string, opts *mobyclient.Contai
 		Labels:    resp.Container.Config.Labels,
 		Networks:  networks,
 	}, nil
-}
-
-func (c *Client) Create(ctx context.Context, cfg *virt.NodeConfig) (*virt.Node, error) {
-	if cfg == nil {
-		return nil, errs.New(c.name, errs.ErrInvalidConfig, "config is nil")
-	}
-	node, err := c.CreateContainer(ctx, &container.ContainerConfig{
-		NodeConfig: *cfg,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &node.Node, nil
 }
 
 func (c *Client) Start(ctx context.Context, id string) error {

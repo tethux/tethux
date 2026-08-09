@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	bridge "github.com/0xveya/tethux/internal/libtethux/bridge"
+	bridge "github.com/tethux/tethux/internal/libtethux/bridge"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"

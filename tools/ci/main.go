@@ -22,7 +22,7 @@ import (
 	"syscall"
 	"time"
 
-	ciframework "github.com/0xveya/tethux/internal/ci"
+	ciframework "github.com/tethux/tethux/internal/ci"
 )
 
 func main() {

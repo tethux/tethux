@@ -15,8 +15,8 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "modernc.org/sqlite"
 
-	"github.com/0xveya/tethux/internal/ciresults/db/sqlc"
-	"github.com/0xveya/tethux/tools/ci-results/viewer/handlers/types"
+	"github.com/tethux/tethux/internal/ciresults/db/sqlc"
+	"github.com/tethux/tethux/tools/ci-results/viewer/handlers/types"
 )
 
 //go:embed migrations/*.sql

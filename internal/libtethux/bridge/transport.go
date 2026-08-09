@@ -1,13 +1,13 @@
 package bridge
 
 import (
-	"fmt"
 	"net"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/google/gopacket/pcap"
+	"github.com/tethux/tethux/internal/libtethux/bridge/errs"
 )
 
 func init() {
@@ -50,7 +50,7 @@ var defaultRegistry = &PortRegistry{
 func NewPort(scheme AvailableScheme, opts *PortOptions) (Port, error) {
 	factory, ok := defaultRegistry.Get(string(scheme))
 	if !ok {
-		return nil, fmt.Errorf("unknown port scheme: %s", scheme)
+		return nil, errs.New("create port", errs.ErrUnknownScheme, string(scheme))
 	}
 
 	return factory(opts)
@@ -95,26 +95,26 @@ func NewRawSocketPort(opts *PortOptions) (Port, error) {
 func NewPcapPort(opts *PortOptions) (Port, error) {
 	inactive, errInactive := pcap.NewInactiveHandle(opts.Interface)
 	if errInactive != nil {
-		return nil, fmt.Errorf("failed to create inactive handle: %w", errInactive)
+		return nil, errs.Wrap("create pcap port", errs.ErrPortSetup, opts.Interface, errInactive)
 	}
 	defer inactive.CleanUp()
 
 	if errMode := inactive.SetImmediateMode(opts.ImmediateMode); errMode != nil {
-		return nil, fmt.Errorf("failed to set immediate mode: %w", errMode)
+		return nil, errs.Wrap("configure pcap immediate mode", errs.ErrPortSetup, opts.Interface, errMode)
 	}
 	if errSnap := inactive.SetSnapLen(opts.SnapLen); errSnap != nil {
-		return nil, fmt.Errorf("failed to set snaplen: %w", errSnap)
+		return nil, errs.Wrap("configure pcap snaplen", errs.ErrPortSetup, opts.Interface, errSnap)
 	}
 	if errPromisc := inactive.SetPromisc(true); errPromisc != nil {
-		return nil, fmt.Errorf("failed to set promisc: %w", errPromisc)
+		return nil, errs.Wrap("configure pcap promiscuous mode", errs.ErrPortSetup, opts.Interface, errPromisc)
 	}
 	if errTimeout := inactive.SetTimeout(1 * time.Millisecond); errTimeout != nil {
-		return nil, fmt.Errorf("failed to set timeout: %w", errTimeout)
+		return nil, errs.Wrap("configure pcap timeout", errs.ErrPortSetup, opts.Interface, errTimeout)
 	}
 
 	handle, errActivate := inactive.Activate()
 	if errActivate != nil {
-		return nil, fmt.Errorf("failed to activate handle: %w", errActivate)
+		return nil, errs.Wrap("activate pcap", errs.ErrPortSetup, opts.Interface, errActivate)
 	}
 
 	id := opts.ID

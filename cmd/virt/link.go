@@ -16,9 +16,9 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
-	libbridge "github.com/0xveya/tethux/internal/libtethux/bridge"
-	libvirt "github.com/0xveya/tethux/internal/libtethux/virt"
-	"github.com/0xveya/tethux/internal/libtethux/virt/container"
+	libbridge "github.com/tethux/tethux/internal/libtethux/bridge"
+	libvirt "github.com/tethux/tethux/internal/libtethux/virt"
+	"github.com/tethux/tethux/internal/libtethux/virt/container"
 )
 
 type linkEvent struct {
@@ -62,8 +62,9 @@ func linkEndpointCmd() *cobra.Command {
 			if pullErr := p.Pull(ctx, image, nil); pullErr != nil {
 				return pullErr
 			}
-			node, err := p.CreateContainer(ctx, &container.ContainerConfig{
-				NodeConfig:  libvirt.NodeConfig{Name: name, Image: image},
+			node, err := p.CreateContainer(ctx, &container.RuntimeConfig{
+				NodeConfig:  libvirt.NodeConfig{Name: name},
+				Image:       container.ParseImage(image),
 				Cmd:         []string{"sh", "-c", "trap 'exit 0' TERM; while :; do sleep 1; done"},
 				NetworkMode: "none",
 				Labels:      map[string]string{"io.tethux.test": "cross-host-link"},

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xveya/tethux/internal/ciresults/db"
+	"github.com/tethux/tethux/internal/ciresults/db"
 )
 
 func TestArtifactListPreviewAndRaw(t *testing.T) {

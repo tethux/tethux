@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xveya/tethux/internal/ciresults/ingest/archiveformat"
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
+	"github.com/tethux/tethux/internal/ciresults/ingest/archiveformat"
 )
 
 type ArchiveOptions struct {
@@ -194,6 +194,7 @@ func writeArchiveDone(archivePath string) error {
 
 func (w *ArchiveWriter) collectResults(ctx context.Context) (archiveformat.ResultsDocument, error) {
 	document := archiveformat.ResultsDocument{SchemaVersion: 1, RunID: w.Options.RunID}
+	attempts := make(map[string]int64)
 	err := filepath.WalkDir(w.ArtifactDir(), func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
 			return walkErr
@@ -210,6 +211,8 @@ func (w *ArchiveWriter) collectResults(ctx context.Context) (archiveformat.Resul
 				return err
 			}
 			if result, ok := normalizeEvent(scanner.Bytes(), path, w.Stage); ok {
+				attempts[result.TestID]++
+				result.Attempt = attempts[result.TestID]
 				document.Tests = append(document.Tests, result)
 			}
 		}
@@ -253,7 +256,7 @@ func normalizeEvent(line []byte, sourcePath, stage string) (archiveformat.TestRe
 			return archiveformat.TestResult{}, false
 		}
 		return archiveformat.TestResult{
-			TestID: stableID("go/" + strings.TrimPrefix(goEvent.Package, "github.com/0xveya/tethux/") + "/" + goEvent.Test),
+			TestID: stableID("go/" + strings.TrimPrefix(goEvent.Package, "github.com/tethux/tethux/") + "/" + goEvent.Test),
 			Name:   goEvent.Test, Suite: "go", Status: status, Attempt: 1,
 			Timing:     archiveformat.ResultTiming{DurationMS: int64(goEvent.Elapsed * 1000)},
 			Parameters: map[string]any{"package": goEvent.Package},

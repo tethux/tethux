@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xveya/tethux/internal/libtethux/bridge/errs"
+	"github.com/tethux/tethux/internal/libtethux/bridge/errs"
 )
 
 const ethernetHeaderLen = 14

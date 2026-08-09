@@ -1,9 +1,8 @@
 package bridge
 
 import (
-	"fmt"
-
 	"github.com/songgao/water"
+	"github.com/tethux/tethux/internal/libtethux/bridge/errs"
 )
 
 type TAPPort struct {
@@ -14,7 +13,7 @@ type TAPPort struct {
 
 func NewTAPPort(opts *PortOptions) (Port, error) {
 	if opts.Interface == "" {
-		return nil, fmt.Errorf("tap interface name is required")
+		return nil, errs.New("open tap", errs.ErrInvalidOptions, "interface name is required")
 	}
 
 	iface, err := water.New(water.Config{
@@ -24,7 +23,7 @@ func NewTAPPort(opts *PortOptions) (Port, error) {
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("open tap %s: %w", opts.Interface, err)
+		return nil, errs.Wrap("open tap", errs.ErrPortSetup, opts.Interface, err)
 	}
 
 	id := opts.ID

@@ -20,9 +20,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/0xveya/tethux/internal/ciresults/db"
-	dbgen "github.com/0xveya/tethux/internal/ciresults/db/sqlc"
-	"github.com/0xveya/tethux/tools/ci-results/viewer/handlers/types"
+	"github.com/tethux/tethux/internal/ciresults/db"
+	dbgen "github.com/tethux/tethux/internal/ciresults/db/sqlc"
+	"github.com/tethux/tethux/tools/ci-results/viewer/handlers/types"
 )
 
 type Handlers struct {

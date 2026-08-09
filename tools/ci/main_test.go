@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	ciframework "github.com/0xveya/tethux/internal/ci"
+	ciframework "github.com/tethux/tethux/internal/ci"
 )
 
 func TestLaptopWorkflowRunsContainerAndHypervisorHostIntegration(t *testing.T) {

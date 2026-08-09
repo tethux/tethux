@@ -17,8 +17,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/0xveya/tethux/internal/ciresults/db"
-	"github.com/0xveya/tethux/tools/ci-results/viewer/handlers"
+	"github.com/tethux/tethux/internal/ciresults/db"
+	"github.com/tethux/tethux/tools/ci-results/viewer/handlers"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )

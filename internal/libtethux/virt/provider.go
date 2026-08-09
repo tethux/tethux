@@ -1,8 +1,31 @@
 package virt
 
-import (
-	"context"
+import "context"
+
+type ProviderKind string
+
+const (
+	ProviderKindContainer ProviderKind = "container"
+	ProviderKindDomain    ProviderKind = "domain"
+	ProviderKindEmulator  ProviderKind = "emulator"
 )
+
+type Capabilities struct {
+	Console       bool
+	AuxConsole    bool
+	Exec          bool
+	Logs          bool
+	Pause         bool
+	Snapshots     bool
+	ManagedServer bool
+}
+
+type ProviderInfo struct {
+	Name         string
+	DisplayName  string
+	Kind         ProviderKind
+	Capabilities Capabilities
+}
 
 type ConsoleType string
 
@@ -32,14 +55,16 @@ const (
 )
 
 type NodeConfig struct {
-	ID             string
-	Name           string
-	Image          string
-	CPUs           int
-	MemoryMB       int
+	ID       string
+	Name     string
+	Image    string
+	CPUs     int
+	MemoryMB int
+
 	ConsoleType    ConsoleType
 	AuxConsoleType ConsoleType
-	Meta           map[string]string
+
+	Meta map[string]string
 }
 
 type Node struct {
@@ -51,25 +76,16 @@ type Node struct {
 }
 
 type Provider interface {
-	Name() string
+	Info() ProviderInfo
 
-	Create(ctx context.Context, cfg *NodeConfig) (*Node, error)
 	Start(ctx context.Context, id string) error
 	Stop(ctx context.Context, id string) error
 	Suspend(ctx context.Context, id string) error
 	Resume(ctx context.Context, id string) error
-	Delete(ctx context.Context, id string) error
 	Restart(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) error
 
 	State(ctx context.Context, id string) (NodeState, error)
 	Reload(ctx context.Context, id string) (*Node, error)
 	List(ctx context.Context) ([]*Node, error)
-}
-
-type ServerProvider interface {
-	Provider
-	StartServer(ctx context.Context) error
-	StopServer(ctx context.Context) error
-	ServerRunning(ctx context.Context) bool
-	ServerAddr() string
 }

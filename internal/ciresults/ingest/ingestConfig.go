@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/0xveya/tethux/internal/ciresults/db"
-	"github.com/0xveya/tethux/internal/ciresults/ingest/archiveformat"
+	"github.com/tethux/tethux/internal/ciresults/db"
+	"github.com/tethux/tethux/internal/ciresults/ingest/archiveformat"
 )
 
 type executionConfig struct {

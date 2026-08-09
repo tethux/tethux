@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/0xveya/tethux/internal/libtethux/virt/container/errs"
-	mobyimpl "github.com/0xveya/tethux/internal/libtethux/virt/container/moby"
+	"github.com/tethux/tethux/internal/libtethux/virt"
+	"github.com/tethux/tethux/internal/libtethux/virt/container/errs"
+	mobyimpl "github.com/tethux/tethux/internal/libtethux/virt/container/moby"
 )
 
 type Option func(*config)
@@ -22,6 +23,20 @@ func WithSocket(s string) Option {
 
 type Docker struct {
 	*mobyimpl.Client
+}
+
+func (d *Docker) Info() virt.ProviderInfo {
+	return virt.ProviderInfo{
+		Name:        "docker",
+		DisplayName: "Docker",
+		Kind:        virt.ProviderKindContainer,
+		Capabilities: virt.Capabilities{
+			Exec:    true,
+			Logs:    true,
+			Pause:   true,
+			Console: true,
+		},
+	}
 }
 
 func (d *Docker) Socket() string { return d.Client.Socket() }

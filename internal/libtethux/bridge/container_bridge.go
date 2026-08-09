@@ -1,8 +1,6 @@
 package bridge
 
-import (
-	"errors"
-)
+import "github.com/tethux/tethux/internal/libtethux/bridge/errs"
 
 type ContainerBridgeOptions struct {
 	PID         int
@@ -25,10 +23,10 @@ type ContainerBridge struct {
 
 func StartContainerBridge(opts *ContainerBridgeOptions) (*ContainerBridge, error) {
 	if opts == nil {
-		return nil, errors.New("container bridge options are nil")
+		return nil, errs.New("start container bridge", errs.ErrInvalidOptions, "options are nil")
 	}
 	if opts.PID <= 0 || opts.HostIf == "" || opts.ContainerIf == "" || opts.Listen == "" || opts.Remote == "" {
-		return nil, errors.New("container bridge requires pid, interface names, listen, and remote")
+		return nil, errs.New("start container bridge", errs.ErrInvalidOptions, "pid, interface names, listen, and remote are required")
 	}
 	if opts.MTU == 0 {
 		opts.MTU = 1500

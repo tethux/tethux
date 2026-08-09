@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/0xveya/tethux/internal/libtethux/bridge/errs"
-	"github.com/0xveya/tethux/internal/libtethux/bridge/models"
+	"github.com/tethux/tethux/internal/libtethux/bridge/errs"
+	"github.com/tethux/tethux/internal/libtethux/bridge/models"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 )
@@ -25,7 +25,7 @@ func AttachNamespaceInterface(opts NamespaceInterfaceOptions) error {
 	case models.NamespaceInterfaceExisting:
 		return PrepareExistingInterface(opts.HostSideName, opts.MTU)
 	default:
-		return fmt.Errorf("unsupported namespace interface mode %q", opts.Mode)
+		return errs.New("attach namespace interface", errs.ErrUnsupportedMode, string(opts.Mode))
 	}
 }
 
@@ -53,7 +53,7 @@ func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu 
 	}
 
 	if renameErr := netlink.LinkSetName(link, containerSideName); renameErr != nil {
-		return fmt.Errorf("%w: failed to rename %s to %s: %w", errs.ErrFailedToCreate, peerName, containerSideName, renameErr)
+		return errs.Wrap("rename namespace interface", errs.ErrFailedToCreate, peerName+" -> "+containerSideName, renameErr)
 	}
 
 	link, err = netlink.LinkByName(containerSideName)
@@ -63,7 +63,7 @@ func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu 
 
 	setMtuErr := netlink.LinkSetMTU(link, mtu)
 	if setMtuErr != nil {
-		return fmt.Errorf("%w: failed to set MTU for %s: %w", errs.ErrFailedToSetMTU, containerSideName, setMtuErr)
+		return errs.Wrap("set interface MTU", errs.ErrFailedToSetMTU, containerSideName, setMtuErr)
 	}
 
 	return netlink.LinkSetUp(link)
@@ -72,17 +72,17 @@ func AttachVethToNamespace(pid int, hostSideName, containerSideName string, mtu 
 func PrepareExistingInterface(hostSideName string, mtu int) error {
 	link, err := netlink.LinkByName(hostSideName)
 	if err != nil {
-		return fmt.Errorf("%w: failed to find existing interface %s: %w", errs.ErrLinkNotFound, hostSideName, err)
+		return errs.Wrap("find existing interface", errs.ErrLinkNotFound, hostSideName, err)
 	}
 
 	if mtu > 0 {
 		if err := netlink.LinkSetMTU(link, mtu); err != nil {
-			return fmt.Errorf("%w: failed to set MTU for %s: %w", errs.ErrFailedToSetMTU, hostSideName, err)
+			return errs.Wrap("set interface MTU", errs.ErrFailedToSetMTU, hostSideName, err)
 		}
 	}
 
 	if err := netlink.LinkSetUp(link); err != nil {
-		return fmt.Errorf("%w: failed to set up %s: %w", errs.ErrFailedToSetMTU, hostSideName, err)
+		return errs.Wrap("bring interface up", errs.ErrFailedToSetMTU, hostSideName, err)
 	}
 
 	return nil
@@ -109,34 +109,34 @@ func SetupLinkWithNames(params models.SetupLinkParams) error {
 	}
 
 	if err := netlink.LinkAdd(veth); err != nil {
-		return fmt.Errorf("%w: failed to create veth pair (%s <-> %s): %w", errs.ErrFailedToCreate, params.HostName, params.Container, err)
+		return errs.Wrap("create veth pair", errs.ErrFailedToCreate, params.HostName+" <-> "+params.Container, err)
 	}
 
 	peerLink, err := netlink.LinkByName(params.Container)
 	if err != nil {
-		return fmt.Errorf("%w: failed to find peer interface: %w", errs.ErrFailedToFindPeer, err)
+		return errs.Wrap("find peer interface", errs.ErrFailedToFindPeer, params.Container, err)
 	}
 
 	setMtuErr := netlink.LinkSetMTU(peerLink, params.MTU)
 	if setMtuErr != nil {
-		return fmt.Errorf("%w: failed to set MTU for %s: %w", errs.ErrFailedToSetMTU, params.Container, setMtuErr)
+		return errs.Wrap("set interface MTU", errs.ErrFailedToSetMTU, params.Container, setMtuErr)
 	}
 
 	targetNs, err := netns.GetFromPid(params.SourcePID)
 	if err != nil {
-		return fmt.Errorf("%w: failed to get namespace for PID %d: %w", errs.ErrNamespaceFailed, params.SourcePID, err)
+		return errs.Wrap("get process namespace", errs.ErrNamespaceFailed, fmt.Sprint(params.SourcePID), err)
 	}
 	defer targetNs.Close()
 
 	if setLintErr := netlink.LinkSetNsFd(peerLink, int(targetNs)); setLintErr != nil {
-		return fmt.Errorf("%w: failed to move %s to PID %d: %w", errs.ErrNamespaceFailed, params.Container, params.SourcePID, setLintErr)
+		return errs.Wrap("move interface to namespace", errs.ErrNamespaceFailed, params.Container, setLintErr)
 	}
 
 	hostLink, err := netlink.LinkByName(params.HostName)
 	if err == nil {
 		setLinkUpErr := netlink.LinkSetUp(hostLink)
 		if setLinkUpErr != nil {
-			return fmt.Errorf("%w: failed to set up %s: %w", errs.ErrFailedToSetMTU, params.HostName, setLinkUpErr)
+			return errs.Wrap("bring interface up", errs.ErrFailedToSetMTU, params.HostName, setLinkUpErr)
 		}
 	}
 

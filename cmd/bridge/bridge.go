@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	libtethux_br "github.com/0xveya/tethux/internal/libtethux/bridge"
-	"github.com/0xveya/tethux/internal/libtethux/bridge/models"
+	libtethux_br "github.com/tethux/tethux/internal/libtethux/bridge"
+	"github.com/tethux/tethux/internal/libtethux/bridge/models"
 	"github.com/spf13/cobra"
 )
 

@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/0xveya/tethux/internal/libtethux/virt/container/errs"
-	mobyimpl "github.com/0xveya/tethux/internal/libtethux/virt/container/moby"
+	"github.com/tethux/tethux/internal/libtethux/virt"
+	"github.com/tethux/tethux/internal/libtethux/virt/container/errs"
+	mobyimpl "github.com/tethux/tethux/internal/libtethux/virt/container/moby"
 )
 
 // uncomment for a compile-time interface check.
@@ -25,6 +26,20 @@ func WithSocket(s string) Option {
 
 type Podman struct {
 	*mobyimpl.Client
+}
+
+func (p *Podman) Info() virt.ProviderInfo {
+	return virt.ProviderInfo{
+		Name:        "podman",
+		DisplayName: "Podman",
+		Kind:        virt.ProviderKindContainer,
+		Capabilities: virt.Capabilities{
+			Exec:    true,
+			Logs:    true,
+			Pause:   true,
+			Console: true,
+		},
+	}
 }
 
 func (p *Podman) Socket() string { return p.Client.Socket() }
