@@ -5,11 +5,9 @@
   import { getArtifact } from '$lib/api/artifacts';
   import CodePreview from '$lib/components/CodePreview.svelte';
   import LogPreview from '$lib/components/LogPreview.svelte';
-  import LogSearch from '$lib/components/LogSearch.svelte';
 
   let { data }: { data: PageData } = $props();
   let query = $state('');
-  let showPassed = $state(false);
   let selected = $state<TestResult | null>(null);
   let openFile = $state<ArchiveFile | null>(null);
   let fileContent = $state<unknown>(null);
@@ -21,14 +19,14 @@
     (data.detail?.tests ?? []).filter((test) => test.status === 'failed' || test.status === 'error')
   );
   const visibleTests = $derived(
-    (showPassed ? (data.detail?.tests ?? []) : failures).filter((test) => {
+    failures.filter((test) => {
       const needle = query.trim().toLowerCase();
       return !needle || `${test.test_name} ${test.test_key}`.toLowerCase().includes(needle);
     })
   );
-  const logFiles = $derived(
-    (data.detail?.files ?? []).filter(
-      (file) => file.file_type === 'log' || /(?:log|txt|jsonl?)$/i.test(file.archive_path)
+  const files = $derived(
+    [...(data.detail?.files ?? [])].sort(
+      (left, right) => Number(right.file_type === 'log') - Number(left.file_type === 'log')
     )
   );
 
@@ -95,19 +93,13 @@
 
   <section class="tests" aria-labelledby="tests-heading">
     <header>
-      <div>
-        <p class="eyebrow">Results</p>
-        <h2 id="tests-heading">{failures.length} failures</h2>
-      </div>
+      <h2 id="tests-heading">{failures.length} failures</h2>
       <div class="controls">
         <label
           ><span class="sr-only">Filter tests</span><input
             bind:value={query}
             placeholder="Filter tests"
           /></label
-        >
-        <label class="toggle"
-          ><input type="checkbox" bind:checked={showPassed} /> Show passing</label
         >
       </div>
     </header>
@@ -149,24 +141,18 @@
     </div>
   </section>
 
-  {#if logFiles.length}
-    <details class="logs">
-      <summary>Search {logFiles.length} logs</summary>
-      <LogSearch files={logFiles} />
-    </details>
-  {/if}
-
   <section class="files" aria-labelledby="files-heading">
     <header>
-      <div>
-        <p class="eyebrow">Evidence</p>
-        <h2 id="files-heading">Artifacts</h2>
-      </div>
+      <h2 id="files-heading">Logs and artifacts</h2>
     </header>
     <div class="file-list">
-      {#each data.detail.files as file (file.id)}
+      {#each files as file (file.id)}
         <button type="button" onclick={() => viewFile(file)}>
-          <span><strong>{file.archive_path}</strong><small>{file.media_type}</small></span>
+          <span
+            ><strong>{file.archive_path}</strong><small
+              >{file.file_type === 'log' ? 'log' : file.media_type}</small
+            ></span
+          >
           <small>{bytes(file.size_bytes)}</small>
         </button>
       {:else}<p class="empty">No artifacts recorded.</p>{/each}
@@ -231,6 +217,7 @@
     color: var(--subtle);
   }
   .status {
+    width: max-content;
     padding: 7px 10px;
     border: 1px solid var(--syntax-green);
     color: var(--syntax-green);
@@ -264,17 +251,8 @@
   h3 {
     margin: 0;
   }
-  .eyebrow {
-    margin: 0 0 4px;
-    color: var(--focus);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
   .tests,
-  .files,
-  .logs {
+  .files {
     margin-top: 24px;
     border: 1px solid var(--border);
     background: var(--surface);
@@ -298,14 +276,6 @@
     border: 1px solid var(--border);
     background: var(--base);
     color: var(--text);
-  }
-  .toggle {
-    color: var(--subtle);
-    font-size: 11px;
-    white-space: nowrap;
-  }
-  .toggle input {
-    min-width: 0;
   }
   .test-layout {
     display: grid;
@@ -389,14 +359,6 @@
     padding: 18px;
     color: var(--muted);
   }
-  details.logs {
-    padding: 0 17px 17px;
-  }
-  details.logs summary {
-    padding: 15px 0;
-    cursor: pointer;
-    font-weight: 700;
-  }
   .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -435,10 +397,11 @@
   }
   @media (max-width: 760px) {
     .run-header {
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
     }
     .run-header dl {
-      grid-column: 1 / -1;
+      grid-column: auto;
     }
     section > header,
     .controls {
@@ -456,6 +419,14 @@
       max-height: 360px;
       border-right: 0;
       border-bottom: 1px solid var(--border);
+    }
+    .modal-backdrop {
+      padding: 0;
+    }
+    .modal {
+      width: 100%;
+      height: 100dvh;
+      border: 0;
     }
   }
 </style>
