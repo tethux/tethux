@@ -49,7 +49,8 @@ export OTEL_EXPORTER_OTLP_INSECURE=true
 
 Woodpecker only schedules the physical-host functions. Their steps, output,
 failures, and timings are inspected in SigNoz; there is no separate ingestion
-database or CI viewer.
+database or CI viewer. The Dagger engine resolves Docker Hub images through the
+NAS registry configured in `.config/dagger/engine.json`.
 
 ## Workflows
 

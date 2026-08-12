@@ -1,0 +1,10 @@
+{
+  "registries": {
+    "docker.io": {
+      "mirrors": ["10.0.0.21:5000"],
+      "http": true,
+      "insecure": false,
+      "ca": []
+    }
+  }
+}
