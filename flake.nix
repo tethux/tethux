@@ -106,7 +106,6 @@
               LD_LIBRARY_PATH = "${pkgs.libpcap.lib}/lib";
             };
             miseTaskTools = with pkgs; [
-              air
               go
               gofumpt
               golangci-lint
@@ -114,34 +113,14 @@
               mise
               ripgrep
               sleek
-              sqlc
-              sqlite
             ];
-            bunBaseline = pkgs.stdenvNoCC.mkDerivation {
-              pname = "bun-baseline";
-              version = "1.3.11";
-              src = pkgs.fetchurl {
-                url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-x64-baseline.zip";
-                hash = "sha256-q+NG9jQUVHzfazW3pkmkkMcouT0AYiYVaSORioTA5Zs=";
-              };
-              sourceRoot = "bun-linux-x64-baseline";
-              nativeBuildInputs = [
-                pkgs.autoPatchelfHook
-                pkgs.unzip
-              ];
-              buildInputs = [ pkgs.openssl ];
-              installPhase = ''
-                install -Dm755 bun $out/bin/bun
-                ln -s bun $out/bin/bunx
-              '';
-            };
           in
           {
             ci = pkgs.mkShell (
               cgoPcapEnv
               // {
                 MISE_ENABLE_TOOLS = "";
-                packages = [ bunBaseline ] ++ miseTaskTools ++ (with pkgs; [
+                packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   docker-client
                   git
@@ -158,7 +137,7 @@
               cgoPcapEnv
               // {
                 MISE_ENABLE_TOOLS = "";
-                packages = [ bunBaseline ] ++ miseTaskTools ++ (with pkgs; [
+                packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   bridge-utils
                   containerd
@@ -181,7 +160,7 @@
             default = pkgs.mkShell (
               cgoPcapEnv
               // {
-                packages = [ pkgs.bun ] ++ miseTaskTools ++ (with pkgs; [
+                packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   bridge-utils
                   curl
@@ -214,10 +193,6 @@
             '';
             checkPhase = ''
               runHook preCheck
-              # The viewer embeds generated frontend output. Unit checks only need a
-              # placeholder so every Go package can compile without building the web UI.
-              mkdir -p tools/ci-results/viewer/frontend/build
-              touch tools/ci-results/viewer/frontend/build/.keep
               go test ./...
               runHook postCheck
             '';

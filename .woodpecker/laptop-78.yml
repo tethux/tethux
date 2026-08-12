@@ -16,13 +16,16 @@ steps:
     image: nixos/nix
     pull: false
     environment:
-      TETHUX_TEST_ARCHIVE_ROOT: /var/lib/tethux-ci/archive
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://10.0.0.21:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_RESOURCE_ATTRIBUTES: service.name=tethux-ci,ci.pipeline=laptop-78
     volumes:
       - tethux-ci-nix:/nix
       - /root/.ssh/id_rsa:/root/.ssh/id_rsa:ro
       - /root/.ssh/known_hosts:/root/.ssh/known_hosts
-      - /var/cache/tethux-ci/go-build:/root/.cache/go-build
-      - /var/cache/tethux-ci/go-mod:/root/go/pkg/mod
-      - /var/cache/tethux-ci/archive:/var/lib/tethux-ci/archive
+      - /var/run/docker.sock:/var/run/docker.sock
     commands:
-      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c go run ./tools/ci run remote-laptop --host ci@10.0.0.78 --runtime podman --archive --device laptop-78
+      - export OTEL_RESOURCE_ATTRIBUTES="service.name=tethux-ci,ci.pipeline=$CI_PIPELINE_NAME,ci.repository=$CI_REPO,ci.commit=$CI_COMMIT_SHA,ci.run.url=$CI_PIPELINE_URL"
+      - export DAGGER_TRACE_NAME="$CI_REPO_NAME:$CI_PIPELINE_NAME:$CI_COMMIT_SHA"
+      - nix develop .#ci --extra-experimental-features "nix-command flakes" -c mise exec -- dagger call laptop-78 --source=. --ssh-key=file:/root/.ssh/id_rsa --known-hosts=file:/root/.ssh/known_hosts

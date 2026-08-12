@@ -19,7 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
-	"github.com/tethux/tethux/internal/ciresults/ingest/archiveformat"
+	"github.com/tethux/tethux/internal/ci/archiveformat"
 )
 
 type ArchiveOptions struct {

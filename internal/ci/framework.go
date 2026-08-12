@@ -370,6 +370,16 @@ func mergedEnvironment(base, overlay map[string]string) []string {
 }
 
 func RepositoryRoot() (string, error) {
+	if configured := os.Getenv("TETHUX_REPOSITORY_ROOT"); configured != "" {
+		root := filepath.Clean(configured)
+		if !filepath.IsAbs(root) {
+			return "", errors.New("TETHUX_REPOSITORY_ROOT must be absolute")
+		}
+		if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+			return "", fmt.Errorf("validate TETHUX_REPOSITORY_ROOT: %w", err)
+		}
+		return root, nil
+	}
 	commands := [][]string{
 		{"jj", "root"},
 		{"git", "rev-parse", "--show-toplevel"},

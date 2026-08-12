@@ -27,5 +27,5 @@ jobs:
       - name: Cache Nix builds
         uses: DeterminateSystems/magic-nix-cache-action@v14
 
-      - name: Run all Go and web checks
-        run: nix develop .#ci -c mise run ci
+      - name: Run Dagger CI
+        run: nix develop .#ci -c mise exec -- dagger call normal --source=.

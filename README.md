@@ -19,9 +19,9 @@ subsystem.
 | `bridge/` | Public Ethernet switch, transports, and network primitives | [README](bridge/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/bridge) |
 | `storage/` | Public storage abstractions and local provider | [README](storage/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/storage) |
 | `virt/` | Public virtualization APIs and container providers | [README](virt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt) |
-| `tools/` | Repository CI, archive, host, and results tooling | [`tools/README.md`](tools/README.md) |
+| `tools/` | Repository CI, archive, and host tooling | [`tools/README.md`](tools/README.md) |
 | `tools/ci/` | Unified repository test, archive, and host CLI | [`tools/ci/README.md`](tools/ci/README.md) |
-| `tools/ci-results/` | CI archive ingestion, SQLite store, API, and web viewer | [`tools/ci-results/viewer/README.md`](tools/ci-results/viewer/README.md) |
+| `dagger/` | Portable CI execution graph exported to OpenTelemetry | [`tools/ci/README.md`](tools/ci/README.md#dagger-and-signoz) |
 | `nix/` | Development shells, NixOS test hosts, fixture registry, and CI operations | [`nix/README.md`](nix/README.md) |
 | `.woodpecker/` | Ordered NAS and two-laptop CI workflows | [`nix/README.md`](nix/README.md#woodpecker-topology) |
 
@@ -34,7 +34,7 @@ subsystem.
 - provider-managed container links between physical hosts over UDP;
 - reproducible NixOS test hosts with a local OCI fixture registry;
 - commit-addressed CI reports archived on the NAS;
-- exact CI artifact bytes retained in SQLite and browsable in the local viewer;
+- Dagger traces and command logs exported to the repository's OpenTelemetry backend;
 - byte-exact libpcap-observed tests for every bridge transport backend.
 
 ## Quick start
@@ -68,7 +68,7 @@ reproducible install. Browse the complete module on
 
 The public `bridge`, `storage`, and `virt` packages form the reusable API.
 Commands under `cmd` compose those packages, while repository automation and
-CI-result ingestion remain private under `internal`. All packages are released
+CI implementation remain private under `internal`. All packages are released
 together from the root `github.com/tethux/tethux` Go module.
 
 Enter the development shell and run the normal checks:

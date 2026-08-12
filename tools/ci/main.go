@@ -182,7 +182,7 @@ func bridgeAllCommand(ctx context.Context, args []string) error {
 	count := flags.Int("n", 4, "container count")
 	parallel := flags.Int("parallel-jobs", 4, "parallel topology jobs")
 	image := flags.String("image", envDefault("IMAGE", "127.0.0.1:5000/tethux/fixture-a:1"), "container image with ip and ping")
-	archiveRoot := flags.String("archive-root", envDefault("TETHUX_TEST_ARCHIVE_ROOT", "./ingestion/archive"), "archive root")
+	archiveRoot := flags.String("archive-root", envDefault("TETHUX_TEST_ARCHIVE_ROOT", "./results/archive"), "archive root")
 	dryRun := flags.Bool("dry-run", false, "print steps without running them")
 	if err := flags.Parse(args); err != nil {
 		return err

@@ -24,6 +24,31 @@ The matching `mise run fmt`, `lint`, `test`, `build`, and `check` tasks are
 short aliases. Add repository-wide behavior to `repository.go`, not to
 `mise.toml`.
 
+## Dagger and SigNoz
+
+Dagger is the CI execution boundary. The Go CLI remains useful on laptops and
+test hosts, while CI calls the same workflows through traced Dagger functions:
+
+```console
+dagger call normal --source=.
+dagger call laptop-100 --source=. \
+  --ssh-key=file:$HOME/.ssh/id_rsa \
+  --known-hosts=file:$HOME/.ssh/known_hosts
+```
+
+Point Dagger at SigNoz with the standard OTLP variables. Self-hosted SigNoz
+accepts gRPC on port 4317 without a token:
+
+```console
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://nas:4317
+export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+export OTEL_EXPORTER_OTLP_INSECURE=true
+```
+
+Woodpecker only schedules these functions. Pipeline steps, output, failures,
+and timings are inspected in SigNoz; there is no separate ingestion database or
+CI viewer.
+
 ## Workflows
 
 Run ordinary checks locally:

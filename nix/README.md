@@ -67,15 +67,11 @@ Archive-aware runs write:
 /var/cache/tethux-ci/archive/<commit>/<workflow>/<uuidv7>.tar.zst
 ```
 
-Woodpecker mounts that host directory at `/var/lib/tethux-ci/archive` and sets
-`TETHUX_TEST_ARCHIVE_ROOT` accordingly. The archive therefore survives the
-disposable workflow container and is immediately visible to the ingester.
+Archives are opt-in operator artifacts. Set `TETHUX_TEST_ARCHIVE_ROOT` when a
+run needs durable exact bytes; ordinary CI uses Dagger traces instead.
 
 The writer first creates `.partial`, atomically renames the validated archive,
-then writes `<archive>.done` containing its SHA-256. Consumers wait for the
-marker and verify it before ingestion. The viewer watcher uses filesystem
-events plus periodic reconciliation, so missed events on Docker bind mounts or
-network filesystems recover automatically.
+then writes `<archive>.done` containing its SHA-256.
 
 ```console
 go run ./tools/ci run normal --archive

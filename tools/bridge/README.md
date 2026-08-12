@@ -12,8 +12,8 @@ verifies the complete path:
 go run ./tools/ci bridge topology --runtime podman --n 4
 ```
 
-`testing/backend-smoke` performs privileged, byte-exact UDP, raw-socket, pcap,
-and TAP conformance checks. Use the archive-aware wrapper:
+`testing/backend-smoke` is the internal driver for privileged, byte-exact UDP,
+raw-socket, pcap, and TAP conformance checks. Use the archive-aware wrapper:
 
 ```console
 go run ./tools/ci bridge test --archive

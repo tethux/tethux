@@ -64,7 +64,7 @@ func TestRepositoryCheckIsOneDeclarativeWorkflow(t *testing.T) {
 	if err := ciframework.ValidateWorkflow(workflow); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"goimports-check", "go-lint", "go-test", "web-test", "web-build", "build-ci"} {
+	for _, name := range []string{"goimports-check", "go-lint", "go-test", "build-tethux", "build-ci"} {
 		step := workflowStep(t, &workflow, name)
 		if step.Command == "mise" || step.Timeout == 0 {
 			t.Fatalf("step %q is not a complete command declaration: %+v", name, step)
