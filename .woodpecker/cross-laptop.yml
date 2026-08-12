@@ -16,13 +16,14 @@ steps:
     image: nixos/nix
     pull: false
     environment:
-      XDG_CONFIG_HOME: /woodpecker/src/github.com/tethux/tethux/.config
+      XDG_CONFIG_HOME: /var/cache/tethux-ci
       OTEL_EXPORTER_OTLP_ENDPOINT: http://10.0.0.21:4317
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
       OTEL_EXPORTER_OTLP_INSECURE: "true"
       OTEL_RESOURCE_ATTRIBUTES: service.name=tethux-ci,ci.pipeline=cross-laptop
     volumes:
       - tethux-ci-nix:/nix
+      - /var/cache/tethux-ci/dagger/engine.json:/var/cache/tethux-ci/dagger/engine.json:ro
       - /root/.ssh/id_rsa:/root/.ssh/id_rsa:ro
       - /root/.ssh/known_hosts:/root/.ssh/known_hosts
       - /var/run/docker.sock:/var/run/docker.sock
