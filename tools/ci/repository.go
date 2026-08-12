@@ -125,7 +125,8 @@ type repositoryWorkflowBuilder struct {
 
 func (builder *repositoryWorkflowBuilder) format(after []string) (steps []ciframework.Step, tail []string) {
 	steps = make([]ciframework.Step, 0, 5+len(builder.sqlFiles))
-	steps = append(steps,
+	steps = append(
+		steps,
 		builder.step("goimports", builder.root, "goimports", append([]string{"-w"}, builder.goFiles...), after),
 		builder.step("gofumpt", builder.root, "gofumpt", append([]string{"-w"}, builder.goFiles...), []string{"goimports"}),
 		builder.step("go-mod-tidy", builder.root, "go", []string{"mod", "tidy"}, []string{"gofumpt"}),
@@ -136,7 +137,8 @@ func (builder *repositoryWorkflowBuilder) format(after []string) (steps []cifram
 		steps = append(steps, builder.step(name, builder.root, "sleek", []string{path}, []string{previous}))
 		previous = name
 	}
-	steps = append(steps,
+	steps = append(
+		steps,
 		builder.webDependencies("format-web-dependencies", []string{previous}),
 		builder.step("web-format", builder.web, "bun", []string{"run", "format"}, []string{"format-web-dependencies"}),
 	)
