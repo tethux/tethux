@@ -54,10 +54,9 @@ RUNTIME=podman mise run test:integration:local
 Each test host provides a loopback OCI fixture registry. Provider tests use
 those deterministic images and never silently substitute public images.
 
-Push CI runs the normal checks on the NAS alongside the integration chain.
-Docker, Podman, and cross-host workflows still run in that order, but a lint or
-unit-test failure does not prevent them from collecting their own results.
-Proxmox integration is not part of CI yet.
+GitHub Actions runs the normal checks on Blacksmith. Woodpecker only runs the
+NAS integration chain: Docker, Podman, then the cross-host workflow. Proxmox
+integration is not part of CI yet.
 
 ## Test archives
 

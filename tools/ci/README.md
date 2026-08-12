@@ -26,8 +26,10 @@ short aliases. Add repository-wide behavior to `repository.go`, not to
 
 ## Dagger and SigNoz
 
-Dagger is the CI execution boundary. The Go CLI remains useful on laptops and
-test hosts, while CI calls the same workflows through traced Dagger functions:
+Dagger is the privileged integration boundary. GitHub Actions runs ordinary
+repository checks directly on Blacksmith. The Go CLI remains useful locally and
+on test hosts, while Woodpecker calls the hardware workflows through traced
+Dagger functions:
 
 ```console
 dagger call normal --source=.
@@ -45,9 +47,9 @@ export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 export OTEL_EXPORTER_OTLP_INSECURE=true
 ```
 
-Woodpecker only schedules these functions. Pipeline steps, output, failures,
-and timings are inspected in SigNoz; there is no separate ingestion database or
-CI viewer.
+Woodpecker only schedules the physical-host functions. Their steps, output,
+failures, and timings are inspected in SigNoz; there is no separate ingestion
+database or CI viewer.
 
 ## Workflows
 
