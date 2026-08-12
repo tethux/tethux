@@ -96,7 +96,8 @@ func enforcesStructuredErrors(path string) bool {
 	return !strings.HasSuffix(path, "_test.go") &&
 		!strings.Contains(path, "/errs/") &&
 		(strings.HasPrefix(path, "bridge/") ||
-			strings.HasPrefix(path, "virt/"))
+			strings.HasPrefix(path, "virt/") ||
+			strings.HasPrefix(path, "storage/"))
 }
 
 func lintErrorConstructors(fset *token.FileSet, node ast.Node, report func(token.Position, string)) {

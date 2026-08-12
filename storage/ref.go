@@ -1,6 +1,10 @@
 package storage
 
-import "fmt"
+import (
+	"fmt"
+
+	storageerrs "github.com/tethux/tethux/storage/errs"
+)
 
 // ProviderName identifies a registered storage provider.
 type ProviderName string
@@ -17,10 +21,10 @@ type Ref struct {
 // Validate reports whether the reference has a provider and key.
 func (r Ref) Validate() error {
 	if r.Provider == "" {
-		return fmt.Errorf("storage provider is empty")
+		return storageerrs.New("storage", storageerrs.ErrInvalidRef, "provider is empty")
 	}
 	if r.Key == "" {
-		return fmt.Errorf("storage key is empty")
+		return storageerrs.New("storage", storageerrs.ErrInvalidRef, "key is empty")
 	}
 	return nil
 }

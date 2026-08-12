@@ -42,6 +42,26 @@ func TestExpensiveAssertionsRequireEnabledGuard(t *testing.T) {
 	}
 }
 
+func TestStructuredErrorsApplyToStorage(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		path string
+		want bool
+	}{
+		{path: "storage/local/local.go", want: true},
+		{path: "storage/ref.go", want: true},
+		{path: "storage/errs/errors.go", want: false},
+		{path: "storage/local/local_test.go", want: false},
+	} {
+		t.Run(test.path, func(t *testing.T) {
+			if got := enforcesStructuredErrors(test.path); got != test.want {
+				t.Fatalf("enforcesStructuredErrors(%q) = %v, want %v", test.path, got, test.want)
+			}
+		})
+	}
+}
+
 func TestStructuredErrorsRejectGenericConstructors(t *testing.T) {
 	t.Parallel()
 
