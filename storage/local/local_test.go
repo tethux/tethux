@@ -128,6 +128,50 @@ func TestPrepareRejectsUnsupportedMode(t *testing.T) {
 	}
 }
 
+func TestCommitSyncsPreparedFile(t *testing.T) {
+	provider, newErr := New(t.TempDir())
+	if newErr != nil {
+		t.Fatal(newErr)
+	}
+	prepared, prepareErr := provider.Prepare(context.Background(), storage.PrepareRequest{
+		Ref:          storage.Ref{Provider: DefaultName, Key: "nodes/router/disk"},
+		ResourceType: storage.ResourceTypeFile,
+		Create:       true,
+	})
+	if prepareErr != nil {
+		t.Fatal(prepareErr)
+	}
+
+	commitErr := provider.Commit(context.Background(), prepared, storage.CommitOptions{
+		Sync: storage.SyncPolicyData,
+	})
+	if commitErr != nil {
+		t.Fatal(commitErr)
+	}
+}
+
+func TestCommitRejectsConditionalGeneration(t *testing.T) {
+	provider, newErr := New(t.TempDir())
+	if newErr != nil {
+		t.Fatal(newErr)
+	}
+	prepared, prepareErr := provider.Prepare(context.Background(), storage.PrepareRequest{
+		Ref:          storage.Ref{Provider: DefaultName, Key: "nodes/router/disk"},
+		ResourceType: storage.ResourceTypeFile,
+		Create:       true,
+	})
+	if prepareErr != nil {
+		t.Fatal(prepareErr)
+	}
+
+	commitErr := provider.Commit(context.Background(), prepared, storage.CommitOptions{
+		ExpectedGeneration: "generation",
+	})
+	if !errors.Is(commitErr, storageerrs.ErrInvalidOptions) {
+		t.Fatalf("error = %v, want invalid options", commitErr)
+	}
+}
+
 func TestMoveOverwritesExistingFile(t *testing.T) {
 	provider, err := New(t.TempDir())
 	if err != nil {

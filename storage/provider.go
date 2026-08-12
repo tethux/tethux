@@ -117,3 +117,16 @@ type Provider interface {
 		opts MoveOptions,
 	) error
 }
+
+// AsyncProvider exposes asynchronous variants of expensive provider work.
+// Providers may implement this capability independently of Provider.
+type AsyncProvider interface {
+	Provider
+
+	CopyAsync(
+		ctx context.Context,
+		src Ref,
+		dst Ref,
+		opts CopyOptions,
+	) (OperationHandle, error)
+}

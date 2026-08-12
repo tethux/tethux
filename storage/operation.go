@@ -72,3 +72,10 @@ type OperationHandle interface {
 
 	Events(ctx context.Context) (<-chan Event, error)
 }
+
+// PrepareOperation exposes the result of an asynchronous preparation.
+type PrepareOperation interface {
+	OperationHandle
+
+	Prepared(ctx context.Context) (*Prepared, error)
+}

@@ -27,6 +27,12 @@ type Provider struct {
 	root string
 }
 
+var (
+	_ storage.Provider      = (*Provider)(nil)
+	_ storage.Manager       = (*Provider)(nil)
+	_ storage.AsyncProvider = (*Provider)(nil)
+)
+
 // Option configures a Provider.
 type Option func(*Provider)
 
@@ -387,6 +393,26 @@ func (p *Provider) Prepare(
 	}, nil
 }
 
+// PrepareAsync starts preparation in the background.
+func (p *Provider) PrepareAsync(
+	ctx context.Context,
+	req storage.PrepareRequest, //nolint:gocritic // part of the public storage.Manager contract
+) (storage.OperationHandle, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	op := newOperation(ctx, storage.OperationPrepare, &req.Ref, nil)
+	go func() {
+		op.start()
+		prepared, err := p.Prepare(op.context(), req)
+		op.setPrepared(prepared, err)
+		op.finish(err)
+	}()
+
+	return op, nil
+}
+
 func (p *Provider) Copy(
 	ctx context.Context,
 	src storage.Ref,
@@ -498,6 +524,25 @@ func (p *Provider) Copy(
 	}
 
 	return nil
+}
+
+// CopyAsync starts a copy in the background and returns its operation handle.
+func (p *Provider) CopyAsync(
+	ctx context.Context,
+	src storage.Ref,
+	dst storage.Ref,
+	opts storage.CopyOptions,
+) (storage.OperationHandle, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	op := newOperation(ctx, storage.OperationCopy, &src, &dst)
+	go func() {
+		op.start()
+		op.finish(p.Copy(op.context(), src, dst, opts))
+	}()
+	return op, nil
 }
 
 func (p *Provider) Move(
@@ -912,6 +957,142 @@ func (p *Provider) copyPath(
 	}
 
 	return nil
+}
+
+func (p *Provider) Commit(
+	ctx context.Context,
+	prepared *storage.Prepared,
+	opts storage.CommitOptions,
+) error {
+	ctxErr := ctx.Err()
+	if ctxErr != nil {
+		return ctxErr
+	}
+
+	if prepared == nil {
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrInvalidOptions,
+			"prepared storage is nil",
+		)
+	}
+	if prepared.Ref.Provider != p.name {
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrProviderMismatch,
+			string(prepared.Ref.Provider),
+		)
+	}
+
+	path, pathErr := p.pathFor(prepared.Ref)
+	if pathErr != nil {
+		return pathErr
+	}
+
+	info, statErr := os.Lstat(path)
+	if statErr != nil {
+		return storageerrs.Wrap(
+			string(p.name),
+			storageerrs.ErrNotFound,
+			prepared.Ref.String(),
+			statErr,
+		)
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrInvalidRef,
+			prepared.Ref.String(),
+		)
+	}
+
+	if opts.ExpectedGeneration != "" {
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrInvalidOptions,
+			"conditional commit is unsupported",
+		)
+	}
+
+	switch opts.Sync {
+	case "", storage.SyncPolicyDefault, storage.SyncPolicyNone:
+		return nil
+
+	case storage.SyncPolicyData, storage.SyncPolicyFull:
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+
+		// #nosec G304 -- pathFor validates provider-owned paths.
+		file, openErr := os.OpenFile(path, os.O_WRONLY, 0)
+		if openErr != nil {
+			return storageerrs.Wrap(
+				string(p.name),
+				storageerrs.ErrOpen,
+				prepared.Ref.String(),
+				openErr,
+			)
+		}
+
+		syncErr := file.Sync()
+		if syncErr != nil {
+			closeErr := file.Close()
+			return storageerrs.Wrap(
+				string(p.name),
+				storageerrs.ErrPut,
+				prepared.Ref.String(),
+				errors.Join(syncErr, closeErr),
+			)
+		}
+
+		closeErr := file.Close()
+		if closeErr != nil {
+			return storageerrs.Wrap(
+				string(p.name),
+				storageerrs.ErrPut,
+				prepared.Ref.String(),
+				closeErr,
+			)
+		}
+
+		return nil
+
+	default:
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrInvalidOptions,
+			string(opts.Sync),
+		)
+	}
+}
+
+// CommitAsync starts a commit in the background.
+func (p *Provider) CommitAsync(
+	ctx context.Context,
+	prepared *storage.Prepared,
+	opts storage.CommitOptions,
+) (storage.OperationHandle, error) {
+	ctxErr := ctx.Err()
+	if ctxErr != nil {
+		return nil, ctxErr
+	}
+	if prepared == nil {
+		return nil, storageerrs.New(
+			string(p.name),
+			storageerrs.ErrInvalidOptions,
+			"prepared storage is nil",
+		)
+	}
+
+	op := newOperation(ctx, storage.OperationCommit, &prepared.Ref, nil)
+	go func() {
+		op.start()
+		commitErr := p.Commit(op.context(), prepared, opts)
+		op.finish(commitErr)
+	}()
+
+	return op, nil
 }
 
 func (p *Provider) checksum(ctx context.Context, path string) (*storage.Checksum, error) {
