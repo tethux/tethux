@@ -76,6 +76,18 @@
           inherit system;
           config.allowUnfree = true;
         };
+        daggerCLI = pkgs.stdenvNoCC.mkDerivation {
+          pname = "dagger";
+          version = "0.21.4";
+          src = pkgs.fetchurl {
+            url = "https://github.com/dagger/dagger/releases/download/v0.21.4/dagger_v0.21.4_linux_amd64.tar.gz";
+            hash = "sha256-TbL4B7Z+MWD7EQux4IixTFFllLjShxFKOcmA8khelnI=";
+          };
+          sourceRoot = ".";
+          installPhase = ''
+            install -Dm755 dagger "$out/bin/dagger"
+          '';
+        };
         goInputs = {
           src = ./.;
           postPatch = ''
@@ -106,6 +118,7 @@
               LD_LIBRARY_PATH = "${pkgs.libpcap.lib}/lib";
             };
             miseTaskTools = with pkgs; [
+              daggerCLI
               go
               gofumpt
               golangci-lint
