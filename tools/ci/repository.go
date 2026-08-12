@@ -71,11 +71,11 @@ func repositoryWorkflow(root, name string) (ciframework.Workflow, error) {
 		var group []ciframework.Step
 		group, tail = builder.checkFormat(tail)
 		steps = append(steps, group...)
+		group, tail = builder.build(tail)
+		steps = append(steps, group...)
 		group, tail = builder.lint(tail)
 		steps = append(steps, group...)
-		group, tail = builder.test(tail)
-		steps = append(steps, group...)
-		group, _ = builder.build(tail)
+		group, _ = builder.test(tail)
 		steps = append(steps, group...)
 		steps = shareWebDependencies(steps)
 	default:
