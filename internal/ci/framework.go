@@ -31,19 +31,19 @@ type Output struct {
 }
 
 type Step struct {
-	Name             string
-	Command          string
-	Args             []string
-	Env              map[string]string
-	Dir              string
-	DependsOn        []string
-	Privilege        Privilege
-	Outputs          []Output
-	CaptureStdout    string
-	Timeout          time.Duration
-	Always           bool
-	AllowMissing     bool
-	AllowedExitCodes []int
+	Name               string
+	Command            string
+	Args               []string
+	Env                map[string]string
+	Dir                string
+	DependsOn          []string
+	Privilege          Privilege
+	Outputs            []Output
+	CaptureStdout      string
+	RequireEmptyStdout bool
+	Timeout            time.Duration
+	Always             bool
+	AllowedExitCodes   []int
 }
 
 type Workflow struct {
@@ -116,11 +116,20 @@ func (r *Runner) Run(ctx context.Context, workflow Workflow) (WorkflowResult, er
 				skipped := StepResult{Name: step.Name, StartedAt: time.Now().UTC(), FinishedAt: time.Now().UTC(), ExitCode: -1, Error: "skipped after previous failure"}
 				completed[step.Name] = skipped
 				result.Steps = append(result.Steps, skipped)
+				fmt.Fprintf(r.Stdout, "SKIP %s: previous step failed\n", step.Name)
 				continue
 			}
 			stepResult, err := r.RunStep(ctx, step)
 			completed[step.Name] = stepResult
 			result.Steps = append(result.Steps, stepResult)
+			switch {
+			case r.DryRun:
+				fmt.Fprintf(r.Stdout, "PLAN %s\n", step.Name)
+			case err != nil:
+				fmt.Fprintf(r.Stderr, "FAIL %s (exit %d, %s): %s\n", step.Name, stepResult.ExitCode, stepResult.Duration.Round(time.Millisecond), err)
+			default:
+				fmt.Fprintf(r.Stdout, "PASS %s (%s)\n", step.Name, stepResult.Duration.Round(time.Millisecond))
+			}
 			if err != nil && workflowErr == nil {
 				workflowErr = fmt.Errorf("step %s: %w", step.Name, err)
 			}
@@ -170,15 +179,14 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 		result.FinishedAt = time.Now().UTC()
 		return result, nil
 	}
-	if _, err := exec.LookPath(command); err != nil && step.AllowMissing {
-		fmt.Fprintf(r.Stdout, "    skipped: %s is not installed\n", command)
-		result.FinishedAt = time.Now().UTC()
-		return result, nil
-	}
 	cmd := exec.CommandContext(stepCtx, command, args...)
 	cmd.Dir = step.Dir
 	cmd.Env = environment
 	stdout := r.Stdout
+	var stdoutBuffer strings.Builder
+	if step.RequireEmptyStdout {
+		stdout = io.MultiWriter(stdout, &stdoutBuffer)
+	}
 	var capture *os.File
 	if step.CaptureStdout != "" {
 		if err := os.MkdirAll(filepath.Dir(step.CaptureStdout), 0o750); err != nil {
@@ -197,8 +205,16 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 	err := cmd.Run()
 	result.FinishedAt = time.Now().UTC()
 	result.Duration = result.FinishedAt.Sub(result.StartedAt)
+	outputContractFailed := err == nil && step.RequireEmptyStdout && strings.TrimSpace(stdoutBuffer.String()) != ""
+	if outputContractFailed {
+		err = fmt.Errorf("command produced output:\n%s", strings.TrimSpace(stdoutBuffer.String()))
+	}
 	if err == nil {
 		return result, nil
+	}
+	if outputContractFailed {
+		result.Error = err.Error()
+		return result, err
 	}
 	result.ExitCode = 1
 	var exitErr *exec.ExitError
@@ -354,10 +370,17 @@ func mergedEnvironment(base, overlay map[string]string) []string {
 }
 
 func RepositoryRoot() (string, error) {
-	cmd := exec.CommandContext(context.Background(), "git", "rev-parse", "--show-toplevel")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("find repository root: %w", err)
+	commands := [][]string{
+		{"jj", "root"},
+		{"git", "rev-parse", "--show-toplevel"},
 	}
-	return filepath.Clean(strings.TrimSpace(string(output))), nil
+	var rootErr error
+	for _, command := range commands {
+		output, err := exec.CommandContext(context.Background(), command[0], command[1:]...).Output()
+		if err == nil {
+			return filepath.Clean(strings.TrimSpace(string(output))), nil
+		}
+		rootErr = errors.Join(rootErr, fmt.Errorf("%s: %w", command[0], err))
+	}
+	return "", fmt.Errorf("find repository root: %w", rootErr)
 }

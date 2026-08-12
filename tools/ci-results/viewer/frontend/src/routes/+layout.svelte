@@ -7,8 +7,7 @@
   let dark = $state(true);
 
   const links = [
-    { href: '/', label: 'Summary' },
-    { href: '/query', label: 'Query builder' },
+    { href: '/', label: 'Failures' },
     { href: '/runs', label: 'Runs' },
     { href: '/tests', label: 'Tests' },
     { href: '/artifacts', label: 'Artifacts' }
@@ -85,7 +84,7 @@
       </button>
     </footer>
   </aside>
-  <main class:workspace-main={page.url.pathname === '/query'}>{@render children()}</main>
+  <main>{@render children()}</main>
 </div>
 
 <style>
@@ -271,11 +270,6 @@
     width: min(1100px, 100%);
     padding: 36px 42px 70px;
   }
-  main.workspace-main {
-    width: 100%;
-    min-width: 0;
-    padding: 0;
-  }
   @media (max-width: 700px) {
     .app {
       grid-template-columns: minmax(0, 1fr);
@@ -288,7 +282,7 @@
     }
     nav {
       width: 100%;
-      grid-template-columns: repeat(5, max-content);
+      grid-template-columns: repeat(4, max-content);
       margin-top: 18px;
       overflow-x: auto;
     }

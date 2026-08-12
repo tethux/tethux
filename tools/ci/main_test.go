@@ -8,19 +8,17 @@ import (
 	ciframework "github.com/tethux/tethux/internal/ci"
 )
 
-func TestLaptopWorkflowRunsContainerAndHypervisorHostIntegration(t *testing.T) {
+func TestLaptopWorkflowRunsContainerIntegration(t *testing.T) {
 	workflow, err := workflowFor("laptop", t.TempDir(), "docker", "all", "test-run")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	wanted := map[string]bool{
-		"build-cli":    false,
-		"bridge":       false,
-		"provider":     false,
-		"topology":     false,
-		"qemu-version": false,
-		"virsh-list":   false,
+		"build-cli": false,
+		"bridge":    false,
+		"provider":  false,
+		"topology":  false,
 	}
 	for _, step := range workflow.Steps {
 		if _, ok := wanted[step.Name]; ok {
@@ -58,51 +56,32 @@ func TestBridgeWorkflowBuildsCLIForConformanceTest(t *testing.T) {
 	}
 }
 
-func TestLaptopWorkflowScopesHostInterfacesToCompleteRunID(t *testing.T) {
-	first, err := workflowFor("laptop", t.TempDir(), "docker", "all", "same-prefix-aaa")
+func TestRepositoryCheckIsOneDeclarativeWorkflow(t *testing.T) {
+	workflow, err := repositoryWorkflow(tethuxRoot(t), "check")
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := workflowFor("laptop", t.TempDir(), "docker", "all", "same-prefix-bbb")
-	if err != nil {
+	if err := ciframework.ValidateWorkflow(workflow); err != nil {
 		t.Fatal(err)
 	}
-
-	firstArgs := workflowStep(t, &first, "dummy-add").Args
-	secondArgs := workflowStep(t, &second, "dummy-add").Args
-	if slices.Equal(firstArgs, secondArgs) {
-		t.Fatalf("distinct runs share dummy interface arguments: %#v", firstArgs)
-	}
-	if len(firstArgs) < 3 || len(firstArgs[2]) > 15 || strings.Contains(firstArgs[2], "tethux-dummy0") {
-		t.Fatalf("dummy interface is not safely run-scoped: %#v", firstArgs)
-	}
-	for _, stepName := range []string{"dummy-address", "dummy-delete"} {
-		if !slices.Contains(workflowStep(t, &first, stepName).Args, firstArgs[2]) {
-			t.Fatalf("%s does not use scoped dummy interface %q", stepName, firstArgs[2])
+	for _, name := range []string{"goimports-check", "go-lint", "go-test", "web-test", "web-build", "build-ci"} {
+		step := workflowStep(t, &workflow, name)
+		if step.Command == "mise" || step.Timeout == 0 {
+			t.Fatalf("step %q is not a complete command declaration: %+v", name, step)
 		}
 	}
-
-	tapArgs := workflowStep(t, &first, "tap-add").Args
-	if len(tapArgs) < 4 || len(tapArgs[3]) > 15 || strings.Contains(tapArgs[3], "tethux-tap0") {
-		t.Fatalf("TAP interface is not safely run-scoped: %#v", tapArgs)
-	}
-	if !slices.Contains(workflowStep(t, &first, "tap-delete").Args, tapArgs[3]) {
-		t.Fatalf("tap-delete does not use scoped TAP interface %q", tapArgs[3])
+	if !workflowStep(t, &workflow, "goimports-check").RequireEmptyStdout {
+		t.Fatal("goimports check does not declare its stdout contract")
 	}
 }
 
-func TestHypervisorWorkflowScopesHostInterfacesToCompleteRunID(t *testing.T) {
-	first, err := workflowFor("hypervisors", t.TempDir(), "", "", "same-prefix-aaa")
+func tethuxRoot(t *testing.T) string {
+	t.Helper()
+	root, err := ciframework.RepositoryRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := workflowFor("hypervisors", t.TempDir(), "", "", "same-prefix-bbb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if slices.Equal(workflowStep(t, &first, "dummy-add").Args, workflowStep(t, &second, "dummy-add").Args) {
-		t.Fatal("standalone hypervisor workflows share host interface names")
-	}
+	return root
 }
 
 func TestResolveRunIDCanonicalizesBeforeWorkflowConstruction(t *testing.T) {

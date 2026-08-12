@@ -1,8 +1,8 @@
 # Nix test hosts
 
 This directory defines disposable NixOS hosts used for privileged provider,
-bridge, topology, and hypervisor tests. Woodpecker runs on the NAS and reaches
-the test hosts over SSH.
+bridge, and topology tests. Woodpecker runs on the NAS and reaches the test
+hosts over SSH.
 
 ## Hosts
 
@@ -48,7 +48,6 @@ Privileged suites are explicit:
 ```console
 mise run test:host:providers
 mise run test:host:topology
-mise run test:host:hypervisors
 RUNTIME=podman mise run test:integration:local
 ```
 

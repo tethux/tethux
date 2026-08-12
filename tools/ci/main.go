@@ -39,6 +39,10 @@ func dispatch(ctx context.Context, args []string) error {
 		return usageError("")
 	}
 	switch args[0] {
+	case "task":
+		return repositoryTaskCommand(ctx, args[1:])
+	case "laptop":
+		return runCommand(ctx, append([]string{"laptop"}, args[1:]...))
 	case "bridge":
 		return bridgeCommand(ctx, args[1:])
 	case "run":
@@ -329,14 +333,20 @@ func executeWithRunner(
 }
 
 func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.Workflow, error) {
+	if name == "normal" {
+		workflow, err := repositoryWorkflow(root, "check")
+		if err != nil {
+			return ciframework.Workflow{}, err
+		}
+		workflow.Name = "normal"
+		workflow.Archive = ciframework.ArchiveMetadata{Workflow: "normal"}
+		return workflow, nil
+	}
 	registry, err := ciframework.DefaultRegistry(root)
 	if err != nil {
 		return ciframework.Workflow{}, err
 	}
 	if workflow, ok := registry.Workflow(name); ok {
-		if name == "hypervisors" {
-			workflow = scopeHypervisorInterfaces(workflow, runID)
-		}
 		if name == "provider" {
 			workflow.Steps[0].Args = []string{"run", "./cmd/tethux", "virt", "test", "--provider", provider, "--output", "json"}
 		}
@@ -372,8 +382,6 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 	providers, _ := registry.Workflow("provider")
 	topology, _ := registry.Workflow("topology")
 	backends, _ := registry.Workflow("bridge")
-	hypervisors, _ := registry.Workflow("hypervisors")
-	hypervisors = scopeHypervisorInterfaces(hypervisors, runID)
 	cliPath := filepath.Join(root, "results", "current", "artifacts", "tethux")
 	steps := []ciframework.Step{{
 		Name: "build-cli", Command: "go", Args: []string{"build", "-o", cliPath, "./cmd/tethux"}, Dir: root,
@@ -395,29 +403,7 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 			steps = append(steps, step)
 		}
 	}
-	steps = append(steps, hypervisors.Steps...)
 	return ciframework.Workflow{Name: "laptop-" + runtimeName, Description: "complete test host integration", Steps: steps}, nil
-}
-
-func scopeHypervisorInterfaces(workflow ciframework.Workflow, runID string) ciframework.Workflow {
-	dummyInterface, tapInterface := ciInterfaceNames(runID)
-	for stepIndex := range workflow.Steps {
-		for argIndex, arg := range workflow.Steps[stepIndex].Args {
-			switch arg {
-			case "tethux-dummy0":
-				workflow.Steps[stepIndex].Args[argIndex] = dummyInterface
-			case "tethux-tap0":
-				workflow.Steps[stepIndex].Args[argIndex] = tapInterface
-			}
-		}
-	}
-	return workflow
-}
-
-func ciInterfaceNames(runID string) (dummy, tap string) {
-	scope := sha256.Sum256([]byte(runID))
-	suffix := fmt.Sprintf("%x", scope[:5])
-	return "txd-" + suffix, "txt-" + suffix
 }
 
 func archiveCommand(ctx context.Context, args []string) error {
@@ -906,9 +892,11 @@ func printUsage(output io.Writer) {
 	_, _ = fmt.Fprintln(output, `usage: tethux-ci GROUP COMMAND [flags]
 
 groups:
-	bridge    list, test, udp-loss, topology, all
+	  task      format, check-format, lint, test, build, check
+	  laptop    run the useful laptop integration suite
+	  bridge    list, test, udp-loss, topology, all
 	run       normal, laptop, local, remote-laptop, cross-laptop,
-            provider, topology, bridge, hypervisors
+	            provider, topology, bridge
   archive   run, finalize, publish, inventory
   host      discover, audit, install
 

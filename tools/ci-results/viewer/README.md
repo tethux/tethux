@@ -1,9 +1,9 @@
 # CI results viewer
 
-The viewer is an internal archive browser and SQL explorer. It shows run
-health, workflow steps, tests, exact artifact bytes, searchable logs, and
-diagnostic charts. Saved SQL queries and timestamp-display preferences remain
-in browser local storage.
+The viewer answers three questions: what failed, what did it print, and which
+artifact belongs to the run. It keeps a compact run history, searchable logs,
+exact artifact bytes, and one recent-failure chart. It deliberately does not
+embed a general SQL editor.
 
 Ingestion verifies every manifest entry by path, size, and SHA-256 before
 storing its bytes in SQLite. Re-ingesting an existing run backfills legacy

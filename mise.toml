@@ -18,33 +18,7 @@ ripgrep = "latest"
 [tasks.fmt]
 alias = "format"
 description = "Format all source code"
-depends = ["fmt:go", "fmt:sql", "fmt:web"]
-
-[tasks."fmt:go"]
-description = "Format Go source"
-run = [
-	"rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**' | xargs goimports -w",
-	"rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**' | xargs gofumpt -w",
-	"go mod tidy",
-]
-
-[tasks."fmt:sql"]
-description = "Format SQL queries and migrations"
-run = [
-	"sleek 'internal/ciresults/db/queries/*.sql'",
-	"sleek 'internal/ciresults/db/migrations/*.sql'",
-]
-
-[tasks."fmt:web"]
-description = "Format the CI viewer frontend"
-dir = "tools/ci-results/viewer/frontend"
-depends = ["install:web"]
-run = "bun run format"
-
-[tasks."install:web"]
-description = "Install locked CI viewer frontend dependencies"
-dir = "tools/ci-results/viewer/frontend"
-run = "bun install --frozen-lockfile"
+run = "go run ./tools/ci task format"
 
 [tasks."dev:container-udp"]
 description = "Run UDP container topology"
@@ -137,114 +111,29 @@ run = "go run -tags debug ./cmd/virt/main"
 
 [tasks.build]
 description = "Build all binaries"
-depends = [
-	"build:create-bin-dir",
-	"build:go",
-	"build:standalone",
-	"build:ci-results",
-	"build:ci",
-	"build:symlinks",
-]
-
-[tasks."build:create-bin-dir"]
-hide = true
-run = "mkdir -p ./bin"
-
-[tasks."build:go"]
-description = "Build multicall binary with development assertions"
-depends = ["build:create-bin-dir"]
-run = "go build -tags debug -o ./bin/tethux ./cmd/tethux"
-
-[tasks."build:standalone"]
-description = "Build standalone binaries with development assertions"
-depends = ["build:create-bin-dir"]
-run = """
-go build -tags debug -o ./bin/tethux-bridge ./cmd/bridge/main
-go build -tags debug -o ./bin/tethux-virt ./cmd/virt/main
-"""
+run = "go run ./tools/ci task build"
 
 [tasks."build:viewer-frontend"]
 description = "Build the SvelteKit SPA for embedding"
-dir = "tools/ci-results/viewer/frontend"
-depends = ["install:web"]
-run = "bun run build"
-
-[tasks."build:ci-results"]
-description = "Build the combined CI ingestion and viewer CLI"
-depends = ["build:create-bin-dir", "build:viewer-frontend"]
-run = "go build -o ./bin/ci-results ./tools/ci-results"
-
-[tasks."build:ci"]
-description = "Build the declarative repository automation CLI"
-depends = ["build:create-bin-dir"]
-run = "go build -o ./bin/tethux-ci ./tools/ci"
-
-[tasks."build:symlinks"]
-description = "Create multicall symlinks"
-depends = ["build:go"]
-run = """
-cd ./bin
-ln -sf tethux bridge
-ln -sf tethux virt
-"""
+run = "go run ./tools/ci task build-web"
 
 # ci
 
 [tasks.check]
 description = "Run the complete local quality gate"
-depends = ["check:format", "lint", "test", "build"]
+run = "go run ./tools/ci task check"
 
 [tasks.lint]
 description = "Run all linters"
-depends = ["lint:asserts", "lint:go", "lint:web"]
-
-[tasks."lint:asserts"]
-description = "Reject expensive invariant scans in release builds"
-run = "go run ./tools/assertlint ."
-
-[tasks."lint:go"]
-description = "Run Go linter"
-depends = ["build:viewer-frontend"]
-run = "golangci-lint run -c .golangci.yml"
-
-[tasks."lint:web"]
-description = "Lint and type-check the CI viewer frontend"
-dir = "tools/ci-results/viewer/frontend"
-depends = ["install:web"]
-run = "bun run lint"
+run = "go run ./tools/ci task lint"
 
 [tasks."check:format"]
 description = "Check Go and web formatting without changing files"
-depends = ["check:format:go", "check:format:web"]
-
-[tasks."check:format:go"]
-description = "Check Go formatting and module metadata"
-run = [
-	"test -z \"$(goimports -l $(rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**'))\"",
-	"test -z \"$(gofumpt -l $(rg --files -g '*.go' -g '!tools/ci-results/viewer/frontend/node_modules/**'))\"",
-	"go mod tidy -diff",
-]
-
-[tasks."check:format:web"]
-description = "Check CI viewer frontend formatting"
-dir = "tools/ci-results/viewer/frontend"
-depends = ["install:web"]
-run = "bun run format:check"
+run = "go run ./tools/ci task check-format"
 
 [tasks.test]
 description = "Run all tests"
-depends = ["test:go", "test:web"]
-
-[tasks."test:go"]
-description = "Run Go tests"
-depends = ["build:viewer-frontend"]
-run = "go list -tags debug ./... | rg -v '/node_modules/' | xargs go test -tags debug"
-
-[tasks."test:web"]
-description = "Validate the CI viewer frontend"
-dir = "tools/ci-results/viewer/frontend"
-depends = ["install:web"]
-run = ["bun run check", "bun run test:theme"]
+run = "go run ./tools/ci task test"
 
 [tasks.sqlc]
 description = "Regenerate typed database queries"
@@ -270,15 +159,15 @@ bun run dev --host localhost --port "${PORT:-5173}"
 
 [tasks.ci]
 description = "Alias for the local quality gate"
-depends = ["check"]
+run = "go run ./tools/ci task check"
 
 [tasks."test:host:providers"]
 description = "Run privileged container provider smoke tests"
 run = "go run ./tools/ci run provider --provider all"
 
 [tasks."ci:laptop"]
-description = "Run lint, unit tests, all provider operations, and one bridge topology"
-run = "go run ./tools/ci run laptop --runtime ${RUNTIME:?set RUNTIME=docker or podman}"
+description = "Run the practical laptop CI path"
+run = "go run ./tools/ci laptop --runtime ${RUNTIME:?set RUNTIME=docker or podman}"
 
 [tasks."test:integration:local"]
 description = "Opt-in archived provider, bridge-backend, and topology integration run"
@@ -330,10 +219,6 @@ run = "go run ./tools/ci archive inventory --host ${NAS_HOST:-nas}"
 [tasks."test:host:topology"]
 description = "Run and ingest the privileged bridge topology smoke test"
 run = "mise run topology"
-
-[tasks."test:host:hypervisors"]
-description = "Run privileged network and hypervisor smoke tests"
-run = "go run ./tools/ci run hypervisors"
 
 [tasks."host:discover"]
 description = "Discover known tethux test hosts on the LAN"

@@ -22,7 +22,6 @@ import (
 
 	"github.com/tethux/tethux/internal/ciresults/db"
 	dbgen "github.com/tethux/tethux/internal/ciresults/db/sqlc"
-	"github.com/tethux/tethux/tools/ci-results/viewer/handlers/types"
 )
 
 type Handlers struct {
@@ -47,9 +46,6 @@ func (h *Handlers) Routes() http.Handler {
 	router.Get("/file/{id}", h.File)
 	router.Get("/file/{id}/search", h.SearchFile)
 	router.Get("/file/{id}/raw", h.RawFile)
-	router.Post("/query/execute", h.ExecuteQuery)
-	router.Get("/schema", h.Schema)
-	router.Get("/schema/info", h.SchemaInfo)
 	return router
 }
 
@@ -417,27 +413,6 @@ func triStateFilter(value, trueName, falseName string) (int64, error) {
 	}
 }
 
-func (h *Handlers) ExecuteQuery(w http.ResponseWriter, r *http.Request) {
-	var request types.ExecuteQueryRequest
-	if !DecodeJSON(w, r, &request) {
-		return
-	}
-	if request.SQL == "" {
-		h.writeAPIError(w, "sql is required", ErrCodeInvalidInput, http.StatusBadRequest, nil)
-		return
-	}
-	sql := strings.TrimSpace(request.SQL)
-	if !strings.HasSuffix(sql, ";") {
-		sql += ";"
-	}
-	res, err := executeQuery(r.Context(), h.Store, sql)
-	if err != nil {
-		h.writeAPIError(w, "query execution failed", ErrCodeQueryFailed, http.StatusInternalServerError, err)
-		return
-	}
-	h.writeJSON(w, res)
-}
-
 func (h *Handlers) writeJSON(w http.ResponseWriter, data any) {
 	if err := WriteJSON(w, data); err != nil {
 		h.Logger.Error("write API response", "error", err)
@@ -452,118 +427,4 @@ func (h *Handlers) writeAPIError(w http.ResponseWriter, message, code string, st
 	}
 	h.Logger.Warn(message, "status", status, "code", code)
 	WriteAPIError(w, message, code, "", status)
-}
-
-func (h *Handlers) Schema(w http.ResponseWriter, r *http.Request) {
-	schema, err := h.Store.GetSchema(r.Context())
-	if err != nil {
-		h.writeAPIError(w, "query schema", ErrCodeQueryFailed, http.StatusInternalServerError, err)
-		return
-	}
-	h.writeJSON(w, schema)
-}
-
-func (h *Handlers) SchemaInfo(w http.ResponseWriter, r *http.Request) {
-	schema, err := h.Store.GetSchemaInfo(r.Context())
-	if err != nil {
-		h.writeAPIError(w, "query schema", ErrCodeQueryFailed, http.StatusInternalServerError, err)
-		return
-	}
-	h.writeJSON(w, schema)
-}
-
-func executeQuery(
-	ctx context.Context,
-	store *db.Store,
-	query string,
-) (*types.ExecuteQueryResponse, error) {
-	started := time.Now()
-	conn, err := store.DB.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	if _, execErr := conn.ExecContext(ctx, "pragma query_only = on"); execErr != nil {
-		return nil, execErr
-	}
-
-	rows, err := conn.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	columnNames, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	columnTypes, err := rows.ColumnTypes()
-	if err != nil {
-		return nil, err
-	}
-
-	columns := make([]types.QueryColumn, len(columnNames))
-	for i, name := range columnNames {
-		columns[i] = types.QueryColumn{
-			Name: name,
-			Type: columnTypes[i].DatabaseTypeName(),
-		}
-	}
-
-	const maxQueryResultRows = 500
-	resultRows := make([]map[string]any, 0, maxQueryResultRows)
-	truncated := false
-
-	for rows.Next() {
-		if len(resultRows) == maxQueryResultRows {
-			truncated = true
-			break
-		}
-		values := make([]any, len(columnNames))
-		destinations := make([]any, len(columnNames))
-
-		for i := range values {
-			destinations[i] = &values[i]
-		}
-
-		if err := rows.Scan(destinations...); err != nil {
-			return nil, err
-		}
-
-		row := make(map[string]any, len(columnNames))
-
-		for i, name := range columnNames {
-			row[name] = queryResultValue(values[i])
-		}
-
-		resultRows = append(resultRows, row)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return &types.ExecuteQueryResponse{
-		Columns: columns, Rows: resultRows, RowCount: len(resultRows),
-		DurationMS: time.Since(started).Milliseconds(), Truncated: truncated,
-	}, nil
-}
-
-const maxQueryTextBytes = 16 << 10
-
-func queryResultValue(value any) any {
-	switch typed := value.(type) {
-	case []byte:
-		return fmt.Sprintf("<BLOB %d bytes — use the artifact viewer to inspect or download>", len(typed))
-	case string:
-		if len(typed) <= maxQueryTextBytes {
-			return typed
-		}
-		preview := strings.ToValidUTF8(typed[:maxQueryTextBytes], "�")
-		return fmt.Sprintf("%s… <truncated from %d bytes>", preview, len(typed))
-	default:
-		return value
-	}
 }

@@ -34,6 +34,20 @@ func TestRunnerPreservesExitCode(t *testing.T) {
 	}
 }
 
+func TestRunnerEnforcesEmptyStdout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix helper")
+	}
+	runner := NewRunner(&bytes.Buffer{}, &bytes.Buffer{})
+	result, err := runner.RunStep(context.Background(), Step{
+		Name: "format-check", Command: "sh", Args: []string{"-c", "printf changed.go"},
+		RequireEmptyStdout: true,
+	})
+	if err == nil || result.ExitCode != 0 || !strings.Contains(err.Error(), "changed.go") {
+		t.Fatalf("expected an output-contract failure, got result=%+v err=%v", result, err)
+	}
+}
+
 func TestRunnerAcceptsConfiguredExitCode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("unix helper")

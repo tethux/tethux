@@ -9,14 +9,14 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint .",
-    "test:theme": "bun test tests/*.test.mjs"
+    "lint": "eslint ."
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.69.3",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@types/d3-scale": "^4.0.9",
     "eslint": "^10.7.0",
     "eslint-plugin-svelte": "^3.20.0",
     "globals": "^17.7.0",
@@ -30,8 +30,8 @@
   },
   "dependencies": {
     "@humanspeak/svelte-virtual-list": "^0.5.12",
-    "@types/prismjs": "^1.26.6",
-    "neverthrow": "^8.2.0",
-    "prismjs": "^1.30.0"
+    "@tanstack/charts": "0.11.1",
+    "d3-scale": "^4.0.2",
+    "neverthrow": "^8.2.0"
   }
 }

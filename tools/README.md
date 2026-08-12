@@ -10,6 +10,6 @@ library APIs or end-user command packages.
 | `assertlint/` | Repository-specific assertion and structured-error checks | source and tests |
 | `bridge/` | Private bridge integration drivers invoked by `tools/ci` | [`bridge/README.md`](bridge/README.md) |
 
-Run the complete local quality gate with `mise run check`. Privileged and
-remote workflows should be started through `go run ./tools/ci`; do not invoke
-the implementation drivers directly.
+`tools/ci` owns the monorepo task declarations and execution. `mise run check`
+is a short alias for `go run ./tools/ci task check`. Privileged and remote
+workflows use the same command; do not invoke implementation drivers directly.

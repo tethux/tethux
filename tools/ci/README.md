@@ -8,6 +8,22 @@ artifacts. Its workflow engine remains private in `internal/ci`.
 go run ./tools/ci help
 ```
 
+## Repository tasks
+
+The Go command owns the monorepo quality gates:
+
+```console
+go run ./tools/ci task format
+go run ./tools/ci task lint
+go run ./tools/ci task test
+go run ./tools/ci task build
+go run ./tools/ci task check
+```
+
+The matching `mise run fmt`, `lint`, `test`, `build`, and `check` tasks are
+short aliases. Add repository-wide behavior to `repository.go`, not to
+`mise.toml`.
+
 ## Workflows
 
 Run ordinary checks locally:
@@ -19,7 +35,7 @@ go run ./tools/ci run normal --archive
 Run all privileged integration suites on a disposable local lab host:
 
 ```console
-go run ./tools/ci run local --integration --runtime podman
+go run ./tools/ci laptop --runtime podman
 ```
 
 Run the same laptop workflow remotely. The remote `ci` user needs
@@ -33,7 +49,7 @@ go run ./tools/ci run remote-laptop \
 ```
 
 Available workflow names are `normal`, `laptop`, `local`, `remote-laptop`,
-`cross-laptop`, `provider`, `topology`, `bridge`, and `hypervisors`.
+`cross-laptop`, `provider`, `topology`, and `bridge`.
 
 ## Bridge integration
 

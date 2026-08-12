@@ -154,20 +154,3 @@ export type LogSearchResult = {
 };
 
 export type RunDetail = { run: RunRow; tests: TestResult[]; files: ArchiveFile[] };
-
-export interface ExecuteQueryRequest {
-  sql: string;
-}
-
-export interface QueryColumn {
-  name: string;
-  type: string;
-}
-
-export interface ExecuteQueryResponse {
-  columns: QueryColumn[];
-  rows: Record<string, unknown>[];
-  row_count: number;
-  duration_ms: number;
-  truncated: boolean;
-}

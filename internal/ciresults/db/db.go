@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	migratesqlite "github.com/golang-migrate/migrate/v4/database/sqlite"
@@ -16,7 +15,6 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/tethux/tethux/internal/ciresults/db/sqlc"
-	"github.com/tethux/tethux/tools/ci-results/viewer/handlers/types"
 )
 
 //go:embed migrations/*.sql
@@ -139,91 +137,10 @@ func prepareLegacyMigrationState(ctx context.Context, db *sql.DB) (bool, error) 
 	return true, nil
 }
 
-func (s *Store) GetSchema(ctx context.Context) (string, error) {
-	query := `
-		SELECT sql
-		FROM sqlite_master
-		WHERE type IN ('table', 'view', 'trigger')
-		  AND name NOT LIKE 'sqlite_%'
-		  AND name NOT IN (
-			SELECT name FROM pragma_table_list WHERE type = 'shadow'
-		  )
-		  AND sql IS NOT NULL
-		ORDER BY
-			CASE type
-				WHEN 'table' THEN 1
-				WHEN 'view' THEN 2
-				WHEN 'trigger' THEN 3
-			END,
-			name;
-	`
-
-	rows, err := s.DB.QueryContext(ctx, query)
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-
-	var schema strings.Builder
-	schema.WriteString("PRAGMA foreign_keys = ON;\n\n")
-
-	for rows.Next() {
-		var sqlStmt sql.NullString
-		if err := rows.Scan(&sqlStmt); err != nil {
-			return "", err
-		}
-		if sqlStmt.Valid && sqlStmt.String != "" {
-			schema.WriteString(sqlStmt.String)
-			schema.WriteString(";\n\n")
-		}
-	}
-
-	if err := rows.Err(); err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(schema.String()), nil
-}
-
 func (s *Store) Close() error {
 	if s == nil || s.DB == nil {
 		return nil
 	}
 
 	return s.DB.Close()
-}
-
-func (s *Store) GetSchemaInfo(ctx context.Context) (types.DBSchemaInfo, error) {
-	query := `select s.type, s.name, c.name as column_name, c.type as column_type, c.pk, c."notnull" from sqlite_master as s join pragma_table_info(s.name) as c where s.type in ('table', 'view') and s.name not like 'sqlite_%' order by s.type, s.name, c.cid;`
-	rows, err := s.DB.QueryContext(ctx, query)
-	if err != nil {
-		return types.DBSchemaInfo{}, err
-	}
-	defer rows.Close()
-
-	var objects []types.SchemaObject
-	for rows.Next() {
-		var kind types.SchemaObjectKind
-		var name, columnName, columnType string
-		var primaryKey, notNull int
-		if err := rows.Scan(&kind, &name, &columnName, &columnType, &primaryKey, &notNull); err != nil {
-			return types.DBSchemaInfo{}, err
-		}
-		column := types.SchemaColumn{
-			Name:       columnName,
-			Type:       columnType,
-			PrimaryKey: primaryKey > 0,
-			Nullable:   notNull == 0 && primaryKey == 0,
-		}
-		if len(objects) == 0 || objects[len(objects)-1].Name != name {
-			objects = append(objects, types.SchemaObject{Name: name, Kind: kind})
-		}
-		objects[len(objects)-1].Columns = append(objects[len(objects)-1].Columns, column)
-	}
-
-	if err := rows.Err(); err != nil {
-		return types.DBSchemaInfo{}, err
-	}
-
-	return types.DBSchemaInfo{Objects: objects}, nil
 }

@@ -75,10 +75,13 @@ Enter the development shell and run the normal checks:
 
 ```bash
 nix develop
-go test ./...
-golangci-lint run -c .golangci.yml
+mise run check
 go run ./cmd/tethux --help
 ```
+
+The matching `tools/ci task check` workflow is a typed Go declaration of every
+format, lint, test, and build step. Mise only selects the pinned tools and calls
+that workflow.
 
 Build the primary multicall binary:
 

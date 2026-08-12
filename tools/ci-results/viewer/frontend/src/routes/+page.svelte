@@ -1,744 +1,244 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { SvelteMap } from 'svelte/reactivity';
   import { resolve } from '$app/paths';
-  import { getRuns } from '$lib/api/runs';
-  import { getSummary } from '$lib/api/summary';
-  import { nullStringValue, type Run, type ViewerSummary } from '$lib/api/types';
-  import CommitLink from '$lib/components/CommitLink.svelte';
-  import ChevronIcon from '$lib/components/ChevronIcon.svelte';
-  import StatusIcon from '$lib/components/StatusIcon.svelte';
-  import { sourceRepositories } from '$lib/repositories';
+  import { barY, defineChart } from '@tanstack/charts';
+  import { Chart } from '@tanstack/charts/svelte';
+  import { tooltip } from '@tanstack/charts/tooltip';
+  import { scaleBand, scaleLinear } from 'd3-scale';
+  import type { PageData } from './$types';
+  import { nullStringValue } from '$lib/api/types';
 
-  let summary = $state<ViewerSummary | null>(null);
-  let runs = $state<Run[]>([]);
-  let error = $state('');
-  let loading = $state(true);
-  let focusedRun = $state<Run | null>(null);
+  let { data }: { data: PageData } = $props();
 
-  const recent = $derived(runs.slice(0, 12));
-  const latestRun = $derived(runs[0] ?? null);
-  const latestFailure = $derived(runs.find((run) => run.status !== 'passed') ?? null);
-  const archiveIsStale = $derived(
-    latestRun ? Date.now() - new Date(latestRun.started_at).getTime() > 48 * 60 * 60 * 1000 : false
+  const recent = $derived(data.runs.slice(0, 30));
+  const failures = $derived(data.runs.filter((run) => run.status !== 'passed').slice(0, 12));
+  const chartRows = $derived(
+    [...recent].reverse().map((run) => ({
+      id: run.run_uid,
+      label: new Date(run.started_at).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric'
+      }),
+      failures: run.failed_count + run.errored_count
+    }))
   );
-  const durationPeak = $derived(Math.max(...recent.map((run) => run.duration_ms), 1));
-  const successRate = $derived(
-    recent.length
-      ? Math.round((recent.filter((run) => run.status === 'passed').length / recent.length) * 100)
-      : 0
+  const chart = $derived(
+    defineChart(
+      {
+        marks: [
+          barY(chartRows, {
+            x: 'label',
+            y: 'failures',
+            key: 'id',
+            fill: 'var(--love)'
+          })
+        ],
+        x: {
+          scale: scaleBand()
+            .domain(chartRows.map((row) => row.label))
+            .padding(0.18),
+          ticks: 5
+        },
+        y: {
+          scale: scaleLinear()
+            .domain([0, Math.max(...chartRows.map((row) => row.failures), 1)])
+            .nice(),
+          grid: true,
+          ticks: 4
+        }
+      },
+      { tooltip }
+    )
   );
-  const medianDuration = $derived.by(() => {
-    if (!recent.length) return 0;
-    const values = recent.map((run) => run.duration_ms).sort((a, b) => a - b);
-    return values[Math.floor(values.length / 2)];
-  });
-  const totalTests = $derived(recent.reduce((sum, run) => sum + run.total_count, 0));
-  const passedTests = $derived(recent.reduce((sum, run) => sum + run.passed_count, 0));
-  const failedTests = $derived(
-    recent.reduce((sum, run) => sum + run.failed_count + run.errored_count, 0)
-  );
-  const pipelineHealth = $derived.by(() => {
-    const groups = new SvelteMap<string, { total: number; passed: number; failures: number }>();
-    for (const run of recent) {
-      const pipeline = nullStringValue(run.workflow) ?? run.project_key;
-      const current = groups.get(pipeline) ?? { total: 0, passed: 0, failures: 0 };
-      current.total++;
-      current.passed += run.status === 'passed' ? 1 : 0;
-      current.failures += run.failed_count + run.errored_count;
-      groups.set(pipeline, current);
-    }
-    return [...groups]
-      .map(([pipeline, values]) => ({ pipeline, ...values }))
-      .sort((a, b) => b.failures - a.failures || a.pipeline.localeCompare(b.pipeline))
-      .slice(0, 4);
-  });
-  const failureHotspots = $derived.by(() => {
-    const groups = new SvelteMap<string, number>();
-    for (const run of recent) {
-      const failures = run.failed_count + run.errored_count;
-      if (!failures) continue;
-      const pipeline = nullStringValue(run.workflow) ?? run.project_key;
-      const location = `${pipeline} · ${run.device_key}`;
-      groups.set(location, (groups.get(location) ?? 0) + failures);
-    }
-    return [...groups]
-      .map(([location, failures]) => ({ location, failures }))
-      .sort((a, b) => b.failures - a.failures)
-      .slice(0, 4);
-  });
-  const hotspotPeak = $derived(Math.max(...failureHotspots.map((item) => item.failures), 1));
-  const deviceDurations = $derived.by(() => {
-    const groups = new SvelteMap<string, number[]>();
-    for (const run of recent) {
-      const values = groups.get(run.device_key) ?? [];
-      values.push(run.duration_ms);
-      groups.set(run.device_key, values);
-    }
-    return [...groups].map(([device, values]) => ({
-      device,
-      average: values.reduce((sum, value) => sum + value, 0) / values.length
-    }));
-  });
-  const devicePeak = $derived(Math.max(...deviceDurations.map((item) => item.average), 1));
-  onMount(async () => {
-    const [summaryResult, runsResult] = await Promise.all([getSummary(fetch), getRuns(fetch)]);
-    summaryResult.match(
-      (value) => (summary = value),
-      (apiError) => (error = apiError.message)
-    );
-    runsResult.match(
-      (value) => (runs = value),
-      (apiError) => (error = apiError.message)
-    );
-    loading = false;
-  });
 
   const duration = (ms: number) =>
     ms >= 60_000 ? `${(ms / 60_000).toFixed(1)}m` : `${(ms / 1000).toFixed(1)}s`;
-  const relative = (value: string) => {
-    const hours = (new Date(value).getTime() - Date.now()) / 3_600_000;
-    return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-      Math.round(Math.abs(hours) >= 48 ? hours / 24 : hours),
-      Math.abs(hours) >= 48 ? 'day' : 'hour'
-    );
-  };
+  const when = (value: string) => new Date(value).toLocaleString();
 </script>
 
-<svelte:head><title>Summary · CI results</title></svelte:head>
+<svelte:head><title>Failures · CI results</title></svelte:head>
 
-<header class="page-header dashboard-header">
-  <div>
-    <p class="kicker">CI overview</p>
-    <h1>Build status</h1>
-    <p class="lede">Recent results, failures, and run times by pipeline and host.</p>
-  </div>
-  <div class="header-actions">
-    {#if latestFailure}
-      <a class="failure-link" href={resolve(`/run/${latestFailure.run_uid}`)}
-        >Open latest failure <span>→</span></a
-      >
-    {/if}
-    <a class="query-link" href={resolve('/query')}>Explore data <span>⌘</span></a>
-  </div>
+<header class="page-header">
+  <p class="eyebrow">CI results</p>
+  <h1>What failed?</h1>
+  <p class="lede">The latest failing runs, with logs and artifacts one click away.</p>
 </header>
 
-{#if error}<p class="summary-error">Unable to load dashboard: {error}</p>{/if}
-{#if archiveIsStale && latestRun}
-  <p class="stale-notice">
-    Latest archived run: {relative(latestRun.started_at)}. No newer archive has been ingested.
-  </p>
-{/if}
+{#if data.error}<p class="error">Could not load results: {data.error}</p>{/if}
 
-<section class="health-grid" aria-label="CI health summary">
-  <article class="health-score">
-    <div>
-      <span>Pass rate</span>
-      <strong>{loading ? '—' : `${successRate}%`}</strong>
-      <small>last {recent.length} runs</small>
-    </div>
-    <div class="status-track" aria-label={`${successRate}% recent success rate`}>
-      {#each recent as run (run.run_uid)}
-        <a
-          class:failed={run.status !== 'passed'}
-          href={resolve(`/run/${run.run_uid}`)}
-          title={`${run.status} · ${duration(run.duration_ms)}`}
-          aria-label={`Open ${run.status} run`}
-        ></a>
-      {/each}
-    </div>
-  </article>
-  <article>
-    <span>Runs</span><strong>{summary?.run_count ?? '—'}</strong><small>retained in archive</small>
-  </article>
-  <article>
-    <span>Tests</span><strong>{summary?.test_count ?? '—'}</strong><small
-      >{summary?.failed_count ?? '—'} failed</small
-    >
-  </article>
-  <article>
-    <span>Median duration</span><strong>{recent.length ? duration(medianDuration) : '—'}</strong
-    ><small>last {recent.length} runs</small>
-  </article>
+<section class="counts" aria-label="Archive totals">
+  <div><strong>{failures.length}</strong><span>recent failures</span></div>
+  <div><strong>{data.summary?.run_count ?? '—'}</strong><span>runs retained</span></div>
+  <div><strong>{data.summary?.test_count ?? '—'}</strong><span>test results</span></div>
 </section>
 
-<div class="dashboard-grid">
-  <section class="panel duration-panel" aria-labelledby="duration-title">
-    <header>
-      <div>
-        <p>Recent runs</p>
-        <h2 id="duration-title">Build duration</h2>
-      </div>
-      <small>oldest to newest</small>
-    </header>
-    <div class="chart-frame">
-      <div class="y-axis" aria-hidden="true">
-        <span>{duration(durationPeak)}</span><span>{duration(durationPeak / 2)}</span><span>0</span>
-      </div>
-      <div class="duration-chart">
-        {#each [...recent].reverse() as run (run.run_uid)}
-          <a
-            href={resolve(`/run/${run.run_uid}`)}
-            onmouseenter={() => (focusedRun = run)}
-            onmouseleave={() => (focusedRun = null)}
-            onfocus={() => (focusedRun = run)}
-            onblur={() => (focusedRun = null)}
-            aria-label={`Open ${run.status} run lasting ${duration(run.duration_ms)}`}
-          >
-            <i
-              class:failed={run.status !== 'passed'}
-              style:height={`${Math.max((run.duration_ms / durationPeak) * 100, 6)}%`}
-            ></i>
-            {#if focusedRun?.run_uid === run.run_uid}
-              <div class="chart-tooltip" role="status">
-                <strong>{duration(run.duration_ms)}</strong>
-                <span>{run.status} · {run.device_key}</span>
-                <small>{nullStringValue(run.branch) ?? run.commit_sha.slice(0, 8)}</small>
-              </div>
-            {/if}
-          </a>
-        {/each}
-      </div>
+<section class="failure-list" aria-labelledby="failure-heading">
+  <header>
+    <div>
+      <p class="eyebrow">Needs attention</p>
+      <h2 id="failure-heading">Failing runs</h2>
     </div>
-    <div class="small-charts">
-      <article>
-        <header><span>Pipelines</span><strong>{pipelineHealth.length}</strong></header>
-        <div class="diagnostic-list">
-          {#each pipelineHealth as item (item.pipeline)}
-            <span title={`${item.pipeline}: ${item.passed} of ${item.total} runs passed`}>
-              <small>{item.pipeline}</small>
-              <i><b style:width={`${(item.passed / item.total) * 100}%`}></b></i>
-              <em>{item.failures}</em>
-            </span>
-          {/each}
-        </div>
-        <small>failed tests per pipeline</small>
-      </article>
-      <article>
-        <header><span>Tests</span><strong>{totalTests}</strong></header>
-        <div class="test-mix" aria-label={`${passedTests} passed and ${failedTests} failed tests`}>
-          <i style:width={`${totalTests ? (passedTests / totalTests) * 100 : 0}%`}></i>
-          <b style:width={`${totalTests ? (failedTests / totalTests) * 100 : 0}%`}></b>
-        </div>
-        <small>{failedTests} failed</small>
-      </article>
-      <article>
-        <header><span>Failures</span><strong>{failedTests}</strong></header>
-        <div class="diagnostic-list hotspots">
-          {#each failureHotspots as item (item.location)}
-            <span title={`${item.location}: ${item.failures} failed tests`}>
-              <small>{item.location}</small>
-              <i><b style:width={`${(item.failures / hotspotPeak) * 100}%`}></b></i>
-              <em>{item.failures}</em>
-            </span>
-          {:else}
-            <span class="all-clear">No failures in recent runs</span>
-          {/each}
-        </div>
-        <small>by pipeline and host</small>
-      </article>
-      <article>
-        <header><span>Host duration</span><strong>{deviceDurations.length}</strong></header>
-        <div class="device-chart">
-          {#each deviceDurations as item (item.device)}
-            <span title={`${item.device}: ${duration(item.average)}`}>
-              <i style:width={`${(item.average / devicePeak) * 100}%`}></i>
-            </span>
-          {/each}
-        </div>
-        <small>average run time</small>
-      </article>
-    </div>
-  </section>
+    <a href={resolve('/runs')}>All runs →</a>
+  </header>
 
-  <section class="panel recent-panel" aria-labelledby="recent-title">
+  {#each failures as run (run.run_uid)}
+    <a class="failure" href={resolve(`/run/${run.run_uid}`)}>
+      <span class="mark" aria-hidden="true">×</span>
+      <span class="identity">
+        <strong>{nullStringValue(run.workflow) ?? run.project_key}</strong>
+        <small>{run.device_key} · {run.commit_sha.slice(0, 8)}</small>
+      </span>
+      <span class="result">
+        <strong
+          >{run.failed_count + run.errored_count
+            ? `${run.failed_count + run.errored_count} failed`
+            : `${run.status} run`}</strong
+        >
+        <small>{run.passed_count}/{run.total_count} passed</small>
+      </span>
+      <span class="time"
+        ><strong>{duration(run.duration_ms)}</strong><small>{when(run.started_at)}</small></span
+      >
+    </a>
+  {:else}
+    <p class="clear">No failures in the retained run list.</p>
+  {/each}
+</section>
+
+{#if chartRows.length}
+  <section class="history" aria-labelledby="history-heading">
     <header>
       <div>
-        <p>Latest</p>
-        <h2 id="recent-title">Recent runs</h2>
+        <p class="eyebrow">Last {recent.length} runs</p>
+        <h2 id="history-heading">Failed tests per run</h2>
       </div>
-      <a class="history-link" href={resolve('/runs')}
-        >All runs <span><ChevronIcon size={15} /></span></a
-      >
     </header>
-    {#if loading}
-      <div class="skeleton" aria-label="Loading recent runs"></div>
-    {:else}
-      {#each recent.slice(0, 6) as run (run.run_uid)}
-        <article>
-          <a
-            class="run-target"
-            href={resolve(`/run/${run.run_uid}`)}
-            aria-label={`Open ${run.status} run`}
-          ></a>
-          <b class:failed={run.status !== 'passed'}
-            ><StatusIcon passed={run.status === 'passed'} /></b
-          >
-          <div>
-            <strong><CommitLink hash={run.commit_sha} repositories={sourceRepositories} /></strong>
-            <small>{run.project_key} · {run.device_key}</small>
-          </div>
-          <span>{duration(run.duration_ms)}<small>{relative(run.started_at)}</small></span>
-        </article>
-      {:else}
-        <p class="empty">No archived runs yet.</p>
-      {/each}
-    {/if}
+    <Chart definition={chart} height={220} ariaLabel="Failed tests in recent CI runs" />
   </section>
-</div>
+{/if}
 
 <style>
-  .dashboard-header {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: 24px;
-  }
-  .kicker,
-  .duration-panel header p,
-  .recent-panel header p {
-    margin: 0 0 4px;
-    color: var(--muted);
+  .eyebrow {
+    margin: 0 0 5px;
+    color: var(--focus);
     font-size: 11px;
-    font-weight: 750;
-    letter-spacing: 0.13em;
+    font-weight: 700;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-  }
-  .header-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 8px;
-    min-width: 0;
-  }
-  .query-link,
-  .failure-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 14px;
-    padding: 9px 11px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--base);
-    color: var(--text);
-    text-decoration: none;
-  }
-  .failure-link {
-    border-color: color-mix(in srgb, var(--love) 45%, var(--border));
-  }
-  .failure-link span {
-    display: grid;
-    place-items: center;
-    align-self: stretch;
-    color: var(--love);
-    line-height: 1;
-    transform: translateY(-1px);
-  }
-  .query-link span {
-    color: var(--muted);
-  }
-  .summary-error {
-    padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--love) 35%, var(--border));
-    color: var(--love);
-  }
-  .stale-notice {
-    margin: 0 0 16px;
-    padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--yellow) 35%, var(--border));
-    background: color-mix(in srgb, var(--yellow) 5%, var(--base));
-    color: var(--subtle);
-    font-size: 12px;
-  }
-  .health-grid {
-    display: grid;
-    grid-template-columns: 1.6fr repeat(3, 1fr);
-    margin-bottom: 18px;
-    border: 1px solid var(--border);
-    background: var(--base);
-  }
-  .health-grid article {
-    display: grid;
-    align-content: center;
-    min-height: 112px;
-    padding: 16px;
-    border-right: 1px solid var(--border);
-  }
-  .health-grid article:last-child {
-    border-right: 0;
-  }
-  .health-grid span,
-  .health-grid small {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .health-grid strong {
-    margin: 5px 0 3px;
-    color: var(--text);
-    font-size: 24px;
-  }
-  .health-score {
-    grid-template-columns: auto minmax(100px, 1fr);
-    align-items: center;
-    gap: 18px;
-  }
-  .health-score > div:first-child {
-    display: grid;
-  }
-  .status-track {
-    display: flex;
-    align-items: stretch;
-    height: 48px;
-    gap: 3px;
-  }
-  .status-track a {
-    flex: 1;
-    min-width: 4px;
-    border-radius: 1px;
-    background: var(--syntax-green);
-  }
-  .status-track a.failed {
-    background: var(--love);
-  }
-  .dashboard-grid {
-    display: grid;
-    grid-template-columns: minmax(280px, 0.8fr) minmax(360px, 1.2fr);
-    gap: 18px;
-  }
-  .duration-panel,
-  .recent-panel {
-    min-width: 0;
-    overflow: hidden;
-  }
-  .duration-panel header,
-  .recent-panel > header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 62px;
-    padding: 0 16px;
-    border-bottom: 1px solid var(--border);
   }
   h2 {
     margin: 0;
-    font-size: 14px;
+    font-size: 17px;
   }
-  .duration-panel header > small,
-  .recent-panel header a {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .chart-frame {
-    display: grid;
-    grid-template-columns: 48px minmax(0, 1fr);
-    height: 190px;
-  }
-  .y-axis {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 20px 8px 8px 0;
-    color: var(--muted);
-    font-size: 10px;
-    text-align: right;
-  }
-  .duration-chart {
-    position: relative;
-    display: flex;
-    align-items: end;
-    gap: 5px;
-    padding: 20px 14px 8px 0;
-    background-image: linear-gradient(var(--border) 1px, transparent 1px);
-    background-size: 100% 33.333%;
-  }
-  .duration-chart a {
-    position: relative;
-    display: flex;
-    height: 100%;
-    flex: 1;
-    align-items: end;
-  }
-  .duration-chart i {
-    width: 100%;
-    min-height: 4px;
-    background: var(--syntax-blue);
-    transition: filter 120ms ease;
-  }
-  .duration-chart a:hover i {
-    filter: brightness(1.25);
-  }
-  .duration-chart a:focus-visible {
-    outline: 2px solid var(--syntax-blue);
-    outline-offset: 2px;
-  }
-  .duration-chart i.failed {
-    background: var(--love);
-  }
-  .chart-tooltip {
-    position: absolute;
-    z-index: 2;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: grid;
-    gap: 2px;
-    min-width: 132px;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: 2px;
-    background: var(--surface);
-    box-shadow: 0 8px 24px color-mix(in srgb, #000 20%, transparent);
-    pointer-events: none;
-  }
-  .duration-chart a:first-of-type .chart-tooltip {
-    left: 0;
-    transform: none;
-  }
-  .duration-chart a:last-of-type .chart-tooltip {
-    right: 0;
-    left: auto;
-    transform: none;
-  }
-  .chart-tooltip strong {
-    font-size: 13px;
-  }
-  .chart-tooltip span,
-  .chart-tooltip small {
-    color: var(--muted);
-    font-size: 11px;
-  }
-  .small-charts {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    border-top: 1px solid var(--border);
-  }
-  .small-charts article {
-    display: grid;
-    min-height: 92px;
-    align-content: space-between;
-    gap: 8px;
-    padding: 11px 12px;
-    border-right: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-  }
-  .small-charts article:nth-child(2n) {
-    border-right: 0;
-  }
-  .small-charts article:nth-last-child(-n + 2) {
-    border-bottom: 0;
-  }
-  .small-charts header {
-    display: flex;
-    min-height: auto;
-    justify-content: space-between;
-    padding: 0;
-    border: 0;
-  }
-  .small-charts header span,
-  .small-charts small {
-    color: var(--muted);
-    font-size: 11px;
-  }
-  .small-charts header strong {
-    font-size: 12px;
-  }
-  .test-mix {
-    display: flex;
-    height: 7px;
-    overflow: hidden;
-    background: var(--border);
-  }
-  .test-mix i {
-    background: var(--syntax-green);
-  }
-  .test-mix b {
-    background: var(--love);
-  }
-  .diagnostic-list {
-    display: grid;
-    gap: 4px;
-  }
-  .diagnostic-list > span {
-    display: grid;
-    grid-template-columns: minmax(64px, 1fr) minmax(34px, 0.8fr) 18px;
-    align-items: center;
-    gap: 6px;
-  }
-  .diagnostic-list small {
-    overflow: hidden;
-    color: var(--subtle);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .diagnostic-list i {
-    height: 4px;
-    overflow: hidden;
-    background: var(--border);
-  }
-  .diagnostic-list b {
-    display: block;
-    height: 100%;
-    background: var(--syntax-green);
-  }
-  .diagnostic-list em {
-    color: var(--muted);
-    font-size: 10px;
-    font-style: normal;
-    text-align: right;
-  }
-  .diagnostic-list.hotspots b {
-    background: var(--love);
-  }
-  .diagnostic-list .all-clear {
-    display: block;
-    color: var(--syntax-green);
-    font-size: 11px;
-  }
-  .device-chart {
-    display: grid;
-    gap: 4px;
-  }
-  .device-chart span {
-    display: block;
-    height: 4px;
-    background: var(--border);
-  }
-  .device-chart i {
-    display: block;
-    height: 100%;
-    background: var(--syntax-purple);
-  }
-  .history-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 9px;
-    border: 1px solid var(--border);
-    border-radius: 2px;
-    background: var(--surface);
-    color: var(--text) !important;
-    font-weight: 700;
-    text-decoration: none;
-  }
-  .history-link:hover {
-    border-color: var(--syntax-blue);
-  }
-  .history-link span {
-    display: grid;
-    place-items: center;
-    color: var(--syntax-blue);
-  }
-  .recent-panel article {
-    position: relative;
-    display: grid;
-    grid-template-columns: 24px minmax(0, 1fr) auto;
-    align-items: center;
-    min-height: 56px;
-    gap: 10px;
-    padding: 0 14px;
-    border-bottom: 1px solid var(--border);
-  }
-  .recent-panel article:last-child {
-    border-bottom: 0;
-  }
-  .recent-panel article:hover {
-    background: var(--hover);
-  }
-  .run-target {
-    position: absolute;
-    inset: 0;
-  }
-  .recent-panel b {
-    display: grid;
-    width: 20px;
-    height: 20px;
-    place-items: center;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--syntax-green) 14%, transparent);
-    color: var(--syntax-green);
-  }
-  .recent-panel b.failed {
-    background: color-mix(in srgb, var(--love) 14%, transparent);
+  .error {
+    padding: 12px 14px;
+    border: 1px solid var(--love);
     color: var(--love);
   }
-  .recent-panel article > div,
-  .recent-panel article > span {
+  .counts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 24px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .counts div {
     display: grid;
     gap: 2px;
-    min-width: 0;
+    padding: 18px 20px;
+    border-right: 1px solid var(--border);
   }
-  .recent-panel article > span {
-    justify-items: end;
-    color: var(--text);
-    font-size: 12px;
+  .counts div:last-child {
+    border: 0;
   }
-  .recent-panel small {
-    overflow: hidden;
+  .counts strong {
+    font-size: 23px;
+  }
+  .counts span,
+  small {
     color: var(--muted);
     font-size: 11px;
+  }
+  .failure-list,
+  .history {
+    margin-top: 24px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  section > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  header a {
+    color: var(--focus);
+    font-size: 12px;
+    text-decoration: none;
+  }
+  .failure {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) auto minmax(150px, auto);
+    align-items: center;
+    gap: 14px;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--border);
+    color: inherit;
+    text-decoration: none;
+  }
+  .failure:last-child {
+    border-bottom: 0;
+  }
+  .failure:hover {
+    background: var(--hover);
+  }
+  .mark {
+    color: var(--love);
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .identity,
+  .result,
+  .time {
+    display: grid;
+    min-width: 0;
+  }
+  .identity strong,
+  .identity small {
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .recent-panel :global(a:not(.run-target)) {
-    position: relative;
-    z-index: 1;
+  .result {
+    color: var(--love);
+    text-align: right;
   }
-  .skeleton {
-    height: 336px;
-    background: repeating-linear-gradient(
-      180deg,
-      var(--base) 0,
-      var(--base) 55px,
-      var(--border) 56px
-    );
-    animation: pulse 1.2s ease-in-out infinite alternate;
+  .time {
+    text-align: right;
   }
-  .empty {
-    padding: 24px;
-    color: var(--muted);
+  .clear {
+    margin: 0;
+    padding: 28px 18px;
+    color: var(--subtle);
   }
-  @keyframes pulse {
-    to {
-      opacity: 0.55;
-    }
+  .history :global(.ts-chart-host) {
+    padding: 14px 16px 8px;
+    color: var(--text);
   }
-  @media (max-width: 860px) {
-    .dashboard-header {
-      align-items: start;
-      flex-direction: column;
-    }
-    .header-actions {
-      width: 100%;
-      justify-content: flex-start;
-    }
-    .health-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-    .health-grid article:nth-child(2) {
-      border-right: 0;
-    }
-    .health-grid article:nth-child(-n + 2) {
-      border-bottom: 1px solid var(--border);
-    }
-    .dashboard-grid {
+  @media (max-width: 720px) {
+    .counts {
       grid-template-columns: 1fr;
     }
-  }
-  @media (max-width: 560px) {
-    .header-actions a {
-      box-sizing: border-box;
-      justify-content: space-between;
-      width: 100%;
-    }
-    .health-grid {
-      grid-template-columns: 1fr;
-    }
-    .health-grid article {
+    .counts div {
       border-right: 0;
       border-bottom: 1px solid var(--border);
     }
-    .health-score {
-      grid-template-columns: 1fr;
+    .failure {
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+    }
+    .time {
+      display: none;
     }
   }
 </style>
