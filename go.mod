@@ -17,6 +17,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	golang.org/x/sys v0.46.0
+	libvirt.org/go/libvirt v1.12006.0
 )
 
 require (

@@ -12,7 +12,7 @@ type Provider interface {
 
 	CreateDomain(
 		ctx context.Context,
-		cfg *Config,
+		cfg *RuntimeConfig,
 	) (*Node, error)
 
 	InspectDomain(

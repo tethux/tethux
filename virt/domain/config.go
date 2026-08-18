@@ -1,6 +1,9 @@
 package domain
 
-import "github.com/tethux/tethux/virt"
+import (
+	"github.com/tethux/tethux/storage"
+	"github.com/tethux/tethux/virt"
+)
 
 // Config describes a provider-independent virtual-machine domain.
 type Config struct {
@@ -28,7 +31,7 @@ const (
 
 // Disk describes a block device attached to a domain.
 type Disk struct {
-	Source string
+	Source storage.Ref
 
 	Bus    string
 	Target string
