@@ -11,29 +11,48 @@ import (
 )
 
 func (p *Provider) CreateDomain(_ context.Context, cfg *domain.RuntimeConfig) (*domain.Node, error) {
-	xmlConfig, err := domainXML(cfg)
-	if err != nil {
-		return nil, err
+	xmlConfig, xmlErr := domainXML(cfg)
+	if xmlErr != nil {
+		return nil, xmlErr
 	}
-	domainRef, err := p.conn.DomainDefineXML(xmlConfig)
-	if err != nil {
-		return nil, errs.Wrap(errs.ErrCreate, cfg.Name, err)
+
+	domainRef, defineErr := p.conn.DomainDefineXML(xmlConfig)
+	if defineErr != nil {
+		return nil, errs.Wrap(errs.ErrCreate, cfg.Name, defineErr)
 	}
 	defer func() { _ = domainRef.Free() }()
+
+	metadataErr := markManaged(domainRef)
+	if metadataErr != nil {
+		_ = domainRef.Undefine()
+		return nil, metadataErr
+	}
+
 	createErr := domainRef.Create()
 	if createErr != nil {
 		_ = domainRef.Undefine()
 		return nil, errs.Wrap(errs.ErrCreate, cfg.Name, createErr)
 	}
+
 	return p.inspect(domainRef)
 }
 
 func (p *Provider) InspectDomain(_ context.Context, id string) (*domain.Node, error) {
-	domainRef, err := p.lookup(id)
-	if err != nil {
-		return nil, err
+	domainRef, lookupErr := p.lookup(id)
+	if lookupErr != nil {
+		return nil, lookupErr
 	}
 	defer func() { _ = domainRef.Free() }()
+
+	managed, metadataErr := isManaged(domainRef)
+	if metadataErr != nil {
+		return nil, metadataErr
+	}
+
+	if !managed {
+		return nil, errs.New(errs.ErrNotManaged, id)
+	}
+
 	return p.inspect(domainRef)
 }
 
@@ -46,19 +65,40 @@ func (p *Provider) Reload(ctx context.Context, id string) (*virt.Node, error) {
 }
 
 func (p *Provider) List(ctx context.Context) ([]*virt.Node, error) {
-	domains, err := p.conn.ListAllDomains(libvirtgo.CONNECT_LIST_DOMAINS_ACTIVE | libvirtgo.CONNECT_LIST_DOMAINS_INACTIVE)
-	if err != nil {
-		return nil, errs.Wrap(errs.ErrList, "", err)
+	domains, listErr := p.conn.ListAllDomains(
+		libvirtgo.CONNECT_LIST_DOMAINS_ACTIVE |
+			libvirtgo.CONNECT_LIST_DOMAINS_INACTIVE,
+	)
+	if listErr != nil {
+		return nil, errs.Wrap(errs.ErrList, "", listErr)
 	}
+
 	result := make([]*virt.Node, 0, len(domains))
+
 	for index := range domains {
-		node, inspectErr := p.inspect(&domains[index])
-		_ = domains[index].Free()
+		domainRef := &domains[index]
+
+		managed, metadataErr := isManaged(domainRef)
+		if metadataErr != nil {
+			_ = domainRef.Free()
+			return nil, metadataErr
+		}
+
+		if !managed {
+			_ = domainRef.Free()
+			continue
+		}
+
+		node, inspectErr := p.inspect(domainRef)
+		_ = domainRef.Free()
+
 		if inspectErr != nil {
 			return nil, inspectErr
 		}
+
 		result = append(result, &node.Node)
 	}
+
 	return result, nil
 }
 

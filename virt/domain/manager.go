@@ -65,9 +65,9 @@ func (m *Manager) Prepare(
 
 		disks = append(disks, RuntimeDisk{
 			Source:   prepared.Location.Value,
-			Bus:      disk.Bus,
+			Bus:      string(disk.Bus),
 			Target:   disk.Target,
-			Format:   disk.Format,
+			Format:   string(disk.Format),
 			ReadOnly: disk.ReadOnly,
 		})
 	}

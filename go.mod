@@ -18,6 +18,7 @@ require (
 	github.com/vishvananda/netns v0.0.5
 	golang.org/x/sys v0.46.0
 	libvirt.org/go/libvirt v1.12006.0
+	libvirt.org/go/libvirtxml v1.12005.0
 )
 
 require (
