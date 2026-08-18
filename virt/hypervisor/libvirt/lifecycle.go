@@ -11,15 +11,23 @@ import (
 )
 
 func (p *Provider) lookup(id string) (*libvirtgo.Domain, error) {
-	domain, err := p.conn.LookupDomainByUUIDString(id)
-	if err == nil {
-		return domain, nil
+	domainRef, lookupErr := p.conn.LookupDomainByUUIDString(id)
+	if lookupErr != nil {
+		return nil, errs.Wrap(errs.ErrInspect, id, lookupErr)
 	}
-	domain, nameErr := p.conn.LookupDomainByName(id)
-	if nameErr != nil {
-		return nil, errs.Wrap(errs.ErrInspect, id, nameErr)
+
+	managed, metadataErr := isManaged(domainRef)
+	if metadataErr != nil {
+		_ = domainRef.Free()
+		return nil, metadataErr
 	}
-	return domain, nil
+
+	if !managed {
+		_ = domainRef.Free()
+		return nil, errs.New(errs.ErrNotManaged, id)
+	}
+
+	return domainRef, nil
 }
 
 func (p *Provider) lifecycle(id string, operation func(*libvirtgo.Domain) error) error {
