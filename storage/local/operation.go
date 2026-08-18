@@ -21,6 +21,7 @@ type operation struct {
 	mu          sync.RWMutex
 	status      storage.Operation
 	prepared    *storage.Prepared
+	commit      *storage.CommitResult
 	resultErr   error
 	finished    bool
 	nextSubID   uint64
@@ -71,6 +72,12 @@ func (o *operation) context() context.Context {
 	return o.ctx
 }
 
+func (o *operation) setPreparedID(id storage.PreparedID) {
+	o.mu.Lock()
+	o.status.PreparedID = id
+	o.mu.Unlock()
+}
+
 func (o *operation) setPrepared(
 	prepared *storage.Prepared,
 	err error,
@@ -79,6 +86,20 @@ func (o *operation) setPrepared(
 	defer o.mu.Unlock()
 
 	o.prepared = prepared
+	o.resultErr = err
+	if prepared != nil {
+		o.status.PreparedID = prepared.ID
+	}
+}
+
+func (o *operation) setCommitResult(
+	result *storage.CommitResult,
+	err error,
+) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	o.commit = result
 	o.resultErr = err
 }
 
@@ -94,6 +115,20 @@ func (o *operation) Prepared(ctx context.Context) (*storage.Prepared, error) {
 		return nil, o.resultErr
 	}
 	return o.prepared, nil
+}
+
+func (o *operation) Result(ctx context.Context) (*storage.CommitResult, error) {
+	if _, err := o.Wait(ctx); err != nil {
+		return nil, err
+	}
+
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	if o.resultErr != nil {
+		return nil, o.resultErr
+	}
+	return o.commit, nil
 }
 
 func (o *operation) Status(ctx context.Context) (storage.Operation, error) {

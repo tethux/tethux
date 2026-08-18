@@ -3,8 +3,6 @@ package local
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
 	"os"
@@ -83,7 +81,7 @@ func TestPrepareCreatesDirectory(t *testing.T) {
 	if !info.IsDir() {
 		t.Fatal("expected prepared resource to be a directory")
 	}
-	if prepared.Ownership != storage.OwnershipNode {
+	if prepared.Ownership != storage.OwnershipExternal {
 		t.Fatalf("unexpected ownership: %q", prepared.Ownership)
 	}
 }
@@ -142,8 +140,8 @@ func TestCommitSyncsPreparedFile(t *testing.T) {
 		t.Fatal(prepareErr)
 	}
 
-	commitErr := provider.Commit(context.Background(), prepared, storage.CommitOptions{
-		Sync: storage.SyncPolicyData,
+	_, commitErr := provider.Commit(context.Background(), prepared, storage.CommitOptions{
+		Durability: storage.DurabilityData,
 	})
 	if commitErr != nil {
 		t.Fatal(commitErr)
@@ -164,11 +162,11 @@ func TestCommitRejectsConditionalGeneration(t *testing.T) {
 		t.Fatal(prepareErr)
 	}
 
-	commitErr := provider.Commit(context.Background(), prepared, storage.CommitOptions{
+	_, commitErr := provider.Commit(context.Background(), prepared, storage.CommitOptions{
 		ExpectedGeneration: "generation",
 	})
-	if !errors.Is(commitErr, storageerrs.ErrInvalidOptions) {
-		t.Fatalf("error = %v, want invalid options", commitErr)
+	if !errors.Is(commitErr, storageerrs.ErrConflict) {
+		t.Fatalf("error = %v, want conflict", commitErr)
 	}
 }
 
@@ -285,48 +283,28 @@ func TestRejectsEscapingAndSymlinkKeys(t *testing.T) {
 	}
 }
 
-func TestStatIncludesSHA256Checksum(t *testing.T) {
+func TestStatUsesMetadataGeneration(t *testing.T) {
 	provider, err := New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ref := storage.Ref{
-		Provider: DefaultName,
-		Key:      "images/router.qcow2",
-	}
-
+	ref := storage.Ref{Provider: DefaultName, Key: "images/router.qcow2"}
 	content := []byte("router image contents")
-	err = provider.Put(
-		context.Background(),
-		ref,
-		bytes.NewReader(content),
-		storage.PutOptions{},
-	)
-	if err != nil {
-		t.Fatal(err)
+	putErr := provider.Put(context.Background(), ref, bytes.NewReader(content), storage.PutOptions{})
+	if putErr != nil {
+		t.Fatal(putErr)
 	}
 
 	info, err := provider.Stat(context.Background(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	expected := sha256.Sum256(content)
-
-	if info.Checksum == nil {
-		t.Fatal("expected checksum")
+	if info.Checksum != nil {
+		t.Fatal("did not expect a checksum")
 	}
-
-	if info.Checksum.Algorithm != storage.ChecksumSHA256 {
-		t.Fatalf("algorithm = %q", info.Checksum.Algorithm)
-	}
-
-	if info.Checksum.Value != hex.EncodeToString(expected[:]) {
-		t.Fatalf("checksum = %q", info.Checksum.Value)
-	}
-	if info.Generation != storage.Generation(info.Checksum.Value) {
-		t.Fatalf("generation = %q, want checksum value", info.Generation)
+	if info.Generation == "" {
+		t.Fatal("expected metadata generation")
 	}
 }
 

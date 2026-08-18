@@ -4,41 +4,27 @@ package storage
 type ChecksumAlgorithm string
 
 const (
-	// ChecksumSHA256 identifies a SHA-256 checksum.
 	ChecksumSHA256 ChecksumAlgorithm = "sha256"
 )
 
-// Checksum identifies an object checksum and its algorithm.
+// Checksum identifies object content by checksum.
 type Checksum struct {
 	Algorithm ChecksumAlgorithm
 	Value     string
 }
 
-// Metadata contains provider-independent object metadata.
+// Metadata contains provider-independent artifact metadata.
 type Metadata map[string]string
 
-// ArtifactKind describes the semantic purpose of an object.
+// ArtifactKind describes the semantic purpose of a durable object.
 type ArtifactKind string
 
 const (
-	// ArtifactGeneric identifies an object without a more specific purpose.
-	ArtifactGeneric ArtifactKind = "generic"
-
-	// ArtifactDisk identifies a VM or workload disk.
-	ArtifactDisk ArtifactKind = "disk"
-
-	// ArtifactISO identifies an ISO image.
-	ArtifactISO ArtifactKind = "iso"
-
-	// ArtifactImage identifies a generic boot or runtime image.
-	ArtifactImage ArtifactKind = "image"
-
-	// ArtifactConfig identifies a configuration artifact.
-	ArtifactConfig ArtifactKind = "config"
-
-	// ArtifactSnapshot identifies a storage snapshot.
+	ArtifactGeneric  ArtifactKind = "generic"
+	ArtifactDisk     ArtifactKind = "disk"
+	ArtifactISO      ArtifactKind = "iso"
+	ArtifactImage    ArtifactKind = "image"
+	ArtifactConfig   ArtifactKind = "config"
 	ArtifactSnapshot ArtifactKind = "snapshot"
-
-	// ArtifactExport identifies an exported archive or artifact.
-	ArtifactExport ArtifactKind = "export"
+	ArtifactExport   ArtifactKind = "export"
 )

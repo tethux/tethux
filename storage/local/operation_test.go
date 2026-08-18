@@ -153,12 +153,7 @@ func TestPrepareAsyncReturnsPreparedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepareOp, ok := handle.(storage.PrepareOperation)
-	if !ok {
-		t.Fatal("expected prepare operation capability")
-	}
-
-	prepared, err := prepareOp.Prepared(context.Background())
+	prepared, err := handle.Prepared(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,11 +177,7 @@ func TestPrepareAsyncReturnsPreparationError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepareOp, ok := handle.(storage.PrepareOperation)
-	if !ok {
-		t.Fatal("expected prepare operation capability")
-	}
-	_, preparedErr := prepareOp.Prepared(context.Background())
+	_, preparedErr := handle.Prepared(context.Background())
 	if preparedErr == nil {
 		t.Fatal("expected preparation error")
 	}
@@ -207,7 +198,7 @@ func TestCommitAsyncCompletes(t *testing.T) {
 	}
 
 	op, asyncErr := provider.CommitAsync(context.Background(), prepared, storage.CommitOptions{
-		Sync: storage.SyncPolicyFull,
+		Durability: storage.DurabilityFull,
 	})
 	if asyncErr != nil {
 		t.Fatal(asyncErr)
@@ -218,6 +209,10 @@ func TestCommitAsyncCompletes(t *testing.T) {
 	}
 	if status.State != storage.OperationCompleted {
 		t.Fatalf("state = %q, want completed", status.State)
+	}
+	result, resultErr := op.Result(context.Background())
+	if resultErr != nil || result == nil {
+		t.Fatalf("commit result = %#v, error = %v", result, resultErr)
 	}
 }
 

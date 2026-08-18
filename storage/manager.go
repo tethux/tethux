@@ -8,43 +8,53 @@ type AccessMode string
 const (
 	// AccessReadOnly requests immutable workload access.
 	AccessReadOnly AccessMode = "read-only"
+
 	// AccessReadWrite requests mutable workload access.
 	AccessReadWrite AccessMode = "read-write"
 )
 
-// PrepareMode describes how a workload will prepare storage.
+// PrepareMode describes how durable storage is materialized for a workload.
 type PrepareMode string
 
 const (
-	// PrepareDirect uses the existing durable object directly.
+	// PrepareDirect exposes the durable object directly.
 	PrepareDirect PrepareMode = "direct"
+
 	// PrepareCopy creates an independent runtime copy.
 	PrepareCopy PrepareMode = "copy"
+
 	// PrepareOverlay creates writable storage backed by another object.
 	PrepareOverlay PrepareMode = "overlay"
 )
 
-// Ownership describes who owns a prepared runtime resource.
+// Ownership describes ownership of the prepared runtime resource.
+//
+// Ownership applies to runtime material represented by Location. It does not
+// imply ownership of the durable object identified by Ref.
 type Ownership string
 
 const (
-	// OwnershipShared identifies a resource shared by multiple workloads.
+	// OwnershipShared identifies prepared runtime material shared by multiple
+	// workloads.
 	OwnershipShared Ownership = "shared"
-	// OwnershipNode identifies a resource created for one workload node.
+
+	// OwnershipNode identifies runtime material created for one workload node.
+	// Release may destroy this runtime material.
 	OwnershipNode Ownership = "node"
-	// OwnershipProject identifies a resource owned by a project.
+
+	// OwnershipProject identifies runtime material retained for a project.
 	OwnershipProject Ownership = "project"
-	// OwnershipExternal identifies a resource owned outside the runtime.
+
+	// OwnershipExternal identifies runtime material whose lifetime is managed
+	// outside the storage manager.
 	OwnershipExternal Ownership = "external"
 )
 
-// ResourceType describes the kind of resource requested during preparation.
+// ResourceType describes the kind of runtime resource requested.
 type ResourceType string
 
 const (
-	// ResourceTypeFile requests a regular file.
-	ResourceTypeFile ResourceType = "file"
-	// ResourceTypeDirectory requests a directory.
+	ResourceTypeFile      ResourceType = "file"
 	ResourceTypeDirectory ResourceType = "directory"
 )
 
@@ -55,13 +65,15 @@ type PreparedID string
 type LocationKind string
 
 const (
-	// LocationPath identifies a local filesystem path.
+	// LocationPath identifies a filesystem path.
 	LocationPath LocationKind = "path"
-	// LocationURI identifies a provider-specific URI.
+
+	// LocationURI identifies a provider/runtime-specific URI.
 	LocationURI LocationKind = "uri"
 )
 
-// RuntimeLocation is a storage location consumable by a workload runtime.
+// RuntimeLocation identifies storage that can be consumed by a workload
+// runtime.
 type RuntimeLocation struct {
 	Kind  LocationKind
 	Value string
@@ -69,37 +81,63 @@ type RuntimeLocation struct {
 
 // PrepareRequest describes storage required by a workload node.
 type PrepareRequest struct {
-	Ref        Ref
-	NodeID     string
+	Ref Ref
+
+	NodeID string
+
 	AccessMode AccessMode
 
 	// Mode defaults to PrepareDirect when empty.
 	Mode PrepareMode
 
-	// ResourceType is required when Create is true. When empty, an existing
-	// resource's type is inferred from the provider.
+	// ResourceType is required when Create is true.
+	//
+	// When Create is false and ResourceType is empty, the provider may infer
+	// the type from the existing object.
 	ResourceType ResourceType
 
-	// Create allows the provider to create a missing resource.
+	// Create permits creation of the durable object when it does not exist.
 	Create bool
 }
 
-// Prepared records one runtime preparation of a durable storage reference.
+// Prepared records one runtime preparation of a durable storage object.
 //
-// A prepared resource remains owned or pinned according to Ownership until
-// Release is called.
+// Ref always identifies the durable object.
+//
+// Location identifies the runtime resource consumed by the workload. For
+// PrepareDirect these may represent the same underlying storage. For copy or
+// overlay preparation, Location identifies separate runtime material.
+//
+// BaseGeneration records the durable generation from which the runtime
+// resource was prepared. It is used for optimistic commit checks.
 type Prepared struct {
-	ID         PreparedID
-	Ref        Ref
-	NodeID     string
+	ID PreparedID
+
+	Ref Ref
+
+	BaseGeneration Generation
+
+	NodeID string
+
 	AccessMode AccessMode
-	Ownership  Ownership
-	Location   RuntimeLocation
+	Mode       PrepareMode
+
+	ResourceType ResourceType
+
+	Ownership Ownership
+
+	Location RuntimeLocation
 }
 
-// Manager prepares storage references for workload runtimes, commits changes,
-// and releases prepared resources.
+// Manager owns runtime storage preparation, writeback, dirty state, and
+// cleanup.
+//
+// Implementations may stage durable objects through caches or other providers.
+// Workload providers consume only Prepared.Location and must not implement
+// storage placement or synchronization policy themselves.
 type Manager interface {
+	EventSource
+
 	Prepare(
 		ctx context.Context,
 		req PrepareRequest,
@@ -108,22 +146,40 @@ type Manager interface {
 	PrepareAsync(
 		ctx context.Context,
 		req PrepareRequest,
-	) (OperationHandle, error)
+	) (PrepareOperation, error)
+
+	// MarkDirty records that writable prepared storage may have diverged from
+	// its durable Ref.
+	//
+	// MarkDirty should be idempotent.
+	MarkDirty(
+		ctx context.Context,
+		prepared *Prepared,
+	) error
 
 	Commit(
 		ctx context.Context,
 		prepared *Prepared,
 		opts CommitOptions,
-	) error
+	) (*CommitResult, error)
 
 	CommitAsync(
 		ctx context.Context,
 		prepared *Prepared,
 		opts CommitOptions,
-	) (OperationHandle, error)
+	) (CommitOperation, error)
 
+	// Release releases runtime material associated with prepared.
+	//
+	// Release must not delete the durable object identified by Prepared.Ref
+	// merely because runtime material is node-owned.
 	Release(
 		ctx context.Context,
 		prepared *Prepared,
 	) error
+
+	ReleaseAsync(
+		ctx context.Context,
+		prepared *Prepared,
+	) (OperationHandle, error)
 }

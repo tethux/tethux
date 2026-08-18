@@ -4,6 +4,7 @@ linters:
   disable:
     - dupl
     - gocyclo
+
   enable:
     - errcheck
     - errorlint
@@ -21,11 +22,13 @@ linters:
       enable-all: true
       disable:
         - fieldalignment
+
     revive:
       severity: warning
       rules:
         - name: exported
           disabled: true
+
     gocritic:
       enabled-tags:
         - diagnostic
@@ -33,14 +36,18 @@ linters:
         - style
       disabled-checks:
         - wrapperFunc
+
     errcheck:
       check-type-assertions: true
       check-blank: false
+
   exclusions:
     generated: strict
     presets: []
+
     paths:
       - tools/ci-results/viewer/frontend/node_modules
+
     rules:
       # Ingestion handlers intentionally pass immutable record values through
       # uniform dispatcher signatures; these are not hot-loop APIs.
@@ -56,10 +63,12 @@ linters:
         linters:
           - gocritic
         text: "hugeParam|rangeValCopy"
+
       - path: internal/ci/
         linters:
           - gosec
         text: "G204|G304|G104|G122|G302"
+
       - path: internal/ci/archive\.go
         linters:
           - govet
@@ -81,14 +90,17 @@ linters:
         linters:
           - gosec
         text: "G204|G302|G304"
+
       - path: tools/ci/main\.go
         linters:
           - gocritic
         text: "exitAfterDefer|hugeParam|rangeValCopy|httpNoBody"
+
       - path: tools/ci/main\.go
         linters:
           - govet
         text: 'shadow: declaration of "err"'
+
       - path: tools/ci/main\.go
         linters:
           - noctx
@@ -107,10 +119,12 @@ linters:
         linters:
           - gosec
         text: "G701|G104"
+
       - path: tools/ci-results/viewer/handlers/
         linters:
           - gocritic
         text: "hugeParam|importShadow|unnamedResult"
+
       - path: tools/ci-results/viewer/handlers/artifacts_test\.go
         linters:
           - govet
@@ -122,38 +136,38 @@ linters:
         linters:
           - gosec
 
-      # Allow password/access token fields in API schemas
+      # Allow password/access token fields in API schemas.
       - linters:
           - gosec
         text: "G117"
 
-      # Temp file operations from os.CreateTemp are safe
+      # Temp file operations from os.CreateTemp are safe.
       - linters:
           - gosec
         text: "G703"
 
-      # User's editor choice is intentional
+      # User's editor choice is intentional.
       - linters:
           - gosec
         text: "G702"
 
-      # API client making requests to configured endpoints
+      # API clients make requests to configured endpoints.
       - linters:
           - gosec
         text: "G704"
 
-      # Ignore error return on Close
-      - text: "Error return value of `.*Close` is not checked"
-        linters:
+      # Ignore Close errors where explicitly accepted by repository policy.
+      - linters:
           - errcheck
+        text: "Error return value of `.*Close` is not checked"
 
-      # Ignore error return on Fprintf to stdout/stderr
-      - text: "Error return value of `.*Fprintf.*` is not checked"
-        linters:
+      # Ignore Fprintf errors for stdout/stderr diagnostics.
+      - linters:
           - errcheck
+        text: "Error return value of `.*Fprintf.*` is not checked"
 
-      # Ignore err shadow in defer
-      - text: 'shadow: declaration of "err"'
-        source: "defer "
-        linters:
+      # Ignore err shadowing inside deferred cleanup.
+      - linters:
           - govet
+        text: 'shadow: declaration of "err"'
+        source: "defer "

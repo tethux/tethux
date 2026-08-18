@@ -11,67 +11,97 @@ import (
 type ObjectType string
 
 const (
-	// ObjectUnknown represents an object whose type is not known.
 	ObjectUnknown ObjectType = "unknown"
-	// ObjectFile represents a regular file.
-	ObjectFile ObjectType = "file"
-	// ObjectDir represents a directory.
-	ObjectDir ObjectType = "directory"
+	ObjectFile    ObjectType = "file"
+	ObjectDir     ObjectType = "directory"
 )
 
-// Generation identifies one version of a stored object.
+// Generation identifies one version of a durable stored object.
 type Generation string
 
-// ObjectInfo describes a stored object.
+// ObjectInfo describes a durable stored object.
 type ObjectInfo struct {
-	Ref  Ref
+	Ref Ref
+
 	Type ObjectType
 
-	Size       int64
-	ModTime    time.Time
+	Size    int64
+	ModTime time.Time
+
 	Generation Generation
 
 	ContentType string
-	ETag        string
-	Checksum    *Checksum
-	Metadata    Metadata
-	Kind        ArtifactKind
+
+	// ETag contains a provider-native object identifier when available.
+	ETag string
+
+	Checksum *Checksum
+
+	Metadata Metadata
+
+	Kind ArtifactKind
 }
 
 // PutOptions controls how a provider stores an object.
 type PutOptions struct {
-	// Mode is the permission mode for a newly created object.
+	// Mode is the permission mode for newly created filesystem objects.
+	// Providers without filesystem permissions may ignore it.
 	Mode fs.FileMode
+
+	ContentType string
+	Metadata    Metadata
+	Kind        ArtifactKind
+
+	// ExpectedGeneration performs an optimistic concurrency check.
+	//
+	// An empty value means no generation check.
+	ExpectedGeneration Generation
+
+	// IfNotExists requires that the target does not already exist.
+	IfNotExists bool
+}
+
+// ListOptions controls object listing.
+type ListOptions struct {
+	// Recursive returns all descendants beneath prefix.
+	//
+	// When false, List returns only immediate children.
+	Recursive bool
 }
 
 // CopyOptions controls how a provider copies an object.
 type CopyOptions struct {
-	// Overwrite permits replacing an existing destination.
 	Overwrite bool
 }
 
 // MoveOptions controls how a provider moves an object.
 type MoveOptions struct {
-	// Overwrite permits replacing an existing destination.
 	Overwrite bool
 }
 
-// Capabilities describes guarantees and features provided by a backend.
+// Capabilities describes guarantees and features provided by a durable storage
+// backend.
 type Capabilities struct {
-	AtomicReplace    bool
-	AtomicMove       bool
+	AtomicReplace bool
+	AtomicMove    bool
+
 	ConditionalWrite bool
 }
 
 // ProviderInfo describes a storage provider and its capabilities.
 type ProviderInfo struct {
-	Name         ProviderName
+	Name ProviderName
+
 	Capabilities Capabilities
 }
 
-// Provider supplies object-oriented storage operations.
+// Provider supplies durable object-oriented storage operations.
+//
+// Provider does not decide workload placement, caching, staging, writeback
+// timing, or runtime cleanup. Those responsibilities belong to Manager.
 type Provider interface {
 	Name() ProviderName
+
 	Info() ProviderInfo
 
 	Stat(
@@ -99,9 +129,9 @@ type Provider interface {
 	List(
 		ctx context.Context,
 		prefix Ref,
+		opts ListOptions,
 	) ([]ObjectInfo, error)
 
-	// Copy copies an object from src to dst according to opts.
 	Copy(
 		ctx context.Context,
 		src Ref,
@@ -109,7 +139,6 @@ type Provider interface {
 		opts CopyOptions,
 	) error
 
-	// Move moves an object from src to dst according to opts.
 	Move(
 		ctx context.Context,
 		src Ref,
@@ -118,8 +147,11 @@ type Provider interface {
 	) error
 }
 
-// AsyncProvider exposes asynchronous variants of expensive provider work.
-// Providers may implement this capability independently of Provider.
+// AsyncProvider exposes asynchronous variants of potentially expensive durable
+// storage operations.
+//
+// Providers may implement this independently of Provider users requiring only
+// synchronous access.
 type AsyncProvider interface {
 	Provider
 
@@ -128,5 +160,17 @@ type AsyncProvider interface {
 		src Ref,
 		dst Ref,
 		opts CopyOptions,
+	) (OperationHandle, error)
+
+	MoveAsync(
+		ctx context.Context,
+		src Ref,
+		dst Ref,
+		opts MoveOptions,
+	) (OperationHandle, error)
+
+	DeleteAsync(
+		ctx context.Context,
+		ref Ref,
 	) (OperationHandle, error)
 }

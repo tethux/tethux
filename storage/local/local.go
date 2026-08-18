@@ -2,15 +2,16 @@ package local
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"mime"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -25,12 +26,19 @@ const DefaultName storage.ProviderName = "local"
 type Provider struct {
 	name storage.ProviderName
 	root string
+
+	mu    sync.Mutex
+	dirty map[storage.PreparedID]bool
+
+	nextSubID   uint64
+	subscribers map[uint64]chan storage.Event
 }
 
 var (
 	_ storage.Provider      = (*Provider)(nil)
 	_ storage.Manager       = (*Provider)(nil)
 	_ storage.AsyncProvider = (*Provider)(nil)
+	_ storage.EventSource   = (*Provider)(nil)
 )
 
 // Option configures a Provider.
@@ -59,8 +67,10 @@ func New(root string, opts ...Option) (*Provider, error) {
 	}
 
 	p := &Provider{
-		name: DefaultName,
-		root: abs,
+		name:        DefaultName,
+		root:        abs,
+		dirty:       make(map[storage.PreparedID]bool),
+		subscribers: make(map[uint64]chan storage.Event),
 	}
 
 	for _, opt := range opts {
@@ -111,27 +121,31 @@ func (p *Provider) Stat(
 	info, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrNotFound, ref.String(), err)
-		}
-		return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrStat, ref.String(), err)
-	}
-	var checksum *storage.Checksum
-
-	if info.Mode().IsRegular() {
-		checksum, err = p.checksum(ctx, path)
-		if err != nil {
 			return nil, storageerrs.Wrap(
 				string(p.name),
-				storageerrs.ErrChecksum,
+				storageerrs.ErrNotFound,
 				ref.String(),
 				err,
 			)
 		}
+
+		return nil, storageerrs.Wrap(
+			string(p.name),
+			storageerrs.ErrStat,
+			ref.String(),
+			err,
+		)
 	}
 
 	generation := storage.Generation("")
-	if checksum != nil {
-		generation = storage.Generation(checksum.Value)
+	if info.Mode().IsRegular() {
+		generation = storage.Generation(
+			fmt.Sprintf(
+				"%d:%d",
+				info.ModTime().UnixNano(),
+				info.Size(),
+			),
+		)
 	}
 
 	return &storage.ObjectInfo{
@@ -139,9 +153,9 @@ func (p *Provider) Stat(
 		Type:        objectType(info),
 		Size:        info.Size(),
 		ModTime:     info.ModTime(),
-		ContentType: mime.TypeByExtension(filepath.Ext(path)),
-		Checksum:    checksum,
 		Generation:  generation,
+		ContentType: mime.TypeByExtension(filepath.Ext(path)),
+		Checksum:    nil,
 		Metadata:    storage.Metadata{},
 		Kind:        storage.ArtifactGeneric,
 	}, nil
@@ -262,6 +276,7 @@ func (p *Provider) Delete(
 func (p *Provider) List(
 	ctx context.Context,
 	prefix storage.Ref,
+	opts storage.ListOptions,
 ) ([]storage.ObjectInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -272,9 +287,26 @@ func (p *Provider) List(
 		return nil, err
 	}
 
+	if opts.Recursive {
+		return p.listRecursive(ctx, prefix, path)
+	}
+
+	return p.listDirect(ctx, prefix, path)
+}
+
+func (p *Provider) listDirect(
+	ctx context.Context,
+	prefix storage.Ref,
+	path string,
+) ([]storage.ObjectInfo, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrList, prefix.String(), err)
+		return nil, storageerrs.Wrap(
+			string(p.name),
+			storageerrs.ErrList,
+			prefix.String(),
+			err,
+		)
 	}
 
 	out := make([]storage.ObjectInfo, 0, len(entries))
@@ -286,25 +318,108 @@ func (p *Provider) List(
 
 		info, err := entry.Info()
 		if err != nil {
-			return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrList, entry.Name(), err)
+			return nil, storageerrs.Wrap(
+				string(p.name),
+				storageerrs.ErrList,
+				entry.Name(),
+				err,
+			)
 		}
 
 		key := filepath.ToSlash(
 			filepath.Join(string(prefix.Key), entry.Name()),
 		)
 
-		out = append(out, storage.ObjectInfo{
-			Ref: storage.Ref{
-				Provider: p.name,
-				Key:      storage.Key(key),
-			},
-			Type:    objectType(info),
-			Size:    info.Size(),
-			ModTime: info.ModTime(),
-		})
+		out = append(out, objectInfoFromFileInfo(
+			p.name,
+			storage.Key(key),
+			info,
+		))
 	}
 
 	return out, nil
+}
+
+func (p *Provider) listRecursive(
+	ctx context.Context,
+	prefix storage.Ref,
+	root string,
+) ([]storage.ObjectInfo, error) {
+	var out []storage.ObjectInfo
+
+	err := filepath.WalkDir(
+		root,
+		func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			if path == root {
+				return nil
+			}
+
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+
+			rel, err := filepath.Rel(p.root, path)
+			if err != nil {
+				return err
+			}
+
+			out = append(out, objectInfoFromFileInfo(
+				p.name,
+				storage.Key(filepath.ToSlash(rel)),
+				info,
+			))
+
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, storageerrs.Wrap(
+			string(p.name),
+			storageerrs.ErrList,
+			prefix.String(),
+			err,
+		)
+	}
+
+	return out, nil
+}
+
+func objectInfoFromFileInfo(
+	provider storage.ProviderName,
+	key storage.Key,
+	info fs.FileInfo,
+) storage.ObjectInfo {
+	generation := storage.Generation("")
+
+	if info.Mode().IsRegular() {
+		generation = storage.Generation(
+			fmt.Sprintf(
+				"%d:%d",
+				info.ModTime().UnixNano(),
+				info.Size(),
+			),
+		)
+	}
+
+	return storage.ObjectInfo{
+		Ref: storage.Ref{
+			Provider: provider,
+			Key:      key,
+		},
+		Type:       objectType(info),
+		Size:       info.Size(),
+		ModTime:    info.ModTime(),
+		Generation: generation,
+	}
 }
 
 func (p *Provider) Prepare(
@@ -319,8 +434,13 @@ func (p *Provider) Prepare(
 	if mode == "" {
 		mode = storage.PrepareDirect
 	}
+
 	if mode != storage.PrepareDirect {
-		return nil, storageerrs.New(string(p.name), storageerrs.ErrUnsupportedMode, string(mode))
+		return nil, storageerrs.New(
+			string(p.name),
+			storageerrs.ErrUnsupportedMode,
+			string(mode),
+		)
 	}
 
 	path, err := p.pathFor(req.Ref)
@@ -328,89 +448,280 @@ func (p *Provider) Prepare(
 		return nil, err
 	}
 
-	created := false
 	info, statErr := os.Stat(path)
 	if statErr != nil {
 		if !errors.Is(statErr, fs.ErrNotExist) {
-			return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrStat, req.Ref.String(), statErr)
+			return nil, storageerrs.Wrap(
+				string(p.name),
+				storageerrs.ErrStat,
+				req.Ref.String(),
+				statErr,
+			)
 		}
+
 		if !req.Create {
-			return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrNotFound, req.Ref.String(), statErr)
+			return nil, storageerrs.Wrap(
+				string(p.name),
+				storageerrs.ErrNotFound,
+				req.Ref.String(),
+				statErr,
+			)
 		}
 
 		switch req.ResourceType {
 		case storage.ResourceTypeDirectory:
 			mkdirErr := os.MkdirAll(path, 0o750)
 			if mkdirErr != nil {
-				return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrCreate, req.Ref.String(), mkdirErr)
+				return nil, storageerrs.Wrap(
+					string(p.name),
+					storageerrs.ErrCreate,
+					req.Ref.String(),
+					mkdirErr,
+				)
 			}
-			created = true
 
 		case storage.ResourceTypeFile:
-			mkdirErr := os.MkdirAll(filepath.Dir(path), 0o750)
-			if mkdirErr != nil {
-				return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrCreate, req.Ref.String(), mkdirErr)
+			parentMkdirErr := os.MkdirAll(filepath.Dir(path), 0o750)
+			if parentMkdirErr != nil {
+				return nil, storageerrs.Wrap(
+					string(p.name),
+					storageerrs.ErrCreate,
+					req.Ref.String(),
+					parentMkdirErr,
+				)
 			}
+
 			// #nosec G304 -- pathFor rejects absolute, escaping, and symlinked refs.
-			file, openErr := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+			file, openErr := os.OpenFile(
+				path,
+				os.O_CREATE|os.O_EXCL|os.O_WRONLY,
+				0o600,
+			)
 			if openErr != nil {
-				return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrCreate, req.Ref.String(), openErr)
+				return nil, storageerrs.Wrap(
+					string(p.name),
+					storageerrs.ErrCreate,
+					req.Ref.String(),
+					openErr,
+				)
 			}
-			if closeErr := file.Close(); closeErr != nil {
-				return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrCreate, req.Ref.String(), closeErr)
+
+			closeErr := file.Close()
+			if closeErr != nil {
+				return nil, storageerrs.Wrap(
+					string(p.name),
+					storageerrs.ErrCreate,
+					req.Ref.String(),
+					closeErr,
+				)
 			}
-			created = true
 
 		default:
-			return nil, storageerrs.New(string(p.name), storageerrs.ErrInvalidResourceType, req.Ref.String())
+			return nil, storageerrs.New(
+				string(p.name),
+				storageerrs.ErrInvalidResourceType,
+				req.Ref.String(),
+			)
 		}
 
 		info, err = os.Stat(path)
 		if err != nil {
-			return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrStat, req.Ref.String(), err)
+			return nil, storageerrs.Wrap(
+				string(p.name),
+				storageerrs.ErrStat,
+				req.Ref.String(),
+				err,
+			)
 		}
 	}
 
-	if err := validateResourceType(req.ResourceType, info); err != nil {
-		return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrInvalidResourceType, req.Ref.String(), err)
+	validationErr := validateResourceType(req.ResourceType, info)
+	if validationErr != nil {
+		return nil, storageerrs.Wrap(
+			string(p.name),
+			storageerrs.ErrInvalidResourceType,
+			req.Ref.String(),
+			validationErr,
+		)
 	}
 
-	ownership := storage.OwnershipExternal
-	if created {
-		ownership = storage.OwnershipNode
+	resourceType := req.ResourceType
+	if resourceType == "" {
+		switch {
+		case info.Mode().IsRegular():
+			resourceType = storage.ResourceTypeFile
+		case info.IsDir():
+			resourceType = storage.ResourceTypeDirectory
+		default:
+			return nil, storageerrs.New(
+				string(p.name),
+				storageerrs.ErrInvalidResourceType,
+				req.Ref.String(),
+			)
+		}
 	}
 
-	return &storage.Prepared{
-		ID:         storage.PreparedID(uuid.NewString()),
-		Ref:        req.Ref,
-		NodeID:     req.NodeID,
-		AccessMode: req.AccessMode,
-		Ownership:  ownership,
+	objectInfo, err := p.Stat(ctx, req.Ref)
+	if err != nil {
+		return nil, err
+	}
+
+	prepared := &storage.Prepared{
+		ID:             storage.PreparedID(uuid.NewString()),
+		Ref:            req.Ref,
+		BaseGeneration: objectInfo.Generation,
+		NodeID:         req.NodeID,
+		AccessMode:     req.AccessMode,
+		Mode:           mode,
+		ResourceType:   resourceType,
+		Ownership:      storage.OwnershipExternal,
 		Location: storage.RuntimeLocation{
 			Kind:  storage.LocationPath,
 			Value: path,
 		},
-	}, nil
+	}
+
+	p.emit(storage.Event{
+		Type:       storage.EventPrepared,
+		Time:       time.Now(),
+		PreparedID: prepared.ID,
+		NodeID:     prepared.NodeID,
+		Ref:        refPtr(prepared.Ref),
+		Generation: prepared.BaseGeneration,
+	})
+
+	return prepared, nil
 }
 
-// PrepareAsync starts preparation in the background.
 func (p *Provider) PrepareAsync(
 	ctx context.Context,
 	req storage.PrepareRequest, //nolint:gocritic // part of the public storage.Manager contract
-) (storage.OperationHandle, error) {
+) (storage.PrepareOperation, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
 	op := newOperation(ctx, storage.OperationPrepare, &req.Ref, nil)
+
 	go func() {
 		op.start()
+
 		prepared, err := p.Prepare(op.context(), req)
+
+		if prepared != nil {
+			op.setPreparedID(prepared.ID)
+		}
+
 		op.setPrepared(prepared, err)
 		op.finish(err)
 	}()
 
 	return op, nil
+}
+
+func (p *Provider) Events(
+	ctx context.Context,
+) (<-chan storage.Event, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make(chan storage.Event, 16)
+	sub := make(chan storage.Event, 16)
+
+	p.mu.Lock()
+	id := p.nextSubID
+	p.nextSubID++
+	p.subscribers[id] = sub
+	p.mu.Unlock()
+
+	go func() {
+		defer close(out)
+
+		defer func() {
+			p.mu.Lock()
+			delete(p.subscribers, id)
+			p.mu.Unlock()
+		}()
+
+		for {
+			select {
+			case event := <-sub:
+				select {
+				case out <- event:
+				case <-ctx.Done():
+					return
+				}
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+func (p *Provider) emit(event storage.Event) { //nolint:gocritic // storage.Event is the event-source contract
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for _, subscriber := range p.subscribers {
+		select {
+		case subscriber <- event:
+		default:
+		}
+	}
+}
+
+func (p *Provider) MarkDirty(
+	ctx context.Context,
+	prepared *storage.Prepared,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if prepared == nil {
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrInvalidOptions,
+			"prepared storage is nil",
+		)
+	}
+
+	if prepared.Ref.Provider != p.name {
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrProviderMismatch,
+			string(prepared.Ref.Provider),
+		)
+	}
+
+	if prepared.AccessMode == storage.AccessReadOnly {
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrInvalidOptions,
+			"read-only prepared storage cannot be marked dirty",
+		)
+	}
+
+	p.mu.Lock()
+	alreadyDirty := p.dirty[prepared.ID]
+	p.dirty[prepared.ID] = true
+	p.mu.Unlock()
+
+	if !alreadyDirty {
+		p.emit(storage.Event{
+			Type:       storage.EventDirty,
+			Time:       time.Now(),
+			PreparedID: prepared.ID,
+			NodeID:     prepared.NodeID,
+			Ref:        refPtr(prepared.Ref),
+		})
+	}
+
+	return nil
 }
 
 func (p *Provider) Copy(
@@ -696,10 +1007,67 @@ func (p *Provider) Release(
 	}
 
 	if prepared == nil {
-		return storageerrs.New(string(p.name), storageerrs.ErrInvalidOptions, "prepared storage is nil")
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrInvalidOptions,
+			"prepared storage is nil",
+		)
 	}
 
+	if prepared.Ref.Provider != p.name {
+		return storageerrs.New(
+			string(p.name),
+			storageerrs.ErrProviderMismatch,
+			string(prepared.Ref.Provider),
+		)
+	}
+
+	p.mu.Lock()
+	delete(p.dirty, prepared.ID)
+	p.mu.Unlock()
+
+	p.emit(storage.Event{
+		Type:       storage.EventReleased,
+		Time:       time.Now(),
+		PreparedID: prepared.ID,
+		NodeID:     prepared.NodeID,
+		Ref:        refPtr(prepared.Ref),
+	})
+
 	return nil
+}
+
+func (p *Provider) ReleaseAsync(
+	ctx context.Context,
+	prepared *storage.Prepared,
+) (storage.OperationHandle, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if prepared == nil {
+		return nil, storageerrs.New(
+			string(p.name),
+			storageerrs.ErrInvalidOptions,
+			"prepared storage is nil",
+		)
+	}
+
+	op := newOperation(
+		ctx,
+		storage.OperationRelease,
+		&prepared.Ref,
+		nil,
+	)
+
+	op.setPreparedID(prepared.ID)
+
+	go func() {
+		op.start()
+		op.finish(p.Release(op.context(), prepared))
+	}()
+
+	return op, nil
 }
 
 func (p *Provider) pathFor(ref storage.Ref) (string, error) {
@@ -963,158 +1331,158 @@ func (p *Provider) Commit(
 	ctx context.Context,
 	prepared *storage.Prepared,
 	opts storage.CommitOptions,
-) error {
-	ctxErr := ctx.Err()
-	if ctxErr != nil {
-		return ctxErr
+) (*storage.CommitResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-
 	if prepared == nil {
-		return storageerrs.New(
-			string(p.name),
-			storageerrs.ErrInvalidOptions,
-			"prepared storage is nil",
-		)
+		return nil, storageerrs.New(string(p.name), storageerrs.ErrInvalidOptions, "prepared storage is nil")
 	}
 	if prepared.Ref.Provider != p.name {
-		return storageerrs.New(
-			string(p.name),
-			storageerrs.ErrProviderMismatch,
-			string(prepared.Ref.Provider),
-		)
+		return nil, storageerrs.New(string(p.name), storageerrs.ErrProviderMismatch, string(prepared.Ref.Provider))
 	}
 
-	path, pathErr := p.pathFor(prepared.Ref)
-	if pathErr != nil {
-		return pathErr
+	path, err := p.pathFor(prepared.Ref)
+	if err != nil {
+		return nil, err
 	}
-
-	info, statErr := os.Lstat(path)
-	if statErr != nil {
-		return storageerrs.Wrap(
-			string(p.name),
-			storageerrs.ErrNotFound,
-			prepared.Ref.String(),
-			statErr,
-		)
+	info, err := os.Lstat(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrNotFound, prepared.Ref.String(), err)
+		}
+		return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrStat, prepared.Ref.String(), err)
 	}
-
 	if info.Mode()&os.ModeSymlink != 0 {
-		return storageerrs.New(
-			string(p.name),
-			storageerrs.ErrInvalidRef,
-			prepared.Ref.String(),
-		)
+		return nil, storageerrs.New(string(p.name), storageerrs.ErrInvalidRef, prepared.Ref.String())
 	}
 
 	if opts.ExpectedGeneration != "" {
-		return storageerrs.New(
-			string(p.name),
-			storageerrs.ErrInvalidOptions,
-			"conditional commit is unsupported",
-		)
+		current, statErr := p.Stat(ctx, prepared.Ref)
+		if statErr != nil {
+			return nil, statErr
+		}
+		if current.Generation != opts.ExpectedGeneration {
+			return nil, storageerrs.New(string(p.name), storageerrs.ErrConflict, prepared.Ref.String())
+		}
 	}
 
-	switch opts.Sync {
-	case "", storage.SyncPolicyDefault, storage.SyncPolicyNone:
-		return nil
-
-	case storage.SyncPolicyData, storage.SyncPolicyFull:
-		if !info.Mode().IsRegular() {
-			return nil
+	switch opts.Durability {
+	case "", storage.DurabilityDefault, storage.DurabilityNone:
+	case storage.DurabilityData:
+		if info.Mode().IsRegular() {
+			syncErr := syncFile(path)
+			if syncErr != nil {
+				return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrPut, prepared.Ref.String(), syncErr)
+			}
 		}
-
-		// #nosec G304 -- pathFor validates provider-owned paths.
-		file, openErr := os.OpenFile(path, os.O_WRONLY, 0)
-		if openErr != nil {
-			return storageerrs.Wrap(
-				string(p.name),
-				storageerrs.ErrOpen,
-				prepared.Ref.String(),
-				openErr,
-			)
+	case storage.DurabilityFull:
+		if info.Mode().IsRegular() {
+			syncErr := syncFile(path)
+			if syncErr != nil {
+				return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrPut, prepared.Ref.String(), syncErr)
+			}
 		}
-
-		syncErr := file.Sync()
-		if syncErr != nil {
-			closeErr := file.Close()
-			return storageerrs.Wrap(
-				string(p.name),
-				storageerrs.ErrPut,
-				prepared.Ref.String(),
-				errors.Join(syncErr, closeErr),
-			)
+		directorySyncErr := syncDirectory(filepath.Dir(path))
+		if directorySyncErr != nil {
+			return nil, storageerrs.Wrap(string(p.name), storageerrs.ErrPut, prepared.Ref.String(), directorySyncErr)
 		}
-
-		closeErr := file.Close()
-		if closeErr != nil {
-			return storageerrs.Wrap(
-				string(p.name),
-				storageerrs.ErrPut,
-				prepared.Ref.String(),
-				closeErr,
-			)
-		}
-
-		return nil
-
 	default:
-		return storageerrs.New(
-			string(p.name),
-			storageerrs.ErrInvalidOptions,
-			string(opts.Sync),
-		)
+		return nil, storageerrs.New(string(p.name), storageerrs.ErrInvalidOptions, string(opts.Durability))
 	}
+
+	objectInfo, err := p.Stat(ctx, prepared.Ref)
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	delete(p.dirty, prepared.ID)
+	p.mu.Unlock()
+	p.emit(storage.Event{
+		Type: storage.EventCommitted, Time: time.Now(), PreparedID: prepared.ID,
+		NodeID: prepared.NodeID, Ref: refPtr(prepared.Ref), Generation: objectInfo.Generation,
+	})
+	return &storage.CommitResult{Object: *objectInfo}, nil
 }
 
-// CommitAsync starts a commit in the background.
 func (p *Provider) CommitAsync(
 	ctx context.Context,
 	prepared *storage.Prepared,
 	opts storage.CommitOptions,
-) (storage.OperationHandle, error) {
-	ctxErr := ctx.Err()
-	if ctxErr != nil {
-		return nil, ctxErr
+) (storage.CommitOperation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	if prepared == nil {
-		return nil, storageerrs.New(
-			string(p.name),
-			storageerrs.ErrInvalidOptions,
-			"prepared storage is nil",
-		)
+		return nil, storageerrs.New(string(p.name), storageerrs.ErrInvalidOptions, "prepared storage is nil")
 	}
-
 	op := newOperation(ctx, storage.OperationCommit, &prepared.Ref, nil)
+	op.setPreparedID(prepared.ID)
 	go func() {
 		op.start()
-		commitErr := p.Commit(op.context(), prepared, opts)
-		op.finish(commitErr)
+		result, err := p.Commit(op.context(), prepared, opts)
+		op.setCommitResult(result, err)
+		op.finish(err)
 	}()
-
 	return op, nil
 }
 
-func (p *Provider) checksum(ctx context.Context, path string) (*storage.Checksum, error) {
-	ctxErr := ctx.Err()
-	if ctxErr != nil {
-		return nil, ctxErr
+func (p *Provider) MoveAsync(
+	ctx context.Context,
+	src storage.Ref,
+	dst storage.Ref,
+	opts storage.MoveOptions,
+) (storage.OperationHandle, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
+	op := newOperation(ctx, storage.OperationMove, &src, &dst)
+	go func() {
+		op.start()
+		op.finish(p.Move(op.context(), src, dst, opts))
+	}()
+	return op, nil
+}
 
-	// #nosec G304 -- paths are produced from a validated storage ref.
-	file, openErr := os.Open(path)
-	if openErr != nil {
-		return nil, openErr
+func (p *Provider) DeleteAsync(
+	ctx context.Context,
+	ref storage.Ref,
+) (storage.OperationHandle, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	defer file.Close()
+	op := newOperation(ctx, storage.OperationDelete, &ref, nil)
+	go func() {
+		op.start()
+		op.finish(p.Delete(op.context(), ref))
+	}()
+	return op, nil
+}
 
-	hash := sha256.New()
+func refPtr(ref storage.Ref) *storage.Ref {
+	return &ref
+}
 
-	if _, hashErr := copyContext(ctx, hash, file); hashErr != nil {
-		return nil, hashErr
+func syncFile(path string) error {
+	// #nosec G304 -- caller supplies a validated provider-owned path.
+	file, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return err
 	}
-	return &storage.Checksum{
-		Algorithm: storage.ChecksumSHA256,
-		Value:     hex.EncodeToString(hash.Sum(nil)),
-	}, nil
+	if err := file.Sync(); err != nil {
+		return errors.Join(err, file.Close())
+	}
+	return file.Close()
+}
+
+func syncDirectory(path string) error {
+	// #nosec G304 -- caller supplies a validated provider-owned path.
+	dir, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	if err := dir.Sync(); err != nil {
+		return errors.Join(err, dir.Close())
+	}
+	return dir.Close()
 }

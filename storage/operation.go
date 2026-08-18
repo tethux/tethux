@@ -8,18 +8,17 @@ import (
 // OperationID uniquely identifies a storage operation.
 type OperationID string
 
-// OperationType identifies the work performed by a storage operation.
+// OperationType identifies work performed by a storage operation.
 type OperationType string
 
 const (
 	OperationPrepare OperationType = "prepare"
 	OperationCommit  OperationType = "commit"
-	OperationCopy    OperationType = "copy"
-	OperationMove    OperationType = "move"
-	OperationDelete  OperationType = "delete"
-	OperationImport  OperationType = "import"
-	OperationExport  OperationType = "export"
-	OperationSync    OperationType = "sync"
+	OperationRelease OperationType = "release"
+
+	OperationCopy   OperationType = "copy"
+	OperationMove   OperationType = "move"
+	OperationDelete OperationType = "delete"
 )
 
 // OperationState describes the lifecycle of asynchronous storage work.
@@ -35,7 +34,7 @@ const (
 
 // Progress describes progress for a storage operation.
 //
-// TotalBytes may be zero when the total size is not known.
+// TotalBytes may be zero when the total size is unknown.
 type Progress struct {
 	Bytes      int64
 	TotalBytes int64
@@ -51,9 +50,12 @@ type Operation struct {
 	Source *Ref
 	Target *Ref
 
+	PreparedID PreparedID
+
 	Progress Progress
 
 	StartedAt   time.Time
+	UpdatedAt   time.Time
 	CompletedAt time.Time
 
 	Error string
@@ -73,9 +75,16 @@ type OperationHandle interface {
 	Events(ctx context.Context) (<-chan Event, error)
 }
 
-// PrepareOperation exposes the result of an asynchronous preparation.
+// PrepareOperation exposes the result of asynchronous preparation.
 type PrepareOperation interface {
 	OperationHandle
 
 	Prepared(ctx context.Context) (*Prepared, error)
+}
+
+// CommitOperation exposes the result of an asynchronous commit.
+type CommitOperation interface {
+	OperationHandle
+
+	Result(ctx context.Context) (*CommitResult, error)
 }
