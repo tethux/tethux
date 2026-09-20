@@ -30,6 +30,7 @@ var (
 
 	// Disk configuration.
 	ErrDisk       = errors.New("invalid disk configuration")
+	ErrDiskDevice = errors.New("unsupported disk device")
 	ErrDiskSource = errors.New("disk source is empty")
 	ErrDiskFormat = errors.New("unsupported disk format")
 	ErrDiskBus    = errors.New("unsupported disk bus")
@@ -44,6 +45,7 @@ var (
 	ErrNotManaged = errors.New("libvirt domain is not managed by tethux")
 )
 
+// OpError records a stable category, target, and optional libvirt cause.
 type OpError struct {
 	Provider string
 	Kind     error
@@ -89,6 +91,7 @@ func errorString(value error) string {
 	return value.Error()
 }
 
+// New constructs a categorized libvirt error without an underlying cause.
 func New(kind error, target string) error {
 	return &OpError{
 		Provider: "libvirt",
@@ -97,6 +100,7 @@ func New(kind error, target string) error {
 	}
 }
 
+// Wrap constructs a categorized libvirt error that preserves cause.
 func Wrap(kind error, target string, cause error) error {
 	return &OpError{
 		Provider: "libvirt",

@@ -13,6 +13,7 @@ import (
 	"github.com/tethux/tethux/virt/hypervisor/libvirt/errs"
 )
 
+// CreateDomain defines and starts a persistent domain from cfg.
 func (p *Provider) CreateDomain(ctx context.Context, cfg *domain.RuntimeConfig) (*domain.Node, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -46,6 +47,7 @@ func (p *Provider) CreateDomain(ctx context.Context, cfg *domain.RuntimeConfig) 
 	return node, inspectErr
 }
 
+// InspectDomain returns the domain-specific view of a managed domain.
 func (p *Provider) InspectDomain(ctx context.Context, id string) (*domain.Node, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -72,6 +74,7 @@ func (p *Provider) InspectDomain(ctx context.Context, id string) (*domain.Node, 
 	return node, inspectErr
 }
 
+// Reload reads the current state of a managed domain from libvirt.
 func (p *Provider) Reload(ctx context.Context, id string) (*virt.Node, error) {
 	node, err := p.InspectDomain(ctx, id)
 	if err != nil {
@@ -80,6 +83,7 @@ func (p *Provider) Reload(ctx context.Context, id string) (*virt.Node, error) {
 	return &node.Node, nil
 }
 
+// List returns every libvirt domain carrying tethux ownership metadata.
 func (p *Provider) List(ctx context.Context) ([]*virt.Node, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -202,6 +206,8 @@ func (p *Provider) inspect(domainRef *libvirtgo.Domain) (*domain.Node, error) {
 	return node, nil
 }
 
+// OpenConsole attaches input and output to a domain's primary serial console.
+// Canceling ctx aborts the underlying libvirt stream.
 func (p *Provider) OpenConsole(
 	ctx context.Context,
 	id string,

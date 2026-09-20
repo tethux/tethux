@@ -8,20 +8,24 @@ import (
 	"github.com/tethux/tethux/storage"
 )
 
+// Manager prepares storage-backed domain configuration before provider calls.
 type Manager struct {
 	storage storage.Manager
 }
 
+// NewManager returns a domain manager backed by storageManager.
 func NewManager(storageManager storage.Manager) *Manager {
 	return &Manager{
 		storage: storageManager,
 	}
 }
 
+// PreparedResources tracks storage leases owned by a domain operation.
 type PreparedResources struct {
 	Disks []*storage.Prepared
 }
 
+// Prepare resolves a portable domain configuration into provider-ready paths.
 func (m *Manager) Prepare(
 	ctx context.Context,
 	cfg *Config,
@@ -71,6 +75,7 @@ func (m *Manager) Prepare(
 
 		disks = append(disks, RuntimeDisk{
 			Source:   prepared.Location.Value,
+			Device:   string(disk.Device),
 			Bus:      string(disk.Bus),
 			Target:   disk.Target,
 			Format:   string(disk.Format),
@@ -89,6 +94,7 @@ func (m *Manager) Prepare(
 	}, resources, nil
 }
 
+// Release returns every storage resource acquired by Prepare.
 func (m *Manager) Release(
 	ctx context.Context,
 	resources *PreparedResources,
@@ -108,6 +114,8 @@ func (m *Manager) Release(
 	return errors.Join(errs...)
 }
 
+// Create prepares cfg and asks provider to create the domain.
+// The caller owns the returned resources and must release them after deletion.
 func (m *Manager) Create(
 	ctx context.Context,
 	provider Provider,

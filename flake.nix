@@ -76,6 +76,10 @@
           inherit system;
           config.allowUnfree = true;
         };
+        alpineCloudImage = pkgs.fetchurl {
+          url = "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/generic_alpine-3.24.1-x86_64-bios-tiny-r0.qcow2";
+          hash = "sha256-VSXg8d3gVnBunddE9Fq/qUTMTxDkSSL+KinmkFZ5Dso=";
+        };
         daggerCLI = pkgs.stdenvNoCC.mkDerivation {
           pname = "dagger";
           version = "0.21.4";
@@ -93,7 +97,7 @@
           postPatch = ''
             rm -rf vendor
           '';
-          vendorHash = "sha256-OTafKhMbE4irD88dld1y/TzRAnninXcpNWUVD51MoLE=";
+          vendorHash = "sha256-8iaGhB7KVTR4JURdmmyKy6HLZwTA3X7Vl6+V7qk8htc=";
           nativeBuildInputs = [ pkgs.pkg-config ];
           buildInputs = [ pkgs.libpcap pkgs.libvirt ];
         };
@@ -106,6 +110,7 @@
       {
         packages = {
           inherit tethux;
+          libvirtFixture = alpineCloudImage;
           default = tethux;
         };
 
@@ -151,6 +156,7 @@
               cgoPcapEnv
               // {
                 MISE_ENABLE_TOOLS = "";
+                TETHUX_LIBVIRT_IMAGE = alpineCloudImage;
                 packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   bridge-utils
@@ -165,6 +171,7 @@
                   pkg-config
                   podman
                   procps
+                  qemu_kvm
                   runc
                   socat
                   tcpdump

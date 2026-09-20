@@ -14,6 +14,7 @@ import (
 	"github.com/tethux/tethux/virt/hypervisor/libvirt/errs"
 )
 
+// Provider manages tethux-owned domains through a libvirt connection.
 type Provider struct {
 	conn       *libvirtgo.Connect
 	callbackID int
@@ -35,6 +36,7 @@ var (
 	eventLoopErr  error
 )
 
+// New connects to uri and starts lifecycle event delivery.
 func New(uri string) (*Provider, error) {
 	startEventLoop()
 	if eventLoopErr != nil {
@@ -60,6 +62,7 @@ func New(uri string) (*Provider, error) {
 	return p, nil
 }
 
+// Info reports the libvirt provider's supported operations.
 func (p *Provider) Info() virt.ProviderInfo {
 	return virt.ProviderInfo{
 		Name: "libvirt", DisplayName: "libvirt", Kind: virt.ProviderKindDomain,
@@ -67,6 +70,7 @@ func (p *Provider) Info() virt.ProviderInfo {
 	}
 }
 
+// Close deregisters lifecycle events and closes the libvirt connection.
 func (p *Provider) Close() error {
 	if p == nil || p.conn == nil {
 		return nil
@@ -98,6 +102,8 @@ func startEventLoop() {
 	})
 }
 
+// Events subscribes to lifecycle changes for domains managed by this provider.
+// The channel closes when ctx is canceled.
 func (p *Provider) Events(ctx context.Context) (<-chan virt.Event, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

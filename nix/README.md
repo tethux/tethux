@@ -52,12 +52,20 @@ mise run test:host:topology
 RUNTIME=podman mise run test:integration:local
 ```
 
+The `integration` shell supplies the pinned Alpine Tiny Cloud image through
+`TETHUX_LIBVIRT_IMAGE` together with libvirt, QEMU, and xorriso. This is also
+the environment used after Woodpecker copies a commit to a host over SSH, so
+the libvirt suite does not depend on interactive shell initialization.
+Test-host firewalls allow reverse-path-filter traffic only on the suite's
+short-lived `tx*` bridges; strict filtering remains in place elsewhere.
+
 Each test host provides a loopback OCI fixture registry. Provider tests use
 those deterministic images and never silently substitute public images.
 
-GitHub Actions runs the normal checks on Blacksmith. Woodpecker only runs the
-NAS integration chain: Docker, Podman, then the cross-host workflow. Proxmox
-integration is not part of CI yet.
+GitHub Actions runs the normal checks on Blacksmith. Woodpecker runs one NAS
+integration chain for pull requests and for pushes to `master`: Docker, Podman,
+then the cross-host workflow. Feature-branch pushes do not start a duplicate
+physical-host run. Proxmox integration is not part of CI yet.
 
 ## Test archives
 

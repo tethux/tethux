@@ -17,6 +17,9 @@ func TestBuildDomainCarriesDomainConfiguration(t *testing.T) {
 		Disks: []domain.RuntimeDisk{{
 			Source: "/var/lib/tethux/router.qcow2", Bus: string(domain.DiskBusSATA),
 			Target: "sda", Format: string(domain.DiskFormatQCOW2),
+		}, {
+			Source: "/var/lib/tethux/seed.iso", Device: string(domain.DiskDeviceCDROM),
+			Bus: string(domain.DiskBusSATA), Target: "sdb", Format: string(domain.DiskFormatRaw), ReadOnly: true,
 		}},
 		Interfaces: []domain.Interface{{
 			Bridge: "lab0", MAC: "52:54:00:12:34:56", Model: domain.InterfaceModelVirtio,
@@ -39,8 +42,11 @@ func TestBuildDomainCarriesDomainConfiguration(t *testing.T) {
 	if description.Memory == nil || description.Memory.Value != 512 || description.VCPU == nil || description.VCPU.Value != 2 {
 		t.Fatal("domain resources were not carried into XML")
 	}
-	if len(description.Devices.Disks) != 1 || description.Devices.Disks[0].Target.Bus != "sata" {
+	if len(description.Devices.Disks) != 2 || description.Devices.Disks[0].Target.Bus != "sata" {
 		t.Fatal("domain disk was not carried into XML")
+	}
+	if description.Devices.Disks[1].Device != "cdrom" || description.Devices.Disks[1].ReadOnly == nil {
+		t.Fatal("domain optical media was not carried into XML")
 	}
 	if len(description.Devices.Interfaces) != 1 || description.Devices.Interfaces[0].Source.Bridge.Bridge != "lab0" {
 		t.Fatal("domain interface was not carried into XML")

@@ -192,7 +192,11 @@ func guestConfig(provider storage.ProviderName, value *guest) *domain.Config {
 		Architecture: "x86_64", Machine: "q35", BootOrder: []domain.BootDevice{domain.BootDisk},
 		Disks: []domain.Disk{
 			{Source: storage.Ref{Provider: provider, Key: storage.Key(value.name + ".qcow2")}, Bus: domain.DiskBusSATA, Target: "sda", Format: domain.DiskFormatQCOW2},
-			{Source: storage.Ref{Provider: provider, Key: storage.Key(value.name + "-seed.iso")}, Bus: domain.DiskBusSATA, Target: "sdb", Format: domain.DiskFormatRaw},
+			{
+				Source: storage.Ref{Provider: provider, Key: storage.Key(value.name + "-seed.iso")},
+				Device: domain.DiskDeviceCDROM, Bus: domain.DiskBusSATA, Target: "sdb",
+				Format: domain.DiskFormatRaw, ReadOnly: true,
+			},
 		},
 	}
 	for index, bridge := range value.bridges {
@@ -241,7 +245,7 @@ func prepareGuest(ctx context.Context, workDir, base string, value *guest) error
 
 func metadata(value *guest) string {
 	var output strings.Builder
-	fmt.Fprintf(&output, "instance-id: %s\nlocal-hostname: %s\nnetwork-interfaces: |\n", value.name, value.name)
+	fmt.Fprintf(&output, "instance-id: %s\nhostname: %s\nnetwork-interfaces: |\n", value.name, value.name)
 	output.WriteString("  auto lo\n  iface lo inet loopback\n")
 	for index := range value.macs {
 		fmt.Fprintf(&output, "  auto eth%d\n  iface eth%d inet ", index, index)
@@ -257,9 +261,13 @@ func metadata(value *guest) string {
 
 func switchUserData() string {
 	return `#!/bin/sh
-ip link add br0 type bridge
-ip link set eth0 master br0
-ip link set eth1 master br0
+set -eu
+modprobe bridge
+brctl addbr br0
+brctl setfd br0 0
+brctl stp br0 off
+brctl addif br0 eth0
+brctl addif br0 eth1
 ip link set eth0 up
 ip link set eth1 up
 ip link set br0 up

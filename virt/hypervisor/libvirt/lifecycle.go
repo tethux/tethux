@@ -45,6 +45,7 @@ func (p *Provider) lifecycle(ctx context.Context, id string, operation func(*lib
 	return nil
 }
 
+// Start boots a stopped managed domain.
 func (p *Provider) Start(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -68,6 +69,7 @@ func (p *Provider) Start(ctx context.Context, id string) error {
 	return nil
 }
 
+// Stop requests an ACPI shutdown and waits for the domain to stop.
 func (p *Provider) Stop(ctx context.Context, id string) error {
 	domain, err := p.lookup(id)
 	if err != nil {
@@ -88,24 +90,29 @@ func (p *Provider) Stop(ctx context.Context, id string) error {
 	return waitStopped(ctx, domain, id)
 }
 
+// PowerOff immediately stops a managed domain.
 func (p *Provider) PowerOff(ctx context.Context, id string) error {
 	return p.lifecycle(ctx, id, (*libvirtgo.Domain).Destroy)
 }
 
+// Suspend pauses a running managed domain.
 func (p *Provider) Suspend(ctx context.Context, id string) error {
 	return p.lifecycle(ctx, id, (*libvirtgo.Domain).Suspend)
 }
 
+// Resume continues a suspended managed domain.
 func (p *Provider) Resume(ctx context.Context, id string) error {
 	return p.lifecycle(ctx, id, (*libvirtgo.Domain).Resume)
 }
 
+// Restart requests a guest reboot for a managed domain.
 func (p *Provider) Restart(ctx context.Context, id string) error {
 	return p.lifecycle(ctx, id, func(domain *libvirtgo.Domain) error {
 		return domain.Reboot(libvirtgo.DOMAIN_REBOOT_DEFAULT)
 	})
 }
 
+// Delete stops and undefines a managed domain.
 func (p *Provider) Delete(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -166,6 +173,7 @@ func waitStopped(ctx context.Context, domain *libvirtgo.Domain, id string) error
 	}
 }
 
+// State returns the normalized lifecycle state of a managed domain.
 func (p *Provider) State(ctx context.Context, id string) (virt.NodeState, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err

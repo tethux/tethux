@@ -201,7 +201,8 @@ func buildDomain(cfg *domain.RuntimeConfig) (*libvirtxml.Domain, error) {
 		}
 	}
 
-	for index, disk := range cfg.Disks {
+	for index := range cfg.Disks {
+		disk := &cfg.Disks[index]
 		validationErr := validateDisk(disk)
 		if validationErr != nil {
 			return nil, errs.Wrap(
@@ -236,7 +237,12 @@ func buildDomain(cfg *domain.RuntimeConfig) (*libvirtxml.Domain, error) {
 	return d, nil
 }
 
-func buildDisk(disk domain.RuntimeDisk) libvirtxml.DomainDisk {
+func buildDisk(disk *domain.RuntimeDisk) libvirtxml.DomainDisk {
+	device := disk.Device
+	if device == "" {
+		device = string(domain.DiskDeviceDisk)
+	}
+
 	format := disk.Format
 	if format == "" {
 		format = string(domain.DiskFormatRaw)
@@ -253,7 +259,7 @@ func buildDisk(disk domain.RuntimeDisk) libvirtxml.DomainDisk {
 	}
 
 	d := libvirtxml.DomainDisk{
-		Device: "disk",
+		Device: device,
 
 		Driver: &libvirtxml.DomainDiskDriver{
 			Name: "qemu",
@@ -306,9 +312,15 @@ func buildInterface(iface domain.Interface) libvirtxml.DomainInterface {
 	return i
 }
 
-func validateDisk(disk domain.RuntimeDisk) error {
+func validateDisk(disk *domain.RuntimeDisk) error {
 	if disk.Source == "" {
 		return errs.New(errs.ErrDiskSource, "")
+	}
+
+	switch disk.Device {
+	case "", string(domain.DiskDeviceDisk), string(domain.DiskDeviceCDROM):
+	default:
+		return errs.New(errs.ErrDiskDevice, disk.Device)
 	}
 
 	switch disk.Format {
