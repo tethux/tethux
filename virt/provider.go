@@ -1,6 +1,9 @@
 package virt
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // ProviderKind classifies the workload technology managed by a provider.
 type ProviderKind string
@@ -23,6 +26,35 @@ type Capabilities struct {
 	Pause         bool
 	Snapshots     bool
 	ManagedServer bool
+	Events        bool
+}
+
+// EventType identifies a provider-independent workload lifecycle change.
+type EventType string
+
+const (
+	EventDefined   EventType = "defined"
+	EventUndefined EventType = "undefined"
+	EventStarted   EventType = "started"
+	EventStopped   EventType = "stopped"
+	EventSuspended EventType = "suspended"
+	EventResumed   EventType = "resumed"
+	EventCrashed   EventType = "crashed"
+)
+
+// Event describes one workload lifecycle change reported by a provider.
+type Event struct {
+	Type   EventType
+	Time   time.Time
+	NodeID string
+	Name   string
+	State  NodeState
+	Detail string
+}
+
+// EventSource exposes provider lifecycle events until ctx is canceled.
+type EventSource interface {
+	Events(ctx context.Context) (<-chan Event, error)
 }
 
 // ProviderInfo describes a provider and its supported operations.

@@ -386,7 +386,8 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 	steps := []ciframework.Step{{
 		Name: "build-cli", Command: "go", Args: []string{"build", "-o", cliPath, "./cmd/tethux"}, Dir: root,
 	}}
-	for _, group := range [][]ciframework.Step{backends.Steps, providers.Steps, topology.Steps} {
+	libvirt, _ := registry.Workflow("libvirt")
+	for _, group := range [][]ciframework.Step{backends.Steps, providers.Steps, topology.Steps, libvirt.Steps} {
 		for _, step := range group {
 			step.DependsOn = nil
 			if step.Name == "bridge" {
@@ -896,7 +897,7 @@ groups:
 	  laptop    run the useful laptop integration suite
 	  bridge    list, test, udp-loss, topology, all
 	run       normal, laptop, local, remote-laptop, cross-laptop,
-	            provider, topology, bridge
+	            provider, topology, bridge, libvirt
   archive   run, finalize, publish, inventory
   host      discover, audit, install
 

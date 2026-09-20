@@ -86,6 +86,31 @@ Endpoint containers use `--network=none`; all cross-host traffic therefore
 has to pass through the tethux veth/raw-socket switch and UDP transport. The
 endpoint and its container are removed on completion or signal.
 
+## Libvirt domains
+
+The libvirt command connects to an existing daemon and manages only domains it
+created. Creation resolves the selected disk through the domain storage manager;
+libvirt receives the resulting runtime path and owns no storage placement or
+writeback policy.
+
+```bash
+tethux virt libvirt --action=create --disk alpine.qcow2 --disk-bus sata --disk-target sda --bridge lab0 --keep
+tethux virt libvirt --action=list
+tethux virt libvirt --action=inspect --id DOMAIN_UUID
+tethux virt libvirt --action=console --id DOMAIN_UUID
+tethux virt libvirt --action=view --id DOMAIN_UUID
+```
+
+`console` attaches the serial terminal in the current shell. `view` opens the
+SPICE display with `virt-viewer`. State, reload, start, graceful stop, forced
+poweroff, suspend, resume, restart, and delete use the same UUID-based command
+surface. `--uri qemu:///session` is useful for unprivileged desktop VMs;
+`qemu:///system` is the default for test-host and bridge networking.
+
+The privileged integration test is `mise run test:host:libvirt`. It expects an
+Alpine Tiny Cloud qcow2 path in `TETHUX_LIBVIRT_IMAGE`; the NixOS test-host
+module pins and supplies that image automatically.
+
 ## Errors
 
 Runtime implementations return typed errors from

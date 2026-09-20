@@ -15,7 +15,6 @@ import (
 
 const (
 	metadataURI = "urn:tethux"
-	metadataKey = "managed"
 
 	defaultArchitecture = "x86_64"
 	defaultMachine      = "q35"
@@ -25,21 +24,6 @@ const metadataXML = `
 <tethux:tethux xmlns:tethux="urn:tethux">
 	<tethux:managed/>
 </tethux:tethux>`
-
-func markManaged(dom *libvirt.Domain) error {
-	metadataErr := dom.SetMetadata(
-		libvirt.DOMAIN_METADATA_ELEMENT,
-		metadataXML,
-		metadataKey,
-		metadataURI,
-		libvirt.DOMAIN_AFFECT_CONFIG,
-	)
-	if metadataErr != nil {
-		return errs.Wrap(errs.ErrMetadata, "", metadataErr)
-	}
-
-	return nil
-}
 
 func isManaged(dom *libvirt.Domain) (bool, error) {
 	_, metadataErr := dom.GetMetadata(
@@ -120,6 +104,13 @@ func buildDomain(cfg *domain.RuntimeConfig) (*libvirtxml.Domain, error) {
 	d := &libvirtxml.Domain{
 		Type: "kvm",
 		Name: name,
+		Metadata: &libvirtxml.DomainMetadata{
+			XML: metadataXML,
+		},
+		Features: &libvirtxml.DomainFeatureList{
+			ACPI: &libvirtxml.DomainFeature{},
+			APIC: &libvirtxml.DomainFeatureAPIC{},
+		},
 
 		OS: &libvirtxml.DomainOS{
 			Type: &libvirtxml.DomainOSType{
@@ -155,6 +146,33 @@ func buildDomain(cfg *domain.RuntimeConfig) (*libvirtxml.Domain, error) {
 				},
 			},
 		},
+	}
+
+	switch cfg.Firmware {
+	case "", domain.FirmwareBIOS:
+	case domain.FirmwareUEFI:
+		d.OS.Firmware = "efi"
+	default:
+		return nil, errs.New(
+			errors.Join(errs.ErrConfig, errs.ErrFirmware),
+			string(cfg.Firmware),
+		)
+	}
+
+	for _, device := range cfg.BootOrder {
+		switch device {
+		case domain.BootDisk:
+			d.OS.BootDevices = append(d.OS.BootDevices, libvirtxml.DomainBootDevice{Dev: "hd"})
+		case domain.BootCDROM:
+			d.OS.BootDevices = append(d.OS.BootDevices, libvirtxml.DomainBootDevice{Dev: "cdrom"})
+		case domain.BootNetwork:
+			d.OS.BootDevices = append(d.OS.BootDevices, libvirtxml.DomainBootDevice{Dev: "network"})
+		default:
+			return nil, errs.New(
+				errors.Join(errs.ErrConfig, errs.ErrBootDevice),
+				string(device),
+			)
+		}
 	}
 
 	if cfg.ID != "" {

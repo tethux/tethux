@@ -30,7 +30,10 @@ func (p *Provider) lookup(id string) (*libvirtgo.Domain, error) {
 	return domainRef, nil
 }
 
-func (p *Provider) lifecycle(id string, operation func(*libvirtgo.Domain) error) error {
+func (p *Provider) lifecycle(ctx context.Context, id string, operation func(*libvirtgo.Domain) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	domain, err := p.lookup(id)
 	if err != nil {
 		return err
@@ -42,7 +45,10 @@ func (p *Provider) lifecycle(id string, operation func(*libvirtgo.Domain) error)
 	return nil
 }
 
-func (p *Provider) Start(_ context.Context, id string) error {
+func (p *Provider) Start(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	domain, err := p.lookup(id)
 	if err != nil {
 		return err
@@ -82,25 +88,28 @@ func (p *Provider) Stop(ctx context.Context, id string) error {
 	return waitStopped(ctx, domain, id)
 }
 
-func (p *Provider) PowerOff(_ context.Context, id string) error {
-	return p.lifecycle(id, (*libvirtgo.Domain).Destroy)
+func (p *Provider) PowerOff(ctx context.Context, id string) error {
+	return p.lifecycle(ctx, id, (*libvirtgo.Domain).Destroy)
 }
 
-func (p *Provider) Suspend(_ context.Context, id string) error {
-	return p.lifecycle(id, (*libvirtgo.Domain).Suspend)
+func (p *Provider) Suspend(ctx context.Context, id string) error {
+	return p.lifecycle(ctx, id, (*libvirtgo.Domain).Suspend)
 }
 
-func (p *Provider) Resume(_ context.Context, id string) error {
-	return p.lifecycle(id, (*libvirtgo.Domain).Resume)
+func (p *Provider) Resume(ctx context.Context, id string) error {
+	return p.lifecycle(ctx, id, (*libvirtgo.Domain).Resume)
 }
 
-func (p *Provider) Restart(_ context.Context, id string) error {
-	return p.lifecycle(id, func(domain *libvirtgo.Domain) error {
+func (p *Provider) Restart(ctx context.Context, id string) error {
+	return p.lifecycle(ctx, id, func(domain *libvirtgo.Domain) error {
 		return domain.Reboot(libvirtgo.DOMAIN_REBOOT_DEFAULT)
 	})
 }
 
-func (p *Provider) Delete(_ context.Context, id string) error {
+func (p *Provider) Delete(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	domain, err := p.lookup(id)
 	if err != nil {
 		return err
@@ -157,7 +166,10 @@ func waitStopped(ctx context.Context, domain *libvirtgo.Domain, id string) error
 	}
 }
 
-func (p *Provider) State(_ context.Context, id string) (virt.NodeState, error) {
+func (p *Provider) State(ctx context.Context, id string) (virt.NodeState, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	domain, err := p.lookup(id)
 	if err != nil {
 		return "", err

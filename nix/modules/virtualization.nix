@@ -2,6 +2,10 @@
 
 let
   cfg = config.tethux.testHost;
+  alpineCloudImage = pkgs.fetchurl {
+    url = "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/generic_alpine-3.24.1-x86_64-bios-tiny-r0.qcow2";
+    hash = "sha256-VSXg8d3gVnBunddE9Fq/qUTMTxDkSSL+KinmkFZ5Dso=";
+  };
 in
 {
   options.tethux.testHost = {
@@ -15,6 +19,8 @@ in
   };
 
   config = {
+    environment.variables.TETHUX_LIBVIRT_IMAGE = alpineCloudImage;
+
     virtualisation.libvirtd = lib.mkIf cfg.enableNestedHypervisors {
       enable = true;
       qemu = {
@@ -35,6 +41,7 @@ in
         qemu_kvm
         swtpm
         virtiofsd
+        xorriso
       ])
       ++ lib.optionals cfg.enableVirtualBox (with pkgs; [
         virtualbox

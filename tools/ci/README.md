@@ -77,7 +77,13 @@ go run ./tools/ci run remote-laptop \
 ```
 
 Available workflow names are `normal`, `laptop`, `local`, `remote-laptop`,
-`cross-laptop`, `provider`, `topology`, and `bridge`.
+`cross-laptop`, `provider`, `topology`, `bridge`, and `libvirt`.
+
+The laptop workflow also boots three Alpine domains through libvirt. Two
+isolated host bridges force endpoint traffic through the middle Alpine domain,
+which runs as an Ethernet switch; the test passes only after endpoint A reports
+a successful ping of endpoint B over its serial console. Test hosts receive the
+pinned Alpine image through `TETHUX_LIBVIRT_IMAGE`.
 
 ## Bridge integration
 

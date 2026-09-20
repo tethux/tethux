@@ -15,6 +15,8 @@ var (
 	ErrList      = errors.New("failed to list libvirt domains")
 	ErrXML       = errors.New("failed to build libvirt domain XML")
 	ErrMetadata  = errors.New("failed to access libvirt domain metadata")
+	ErrEvents    = errors.New("failed to monitor libvirt domain events")
+	ErrConsole   = errors.New("failed to open libvirt domain console")
 
 	// Configuration.
 	ErrConfig        = errors.New("invalid libvirt domain configuration")
@@ -23,6 +25,8 @@ var (
 	ErrInvalidUUID   = errors.New("invalid domain UUID")
 	ErrInvalidCPU    = errors.New("invalid CPU count")
 	ErrInvalidMemory = errors.New("invalid memory size")
+	ErrFirmware      = errors.New("unsupported firmware")
+	ErrBootDevice    = errors.New("unsupported boot device")
 
 	// Disk configuration.
 	ErrDisk       = errors.New("invalid disk configuration")
