@@ -2,7 +2,10 @@
 
 `virt` defines the common lifecycle model for workloads. `virt/container`
 adds OCI container configuration and implementations for Docker, Podman, and
-containerd; `virt/domain` defines the virtual-machine domain model.
+containerd; `virt/domain` defines virtual-machine configuration, storage
+preparation, and the optional serial-console contract. The libvirt provider
+connects to an externally managed daemon and reports normalized lifecycle
+events.
 
 ```go
 image := container.ParseImage("docker.io/library/alpine:3.22")
@@ -18,6 +21,7 @@ host privileges. The command workflows are documented in
 API reference: [virt](https://pkg.go.dev/github.com/tethux/tethux/virt) ·
 [virt/container](https://pkg.go.dev/github.com/tethux/tethux/virt/container) ·
 [virt/domain](https://pkg.go.dev/github.com/tethux/tethux/virt/domain) ·
+[libvirt](https://pkg.go.dev/github.com/tethux/tethux/virt/hypervisor/libvirt) ·
 [Docker](https://pkg.go.dev/github.com/tethux/tethux/virt/container/docker) ·
 [Podman](https://pkg.go.dev/github.com/tethux/tethux/virt/container/podman) ·
 [containerd](https://pkg.go.dev/github.com/tethux/tethux/virt/container/containerd)

@@ -483,7 +483,8 @@ func enforcesStructuredErrors(path string) bool {
 	}
 
 	return hasPathPrefix(path, "storage") ||
-		hasPathPrefix(path, "bridge")
+		hasPathPrefix(path, "bridge") ||
+		hasPathPrefix(path, "virt/hypervisor")
 }
 
 func normalizedRepoPath(path string) string {

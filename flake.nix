@@ -95,7 +95,7 @@
           '';
           vendorHash = "sha256-OTafKhMbE4irD88dld1y/TzRAnninXcpNWUVD51MoLE=";
           nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = [ pkgs.libpcap ];
+          buildInputs = [ pkgs.libpcap pkgs.libvirt ];
         };
         tethux = pkgs.buildGoModule (goInputs // {
           pname = "tethux";
@@ -138,6 +138,7 @@
                   docker-client
                   git
                   libpcap
+                  libvirt
                   openssh
                   pkg-config
                   util-linux
@@ -159,6 +160,7 @@
                   git
                   iproute2
                   libpcap
+                  libvirt
                   openssh
                   pkg-config
                   podman
@@ -166,6 +168,7 @@
                   runc
                   socat
                   tcpdump
+                  xorriso
                 ]);
               }
             );
@@ -181,6 +184,7 @@
                   git
                   iproute2
                   libpcap
+                  libvirt
                   nmap
                   pkg-config
                   qemu_kvm

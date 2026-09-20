@@ -19,6 +19,11 @@ func BuiltinWorkflows(root string) []Workflow {
 			Name: "topology", Command: "go", Args: []string{"run", "./tools/bridge/example/container-udp", "--runtime", "all"},
 			Dir: root, Privilege: PrivilegeRoot, Timeout: 45 * time.Minute,
 		}}},
+		{Name: "libvirt", Description: "three-domain Alpine network topology", Steps: []Step{{
+			Name: "libvirt-network", Command: "go",
+			Args: []string{"run", "./tools/libvirt/testing/network-smoke"},
+			Dir:  root, Privilege: PrivilegeRoot, Timeout: 6 * time.Minute,
+		}}},
 		{Name: "bridge", Description: "exact-frame backend conformance", Steps: []Step{{
 			Name: "bridge", Command: "go", Args: []string{"run", "./tools/bridge/testing/backend-smoke"},
 			Dir: root, Privilege: PrivilegeRoot, Timeout: 30 * time.Minute,

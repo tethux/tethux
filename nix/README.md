@@ -47,6 +47,7 @@ Privileged suites are explicit:
 
 ```console
 mise run test:host:providers
+mise run test:host:libvirt
 mise run test:host:topology
 RUNTIME=podman mise run test:integration:local
 ```

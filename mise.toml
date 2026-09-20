@@ -78,6 +78,10 @@ run = "dagger call normal --source=."
 description = "Run privileged container provider lifecycle tests"
 run = "go run ./tools/ci run provider --provider all"
 
+[tasks."test:host:libvirt"]
+description = "Run the three-Alpine libvirt network topology"
+run = "go run ./tools/ci run libvirt"
+
 [tasks."ci:laptop"]
 description = "Run the practical laptop CI path"
 run = "go run ./tools/ci laptop --runtime ${RUNTIME:?set RUNTIME=docker or podman}"
