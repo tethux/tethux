@@ -113,11 +113,12 @@ func TestRootCommandPreservesOnlyToolchainEnvironment(t *testing.T) {
 		"PATH=/nix/store/bin",
 		"CGO_CFLAGS=-I/nix/store/libpcap/include",
 		"LD_LIBRARY_PATH=/nix/store/libpcap/lib",
+		"PKG_CONFIG_PATH=/nix/store/libvirt-dev/lib/pkgconfig",
 		"TETHUX_RUN_ID=019fe7e4-daf2-7d54-9f77-980bc8619fca",
 		"SECRET=not-for-root",
 	})
 	joined := strings.Join(args, " ")
-	for _, expected := range []string{"-n env", "PATH=/nix/store/bin", "CGO_CFLAGS=", "LD_LIBRARY_PATH=", "TETHUX_RUN_ID=019fe7e4-daf2-7d54-9f77-980bc8619fca", "go test ./..."} {
+	for _, expected := range []string{"-n env", "PATH=/nix/store/bin", "CGO_CFLAGS=", "LD_LIBRARY_PATH=", "PKG_CONFIG_PATH=", "TETHUX_RUN_ID=019fe7e4-daf2-7d54-9f77-980bc8619fca", "go test ./..."} {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("missing %q in %#v", expected, args)
 		}

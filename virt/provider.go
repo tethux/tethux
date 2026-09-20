@@ -33,13 +33,20 @@ type Capabilities struct {
 type EventType string
 
 const (
-	EventDefined   EventType = "defined"
+	// EventDefined indicates that a workload definition was created.
+	EventDefined EventType = "defined"
+	// EventUndefined indicates that a workload definition was removed.
 	EventUndefined EventType = "undefined"
-	EventStarted   EventType = "started"
-	EventStopped   EventType = "stopped"
+	// EventStarted indicates that a workload entered the running state.
+	EventStarted EventType = "started"
+	// EventStopped indicates that a workload entered the stopped state.
+	EventStopped EventType = "stopped"
+	// EventSuspended indicates that a workload was paused.
 	EventSuspended EventType = "suspended"
-	EventResumed   EventType = "resumed"
-	EventCrashed   EventType = "crashed"
+	// EventResumed indicates that a paused workload resumed running.
+	EventResumed EventType = "resumed"
+	// EventCrashed indicates that a workload stopped because it crashed.
+	EventCrashed EventType = "crashed"
 )
 
 // Event describes one workload lifecycle change reported by a provider.

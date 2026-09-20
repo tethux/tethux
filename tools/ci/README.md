@@ -83,7 +83,12 @@ The laptop workflow also boots three Alpine domains through libvirt. Two
 isolated host bridges force endpoint traffic through the middle Alpine domain,
 which runs as an Ethernet switch; the test passes only after endpoint A reports
 a successful ping of endpoint B over its serial console. Test hosts receive the
-pinned Alpine image through `TETHUX_LIBVIRT_IMAGE`.
+pinned Alpine image through `TETHUX_LIBVIRT_IMAGE`. The `integration` Nix shell
+sets that variable directly, including for non-interactive SSH runs, and provides
+libvirt, QEMU, and xorriso. A manual image override remains supported.
+Tiny Cloud seed images are attached as read-only CD-ROM media. The test-host
+module admits bridged IPv4 traffic from the suite's short-lived `tx*` devices
+through NixOS's reverse-path filter while leaving the filter enabled globally.
 
 ## Bridge integration
 

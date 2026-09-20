@@ -108,8 +108,12 @@ surface. `--uri qemu:///session` is useful for unprivileged desktop VMs;
 `qemu:///system` is the default for test-host and bridge networking.
 
 The privileged integration test is `mise run test:host:libvirt`. It expects an
-Alpine Tiny Cloud qcow2 path in `TETHUX_LIBVIRT_IMAGE`; the NixOS test-host
-module pins and supplies that image automatically.
+Alpine Tiny Cloud qcow2 path in `TETHUX_LIBVIRT_IMAGE`; `nix develop
+.#integration` pins and supplies that image automatically, including for the
+non-interactive SSH command used by laptop CI. Pass `--image` to the underlying
+network-smoke command to override it manually.
+The smoke topology presents each Tiny Cloud seed as read-only CD-ROM media and
+uses the Alpine guest's built-in bridge tooling for the middle switch.
 
 ## Errors
 

@@ -267,7 +267,7 @@ func shellQuote(value string) string {
 
 func rootCommandArgs(command string, args, environment []string) []string {
 	sudoArgs := []string{"-n", "env"}
-	for _, name := range []string{"PATH", "CGO_ENABLED", "CGO_CFLAGS", "CGO_LDFLAGS", "LD_LIBRARY_PATH", "TETHUX_RUN_ID", "TETHUX_LIBVIRT_IMAGE", CIEnvironmentVariable} {
+	for _, name := range []string{"PATH", "CGO_ENABLED", "CGO_CFLAGS", "CGO_LDFLAGS", "LD_LIBRARY_PATH", "PKG_CONFIG_PATH", "TETHUX_RUN_ID", "TETHUX_LIBVIRT_IMAGE", CIEnvironmentVariable} {
 		prefix := name + "="
 		for _, value := range environment {
 			if strings.HasPrefix(value, prefix) {

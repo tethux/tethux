@@ -34,18 +34,35 @@ const (
 type DiskBus string
 
 const (
+	// DiskBusVirtio attaches a disk through the paravirtualized Virtio bus.
 	DiskBusVirtio DiskBus = "virtio"
-	DiskBusSATA   DiskBus = "sata"
-	DiskBusSCSI   DiskBus = "scsi"
-	DiskBusIDE    DiskBus = "ide"
-	DiskBusUSB    DiskBus = "usb"
+	// DiskBusSATA attaches a disk through a SATA controller.
+	DiskBusSATA DiskBus = "sata"
+	// DiskBusSCSI attaches a disk through a SCSI controller.
+	DiskBusSCSI DiskBus = "scsi"
+	// DiskBusIDE attaches a disk through an IDE controller.
+	DiskBusIDE DiskBus = "ide"
+	// DiskBusUSB attaches a disk through USB mass storage.
+	DiskBusUSB DiskBus = "usb"
+)
+
+// DiskDevice identifies how a domain presents storage to the guest.
+type DiskDevice string
+
+const (
+	// DiskDeviceDisk presents storage as a writable block disk by default.
+	DiskDeviceDisk DiskDevice = "disk"
+	// DiskDeviceCDROM presents storage as removable optical media.
+	DiskDeviceCDROM DiskDevice = "cdrom"
 )
 
 // DiskFormat identifies the storage format of a disk.
 type DiskFormat string
 
 const (
-	DiskFormatRaw   DiskFormat = "raw"
+	// DiskFormatRaw selects an unstructured raw disk image.
+	DiskFormatRaw DiskFormat = "raw"
+	// DiskFormatQCOW2 selects the QEMU copy-on-write disk format.
 	DiskFormatQCOW2 DiskFormat = "qcow2"
 )
 
@@ -53,6 +70,7 @@ const (
 type Disk struct {
 	Source storage.Ref
 
+	Device DiskDevice
 	Bus    DiskBus
 	Target string
 	Format DiskFormat
