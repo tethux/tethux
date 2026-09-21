@@ -1,5 +1,7 @@
 # tethux
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/tethux/tethux.svg)](https://pkg.go.dev/github.com/tethux/tethux)
+
 tethux is not ready for general use yet. It is an early-stage network emulation
 toolkit for building programmable Ethernet topologies across containers, virtual
 machines, and physical hosts.
@@ -15,21 +17,24 @@ subsystem.
 | --- | --- | --- |
 | `cmd/` | Public CLI packages and executable entrypoints | [`cmd/README.md`](cmd/README.md) |
 | `cmd/bridge/` | Ethernet switch and namespace/container bridge commands | [`cmd/bridge/README.md`](cmd/bridge/README.md) |
-| `cmd/virt/` | Docker, Podman, and containerd providers and integration CLI | [`cmd/virt/README.md`](cmd/virt/README.md) |
+| `cmd/virt/` | Container and libvirt domain management CLI | [`cmd/virt/README.md`](cmd/virt/README.md) |
 | `bridge/` | Public Ethernet switch, transports, and network primitives | [README](bridge/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/bridge) |
 | `storage/` | Public storage abstractions and local provider | [README](storage/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/storage) |
-| `virt/` | Public virtualization APIs and container providers | [README](virt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt) |
+| `virt/` | Public workload, container, and virtual-machine APIs | [README](virt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt) |
+| `virt/hypervisor/libvirt/` | Public libvirt domain provider | [README](virt/hypervisor/libvirt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt/hypervisor/libvirt) |
 | `tools/` | Repository CI, archive, and host tooling | [`tools/README.md`](tools/README.md) |
 | `tools/ci/` | Unified repository test, archive, and host CLI | [`tools/ci/README.md`](tools/ci/README.md) |
 | `dagger/` | Portable CI execution graph exported to OpenTelemetry | [`tools/ci/README.md`](tools/ci/README.md#dagger-and-signoz) |
 | `nix/` | Development shells, NixOS test hosts, fixture registry, and CI operations | [`nix/README.md`](nix/README.md) |
-| `.woodpecker/` | Ordered NAS and two-laptop CI workflows | [`nix/README.md`](nix/README.md#woodpecker-topology) |
+| `.woodpecker/` | Ordered NAS and two-laptop CI workflows | [`nix/README.md`](nix/README.md) |
 
 ## Current capabilities
 
 - learning Ethernet switch with UDP, TAP, raw-socket, and pcap ports;
 - deterministic veth attachment to Linux namespaces and containers;
 - a common lifecycle API over Docker, Podman, and containerd;
+- a libvirt domain provider with lifecycle events, storage preparation, serial
+  consoles, SPICE displays, and bridged networking;
 - JSON Lines provider tests covering two images and every provider operation;
 - provider-managed container links between physical hosts over UDP;
 - reproducible NixOS test hosts with a local OCI fixture registry;
@@ -60,9 +65,19 @@ import (
 )
 ```
 
-The current release is `v0.0.4`; replace `latest` with `v0.0.4` for a
-reproducible install. Browse the complete module on
-[pkg.go.dev](https://pkg.go.dev/github.com/tethux/tethux).
+For a reproducible install, replace `latest` with a version from the
+[repository tags](https://github.com/tethux/tethux/tags). Browse the complete
+module on [pkg.go.dev](https://pkg.go.dev/github.com/tethux/tethux).
+
+The multicall command includes the libvirt provider and therefore needs the
+libvirt development library (`libvirt-dev` on Debian/Ubuntu,
+`libvirt-devel` on Fedora) and a working C toolchain at build time. Applications
+that import only `bridge`, `storage`, or the container providers do not need
+libvirt.
+
+Releases use semantic `vX.Y.Z` Git tags. Go tooling and pkg.go.dev discover the
+public packages from those tags, so documentation and API changes are tagged
+together rather than published from an arbitrary branch commit.
 
 ## Architecture
 

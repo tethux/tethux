@@ -1,4 +1,3 @@
-// Package libvirt provides a local libvirt-backed domain provider.
 package libvirt
 
 import (

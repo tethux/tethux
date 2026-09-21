@@ -3,9 +3,9 @@
 `virt` defines the common lifecycle model for workloads. `virt/container`
 adds OCI container configuration and implementations for Docker, Podman, and
 containerd; `virt/domain` defines virtual-machine configuration, storage
-preparation, and the optional serial-console contract. The libvirt provider
-connects to an externally managed daemon and reports normalized lifecycle
-events.
+preparation, and the optional serial-console contract. The
+[libvirt provider](hypervisor/libvirt/README.md) connects to an externally
+managed daemon and reports normalized lifecycle events.
 
 ```go
 image := container.ParseImage("docker.io/library/alpine:3.22")
@@ -25,3 +25,7 @@ API reference: [virt](https://pkg.go.dev/github.com/tethux/tethux/virt) ·
 [Docker](https://pkg.go.dev/github.com/tethux/tethux/virt/container/docker) ·
 [Podman](https://pkg.go.dev/github.com/tethux/tethux/virt/container/podman) ·
 [containerd](https://pkg.go.dev/github.com/tethux/tethux/virt/container/containerd)
+
+The libvirt Go binding uses cgo. Building applications that import the provider
+requires libvirt headers and `pkg-config`; running it also requires access to a
+libvirt daemon. The provider does not start or configure that daemon.

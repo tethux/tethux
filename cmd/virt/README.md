@@ -93,6 +93,10 @@ created. Creation resolves the selected disk through the domain storage manager;
 libvirt receives the resulting runtime path and owns no storage placement or
 writeback policy.
 
+Library users should see the
+[`virt/hypervisor/libvirt` guide](../../virt/hypervisor/libvirt/README.md) and
+[Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt/hypervisor/libvirt).
+
 ```bash
 tethux virt libvirt --action=create --disk alpine.qcow2 --disk-bus sata --disk-target sda --bridge lab0 --keep
 tethux virt libvirt --action=list
