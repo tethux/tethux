@@ -1,0 +1,36 @@
+id = "container-chain"
+
+[[nodes]]
+id = "client"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.container]
+image = "127.0.0.1:5000/tethux/fixture-a:1"
+command = ["sh", "-ec", "until ip link show eth0 >/dev/null 2>&1; do sleep 0.1; done; ip addr add 10.77.0.1/24 dev eth0; exec sleep infinity"]
+
+[[nodes]]
+id = "switch"
+ports = [{ id = "eth0", kind = "ethernet" }, { id = "eth1", kind = "ethernet" }]
+[nodes.container]
+image = "127.0.0.1:5000/tethux/fixture-a:1"
+command = ["sh", "-ec", "until ip link show eth0 >/dev/null 2>&1 && ip link show eth1 >/dev/null 2>&1; do sleep 0.1; done; ip link add br0 type bridge; ip link set eth0 master br0; ip link set eth1 master br0; ip link set br0 up; exec sleep infinity"]
+
+[[nodes]]
+id = "server"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.container]
+image = "127.0.0.1:5000/tethux/fixture-a:1"
+command = ["sh", "-ec", "until ip link show eth0 >/dev/null 2>&1; do sleep 0.1; done; ip addr add 10.77.0.3/24 dev eth0; exec sleep infinity"]
+
+[[links]]
+id = "client-switch"
+kind = "ethernet"
+mtu = 1500
+a = { node = "client", port = "eth0" }
+b = { node = "switch", port = "eth0" }
+
+[[links]]
+id = "switch-server"
+kind = "ethernet"
+mtu = 1500
+a = { node = "switch", port = "eth1" }
+b = { node = "server", port = "eth0" }

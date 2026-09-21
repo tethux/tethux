@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
@@ -17,6 +18,7 @@ func init() {
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	switch argv0() {
 	case "bridge":
 		if err := bridge.NewRootCmd().Execute(); err != nil {
@@ -30,7 +32,7 @@ func main() {
 		}
 	case "tethux":
 		if err := newRootCmd().Execute(); err != nil {
-			fmt.Fprintf(os.Stderr, "tethux: %v\n", err)
+			slog.Error("Command failed", "error", err)
 			os.Exit(1)
 		}
 

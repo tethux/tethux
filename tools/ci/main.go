@@ -180,7 +180,6 @@ func bridgeAllCommand(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("bridge all", flag.ContinueOnError)
 	runtimeName := flags.String("runtime", "podman", "docker or podman")
 	count := flags.Int("n", 4, "container count")
-	parallel := flags.Int("parallel-jobs", 4, "parallel topology jobs")
 	image := flags.String("image", envDefault("IMAGE", "127.0.0.1:5000/tethux/fixture-a:1"), "container image with ip and ping")
 	archiveRoot := flags.String("archive-root", envDefault("TETHUX_TEST_ARCHIVE_ROOT", "./results/archive"), "archive root")
 	dryRun := flags.Bool("dry-run", false, "print steps without running them")
@@ -205,7 +204,7 @@ func bridgeAllCommand(ctx context.Context, args []string) error {
 	}
 	for index := range topology.Steps {
 		topology.Steps[index].Args = append(topology.Steps[index].Args,
-			"--n", strconv.Itoa(*count), "--parallel-jobs", strconv.Itoa(*parallel), "--image", *image)
+			"--n", strconv.Itoa(*count), "--image", *image)
 		topology.Steps[index].DependsOn = []string{"bridge"}
 	}
 	workflow := ciframework.Workflow{
@@ -524,7 +523,6 @@ func topologyCommand(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("topology container-udp", flag.ContinueOnError)
 	runtimeName := flags.String("runtime", "podman", "docker or podman")
 	count := flags.Int("n", 4, "container count")
-	parallel := flags.Int("parallel-jobs", 4, "parallel jobs")
 	image := flags.String("image", envDefault("IMAGE", "127.0.0.1:5000/tethux/fixture-a:1"), "container image with ip and ping")
 	dryRun := flags.Bool("dry-run", false, "print the topology command without running it")
 	if err := flags.Parse(args[1:]); err != nil {
@@ -536,7 +534,7 @@ func topologyCommand(ctx context.Context, args []string) error {
 	}
 	step := ciframework.Step{
 		Name: "container-udp", Command: "go",
-		Args: []string{"run", "./tools/bridge/example/container-udp", "--runtime", *runtimeName, "--n", strconv.Itoa(*count), "--parallel-jobs", strconv.Itoa(*parallel), "--image", *image},
+		Args: []string{"run", "./tools/bridge/example/container-udp", "--runtime", *runtimeName, "--n", strconv.Itoa(*count), "--image", *image},
 		Dir:  root, Privilege: ciframework.PrivilegeRoot,
 	}
 	runner := ciframework.NewRunner(os.Stdout, os.Stderr)

@@ -102,6 +102,12 @@ go run ./tools/ci bridge topology --runtime podman --n 4
 go run ./tools/ci bridge all --runtime podman
 ```
 
+The container topology driver uses `topology/local`, shared with
+`tethux topology run`, and checks pings in both directions through the generated
+chain. It prints the exact TOML test input with syntax colors, including in
+CI logs; set `NO_COLOR=1` for plain output. It no longer builds separate switch
+processes. Container and bridge lifecycle handling uses the shared runner.
+
 These workflows create real network interfaces and containers. CI uses
 passwordless `sudo -n`; interactive local runs print a copyable `sudo` command
 instead of prompting unexpectedly.

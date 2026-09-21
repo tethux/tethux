@@ -1,0 +1,49 @@
+id = "lab"
+
+[[nodes]]
+id = "client"
+name = "Client"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.container]
+image = "alpine:3.23"
+command = ["sleep", "infinity"]
+env = [{ name = "ROLE", value = "client" }]
+
+[[nodes]]
+id = "server"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.domain]
+image = "alpine.qcow2"
+cpus = 2
+memory_mb = 512
+
+[[nodes]]
+id = "router"
+ports = [{ id = "s0", kind = "serial" }]
+[nodes.dynamips]
+image = "router.bin"
+ram_mb = 256
+
+[[nodes]]
+id = "placeholder"
+ports = [{ id = "s0", kind = "serial" }]
+[nodes.shitnet]
+
+[[links]]
+id = "lan"
+kind = "ethernet"
+mtu = 1500
+a = { node = "client", port = "eth0" }
+b = { node = "server", port = "eth0" }
+
+[[links]]
+id = "wan"
+kind = "serial"
+a = { node = "router", port = "s0" }
+b = { node = "placeholder", port = "s0" }
+
+[[views]]
+id = "main"
+name = "Overview"
+nodes = [{ node = "client", position = { x = 10.5, y = -20.0 } }]
+links = [{ link = "lan", points = [{ x = 20.0, y = 30.0 }] }]

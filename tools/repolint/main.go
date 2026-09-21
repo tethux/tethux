@@ -14,6 +14,10 @@
 //   - direct-error-comparison:
 //     Structured Err* categories must be matched with errors.Is.
 //
+//   - no-any:
+//     Important production modules must use concrete types or focused
+//     interfaces instead of any or interface{}.
+//
 // Suppression:
 //
 //	//repolint:ignore expensive-assertion -- startup-only validation
@@ -44,6 +48,7 @@ const (
 	ruleExpensiveAssertion = "expensive-assertion"
 	ruleStructuredError    = "structured-error"
 	ruleErrorComparison    = "direct-error-comparison"
+	ruleNoAny              = "no-any"
 )
 
 type diagnostic struct {
@@ -224,6 +229,10 @@ func lintFile(path string, opts options, report reporter) error {
 	if enforcesStructuredErrors(path) {
 		lintErrorConstructors(fset, file, report)
 		lintDirectErrorComparisons(fset, file, report)
+	}
+
+	if enforcesNoAny(path) {
+		lintAny(fset, file, report)
 	}
 
 	return nil
@@ -558,6 +567,19 @@ func isStructuredSentinel(expr ast.Expr, imports map[string]string) bool {
 	return ok && strings.HasSuffix(importPath, "/errs")
 }
 
+func enforcesNoAny(path string) bool {
+	path = normalizedRepoPath(path)
+
+	if strings.HasSuffix(path, "_test.go") {
+		return false
+	}
+
+	return hasPathPrefix(path, "storage") ||
+		hasPathPrefix(path, "bridge") ||
+		hasPathPrefix(path, "topology") ||
+		hasPathPrefix(path, "virt")
+}
+
 func normalizedRepoPath(path string) string {
 	clean := filepath.Clean(path)
 
@@ -583,6 +605,50 @@ func isErrsPackage(path string) bool {
 	path = "/" + strings.Trim(filepath.ToSlash(path), "/") + "/"
 
 	return strings.Contains(path, "/errs/")
+}
+
+func lintAny(
+	fset *token.FileSet,
+	file *ast.File,
+	report reporter,
+) {
+	ast.Inspect(file, func(node ast.Node) bool {
+		if node == nil {
+			return true
+		}
+
+		if ignored(file, fset, node.Pos(), ruleNoAny) {
+			return true
+		}
+
+		switch value := node.(type) {
+		case *ast.Ident:
+			if value.Name != "any" {
+				return true
+			}
+
+			report(diagnostic{
+				Rule:       ruleNoAny,
+				Position:   fset.Position(value.Pos()),
+				Message:    "any is forbidden in important production modules",
+				Suggestion: "use a concrete type or the smallest behavior-bearing interface",
+			})
+
+		case *ast.InterfaceType:
+			if value.Methods != nil && len(value.Methods.List) != 0 {
+				return true
+			}
+
+			report(diagnostic{
+				Rule:       ruleNoAny,
+				Position:   fset.Position(value.Pos()),
+				Message:    "interface{} is forbidden in important production modules",
+				Suggestion: "use a concrete type or the smallest behavior-bearing interface",
+			})
+		}
+
+		return true
+	})
 }
 
 func lintErrorConstructors(

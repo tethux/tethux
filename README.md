@@ -7,8 +7,8 @@ toolkit for building programmable Ethernet topologies across containers, virtual
 machines, and physical hosts.
 
 The project includes an Ethernet switch, UDP/TAP/raw/pcap transports, container
-and VM providers, and integration tooling. This repository is a Go and Nix
-monorepo; detailed commands and examples live in the README nearest each
+and VM providers, a declarative topology runner, and integration tooling. This
+repository is a Go and Nix monorepo; detailed commands and examples live in the README nearest each
 subsystem.
 
 ## Monorepo map
@@ -17,8 +17,10 @@ subsystem.
 | --- | --- | --- |
 | `cmd/` | Public CLI packages and executable entrypoints | [`cmd/README.md`](cmd/README.md) |
 | `cmd/bridge/` | Ethernet switch and namespace/container bridge commands | [`cmd/bridge/README.md`](cmd/bridge/README.md) |
+| `cmd/topology/` | Declarative TOML topology commands | [`cmd/topology/README.md`](cmd/topology/README.md) |
 | `cmd/virt/` | Container and libvirt domain management CLI | [`cmd/virt/README.md`](cmd/virt/README.md) |
 | `bridge/` | Public Ethernet switch, transports, and network primitives | [README](bridge/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/bridge) |
+| `topology/` | Topology model, TOML decoding, and local container execution | [README](topology/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/topology) |
 | `storage/` | Public storage abstractions and local provider | [README](storage/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/storage) |
 | `virt/` | Public workload, container, and virtual-machine APIs | [README](virt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt) |
 | `virt/hypervisor/libvirt/` | Public libvirt domain provider | [README](virt/hypervisor/libvirt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt/hypervisor/libvirt) |
@@ -32,6 +34,7 @@ subsystem.
 
 - learning Ethernet switch with UDP, TAP, raw-socket, and pcap ports;
 - deterministic veth attachment to Linux namespaces and containers;
+- TOML topologies with automatic Docker/Podman selection and owned cleanup;
 - a common lifecycle API over Docker, Podman, and containerd;
 - a libvirt domain provider with lifecycle events, storage preparation, serial
   consoles, SPICE displays, and bridged networking;
@@ -79,10 +82,22 @@ Releases use semantic `vX.Y.Z` Git tags. Go tooling and pkg.go.dev discover the
 public packages from those tags, so documentation and API changes are tagged
 together rather than published from an arbitrary branch commit.
 
+Build and run the local container chain from this checkout:
+
+```bash
+RUNTIME=docker mise run fixture-registry:start
+mise exec -- go build -tags debug -o ./tethux ./cmd/tethux
+pkexec "$PWD/tethux" topology run "$PWD/topology/examples/container-chain.toml"
+```
+
+The CLI logs progress and prints shell, interface, and ping commands for the
+running nodes. Press Ctrl+C to clean up. See the [topology README](topology/README.md)
+for bidirectional ping examples, TOML fields, and library usage.
+
 ## Architecture
 
-The public `bridge`, `storage`, and `virt` packages form the reusable API.
-Commands under `cmd` compose those packages, while repository automation and
+The public `bridge`, `topology`, `storage`, and `virt` packages form the reusable
+API. Commands under `cmd` compose those packages, while repository automation and
 CI implementation remain private under `internal`. All packages are released
 together from the root `github.com/tethux/tethux` Go module.
 

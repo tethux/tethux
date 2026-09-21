@@ -285,7 +285,7 @@ func (c *Client) Inspect(ctx context.Context, id string, opts *mobyclient.Contai
 		Node: virt.Node{
 			ID:    resp.Container.ID,
 			Name:  strings.TrimPrefix(resp.Container.Name, "/"),
-			State: mapState(resp.Container.State),
+			State: mapInspectState(resp.Container.State),
 		},
 		PID:       uint32(resp.Container.State.Pid), // #nosec G115 -- runtime PIDs are non-negative on successful inspect.
 		ImageID:   resp.Container.Image,

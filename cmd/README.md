@@ -2,8 +2,10 @@
 
 `cmd` contains the public tethux command tree and its executable entrypoints.
 
-- `tethux` builds the multicall binary with the `bridge` and `virt` subcommands.
+- `tethux` builds the multicall binary with the `bridge`, `virt`, and `topology`
+  subcommands.
 - `bridge` defines Ethernet switch, port, namespace, and container commands.
+- `topology` defines declarative TOML topology commands.
 - `virt` defines provider inspection and integration-test commands.
 - `bridge/main` and `virt/main` build standalone component binaries.
 

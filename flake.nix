@@ -97,9 +97,9 @@
           postPatch = ''
             rm -rf vendor
           '';
-          vendorHash = "sha256-8iaGhB7KVTR4JURdmmyKy6HLZwTA3X7Vl6+V7qk8htc=";
+          vendorHash = "sha256-bEckot+lFUvYamuCzYDUB4PjaDEO7G75eUhddOxkWI0=";
           nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = [ pkgs.libpcap pkgs.libvirt ];
+          buildInputs = [ pkgs.libpcap pkgs.libvirt pkgs.libelf pkgs.libnsl ];
         };
         tethux = pkgs.buildGoModule (goInputs // {
           pname = "tethux";
@@ -142,6 +142,8 @@
                   bashInteractive
                   docker-client
                   git
+                  libelf
+                  libnsl
                   libpcap
                   libvirt
                   openssh
@@ -165,6 +167,8 @@
                   docker-client
                   git
                   iproute2
+                  libelf
+                  libnsl
                   libpcap
                   libvirt
                   openssh
@@ -190,6 +194,8 @@
                   dynamips
                   git
                   iproute2
+                  libelf
+                  libnsl
                   libpcap
                   libvirt
                   nmap

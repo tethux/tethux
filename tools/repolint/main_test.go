@@ -1006,3 +1006,90 @@ func readFixture(t *testing.T, path string) string {
 	}
 	return string(data)
 }
+
+func TestNoAnyScope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{path: "storage/local/local.go", want: true},
+		{path: "bridge/bridge.go", want: true},
+		{path: "topology/validate.go", want: true},
+		{path: "virt/container/moby/state.go", want: true},
+		{path: "virt/hypervisor/libvirt/domain.go", want: true},
+		{path: "topology/validate_test.go", want: false},
+		{path: "virt/container/moby/state_test.go", want: false},
+		{path: "internal/ci/task.go", want: false},
+		{path: "tools/repolint/main.go", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			t.Parallel()
+
+			if got := enforcesNoAny(test.path); got != test.want {
+				t.Fatalf(
+					"enforcesNoAny(%q) = %v, want %v",
+					test.path,
+					got,
+					test.want,
+				)
+			}
+		})
+	}
+}
+
+func TestNoAnyRejectsUnconstrainedTypes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		src  string
+		want int
+	}{
+		{name: "any parameter", src: `package p; func f(value any) {}`, want: 1},
+		{name: "empty interface", src: `package p; func f(value interface{}) {}`, want: 1},
+		{name: "any conversion", src: `package p; func f[T int | string](value T) { _ = any(value) }`, want: 1},
+		{name: "focused interface", src: `package p; type Reader interface { Read([]byte) (int, error) }`},
+		{name: "concrete type", src: `package p; func f(value string) {}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(
+				fset,
+				"production.go",
+				test.src,
+				parser.ParseComments|parser.SkipObjectResolution,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var diagnostics []diagnostic
+			lintAny(fset, file, func(d diagnostic) {
+				diagnostics = append(diagnostics, d)
+			})
+
+			if got := len(diagnostics); got != test.want {
+				t.Fatalf(
+					"diagnostics = %d, want %d: %+v",
+					got,
+					test.want,
+					diagnostics,
+				)
+			}
+
+			for _, diagnostic := range diagnostics {
+				if diagnostic.Rule != ruleNoAny {
+					t.Errorf("rule = %q, want %q", diagnostic.Rule, ruleNoAny)
+				}
+			}
+		})
+	}
+}
