@@ -166,7 +166,12 @@ func findModule(root string) (moduleRoot, modulePath string, resultErr error) {
 
 func parseRepository(root string) ([]*parsedGoFile, error) {
 	var files []*parsedGoFile
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+	repository, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, fmt.Errorf("open repository root %q: %w", root, err)
+	}
+
+	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -179,8 +184,11 @@ func parseRepository(root string) ([]*parsedGoFile, error) {
 		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		// #nosec G304 -- paths come from walking the selected repository.
-		src, readErr := os.ReadFile(path)
+		relativePath, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return fmt.Errorf("resolve repository path %q: %w", path, relErr)
+		}
+		src, readErr := repository.ReadFile(relativePath)
 		if readErr != nil {
 			return fmt.Errorf("read %q: %w", path, readErr)
 		}
@@ -192,7 +200,14 @@ func parseRepository(root string) ([]*parsedGoFile, error) {
 		files = append(files, &parsedGoFile{path: path, fset: fset, file: file})
 		return nil
 	})
-	return files, err
+	closeErr := repository.Close()
+	if walkErr != nil {
+		return nil, walkErr
+	}
+	if closeErr != nil {
+		return nil, fmt.Errorf("close repository root %q: %w", root, closeErr)
+	}
+	return files, nil
 }
 
 func discoverErrorDomains(root, modulePath string, files []*parsedGoFile) ([]*ErrorDomain, error) {
