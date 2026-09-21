@@ -663,31 +663,52 @@ func updateErrorDomain(domain *ErrorDomain, sentinels []Sentinel) error {
 	if err != nil {
 		return fmt.Errorf("parse error domain %q: %w", path, err)
 	}
-	var target *ast.GenDecl
-	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if ok && gen.Tok == token.VAR {
-			target = gen
-			break
+	updated := slices.Clone(src)
+	if !importsPath(file, "errors") {
+		tokenFile := fset.File(file.Name.Pos())
+		if tokenFile == nil {
+			return fmt.Errorf("locate package declaration in %q", path)
 		}
+		offset := tokenFile.Offset(file.Name.End())
+		updated = slices.Concat(
+			updated[:offset],
+			[]byte("\n\nimport \"errors\""),
+			updated[offset:],
+		)
 	}
-	if target == nil {
-		target = &ast.GenDecl{Tok: token.VAR, Lparen: 1}
-		file.Decls = append([]ast.Decl{target}, file.Decls...)
-	}
+
+	var declarations strings.Builder
+	declarations.WriteString("\n\nvar (\n")
 	for _, sentinel := range sentinels {
-		target.Specs = append(target.Specs, &ast.ValueSpec{Names: []*ast.Ident{ast.NewIdent(sentinel.Name)}, Values: []ast.Expr{&ast.CallExpr{Fun: &ast.SelectorExpr{X: ast.NewIdent("errors"), Sel: ast.NewIdent("New")}, Args: []ast.Expr{stringExpr(sentinel.Message)}}}})
+		fmt.Fprintf(
+			&declarations,
+			"\t%s = errors.New(%q)\n",
+			sentinel.Name,
+			sentinel.Message,
+		)
 	}
-	addImport(file, "", "errors")
-	var output bytes.Buffer
-	if err := format.Node(&output, fset, file); err != nil {
+	declarations.WriteString(")\n")
+	updated = append(updated, declarations.String()...)
+
+	formatted, err := format.Source(updated)
+	if err != nil {
 		return fmt.Errorf("format error domain %q: %w", path, err)
 	}
-	// #nosec G306 -- generated Go files use normal repository permissions.
-	if err := os.WriteFile(path, output.Bytes(), 0o644); err != nil {
+	// #nosec G306 G703 -- the discovered error-domain path is inside the selected repository.
+	if err := os.WriteFile(path, formatted, 0o644); err != nil {
 		return fmt.Errorf("write error domain %q: %w", path, err)
 	}
 	return nil
+}
+
+func importsPath(file *ast.File, path string) bool {
+	for _, spec := range file.Imports {
+		value, err := strconv.Unquote(spec.Path.Value)
+		if err == nil && value == path {
+			return true
+		}
+	}
+	return false
 }
 
 func createErrorDomain(domain *ErrorDomain, sentinels []Sentinel) error {
