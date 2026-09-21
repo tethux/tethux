@@ -815,7 +815,10 @@ func TestStructuredErrorFixCreatesAndDeduplicatesSentinel(t *testing.T) {
 	root := newFixtureModule(t)
 	writeFixture(t, root, "bridge/errs/errors.go", `package errs
 import "errors"
+// ErrPortSetup documents the existing sentinel.
 var ErrPortSetup = errors.New("failed to set up port")
+// OpError documents the existing structured error.
+type OpError struct{}
 func New(operation string, kind error, target string) error { return kind }
 func Wrap(operation string, kind error, target string, cause error) error { return kind }
 `)
@@ -838,6 +841,10 @@ func second() error { return errors.New("failed to frobnicate object") }
 	errorsSource := readFixture(t, filepath.Join(root, filepath.FromSlash("bridge/errs/errors.go")))
 	if count := strings.Count(errorsSource, "ErrFrobnicate ="); count != 1 {
 		t.Fatalf("generated sentinel count = %d, want 1:\n%s", count, errorsSource)
+	}
+	if !strings.Contains(errorsSource, "// ErrPortSetup documents the existing sentinel.\nvar ErrPortSetup = errors.New") ||
+		!strings.Contains(errorsSource, "// OpError documents the existing structured error.\ntype OpError struct") {
+		t.Fatalf("existing error domain was changed unexpectedly:\n%s", errorsSource)
 	}
 }
 
