@@ -1063,7 +1063,9 @@ func mostCommonKindKey(values map[string]map[string]int, kind string) string {
 	}
 	return mostCommon(counts)
 }
+
 func domainOwner(domain *ErrorDomain) string { return filepath.Base(filepath.Dir(domain.Directory)) }
+
 func renderExpr(fset *token.FileSet, expr ast.Expr) string {
 	var output bytes.Buffer
 	if format.Node(&output, fset, expr) != nil {
