@@ -6,6 +6,8 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -146,6 +148,10 @@ func TestStructuredErrorsScope(t *testing.T) {
 			want: true,
 		},
 		{
+			path: "virt/hypervisor/libvirt/domain.go",
+			want: true,
+		},
+		{
 			path: "storage/errs/errors.go",
 			want: false,
 		},
@@ -159,6 +165,14 @@ func TestStructuredErrorsScope(t *testing.T) {
 		},
 		{
 			path: "bridge/bridge_test.go",
+			want: false,
+		},
+		{
+			path: "virt/hypervisor/libvirt/errs/errors.go",
+			want: false,
+		},
+		{
+			path: "virt/hypervisor/libvirt/domain_test.go",
 			want: false,
 		},
 		{
@@ -752,4 +766,236 @@ func f() {
 			got,
 		)
 	}
+}
+
+func TestStructuredErrorFixUsesDiscoveredStorageDialect(t *testing.T) {
+	t.Parallel()
+
+	root := newFixtureModule(t)
+	writeFixture(t, root, "storage/errs/errors.go", `package errs
+import "errors"
+var ErrOpen = errors.New("failed to open storage object")
+func New(provider string, kind error, target string) error { return kind }
+func Wrap(provider string, kind error, target string, cause error) error { return kind }
+`)
+	path := writeFixture(t, root, "storage/local/open.go", `package local
+import "fmt"
+func open(ref string, err error) error {
+	return fmt.Errorf("failed to open %q: %w", ref, err)
+}
+`)
+
+	var diagnostics []diagnostic
+	if err := lintRoot(root, options{fix: true}, func(d diagnostic) {
+		diagnostics = append(diagnostics, d)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics after fix = %+v", diagnostics)
+	}
+
+	got := readFixture(t, path)
+	for _, want := range []string{
+		`storageerrs "example.test/repolint/storage/errs"`,
+		`storageerrs.Wrap("storage", storageerrs.ErrOpen, ref, err)`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("fixed source does not contain %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `"fmt"`) {
+		t.Fatalf("unused fmt import remains:\n%s", got)
+	}
+}
+
+func TestStructuredErrorFixCreatesAndDeduplicatesSentinel(t *testing.T) {
+	t.Parallel()
+
+	root := newFixtureModule(t)
+	writeFixture(t, root, "bridge/errs/errors.go", `package errs
+import "errors"
+var ErrPortSetup = errors.New("failed to set up port")
+func New(operation string, kind error, target string) error { return kind }
+func Wrap(operation string, kind error, target string, cause error) error { return kind }
+`)
+	path := writeFixture(t, root, "bridge/widget.go", `package bridge
+import "errors"
+func first() error { return errors.New("failed to frobnicate object") }
+func second() error { return errors.New("failed to frobnicate object") }
+`)
+
+	if err := lintRoot(root, options{fix: true}, func(d diagnostic) {
+		t.Errorf("unexpected diagnostic: %+v", d)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readFixture(t, path)
+	if count := strings.Count(got, "errs.New"); count != 2 {
+		t.Fatalf("structured calls = %d, want 2:\n%s", count, got)
+	}
+	errorsSource := readFixture(t, filepath.Join(root, filepath.FromSlash("bridge/errs/errors.go")))
+	if count := strings.Count(errorsSource, "ErrFrobnicate ="); count != 1 {
+		t.Fatalf("generated sentinel count = %d, want 1:\n%s", count, errorsSource)
+	}
+}
+
+func TestStructuredErrorFixUsesFixedProviderDialect(t *testing.T) {
+	t.Parallel()
+
+	root := newFixtureModule(t)
+	writeFixture(t, root, "virt/hypervisor/libvirt/errs/errors.go", `package errs
+import "errors"
+var ErrInspect = errors.New("failed to inspect libvirt domain")
+func New(kind error, target string) error { return kind }
+func Wrap(kind error, target string, cause error) error { return kind }
+`)
+	path := writeFixture(t, root, "virt/hypervisor/libvirt/domain.go", `package libvirt
+import "fmt"
+func inspect(id string, err error) error {
+	return fmt.Errorf("failed to inspect %q: %w", id, err)
+}
+`)
+
+	if err := lintRoot(root, options{fix: true}, func(d diagnostic) {
+		t.Errorf("unexpected diagnostic: %+v", d)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readFixture(t, path)
+	if !strings.Contains(got, `errs.Wrap(errs.ErrInspect, id, err)`) {
+		t.Fatalf("fixed source uses wrong dialect:\n%s", got)
+	}
+}
+
+func TestStructuredErrorFixAvoidsAliasCollisionAndKeepsTargets(t *testing.T) {
+	t.Parallel()
+
+	root := newFixtureModule(t)
+	writeFixture(t, root, "bridge/errs/errors.go", `package errs
+import "errors"
+var ErrConnect = errors.New("failed to connect bridge endpoints")
+func New(operation string, kind error, target string) error { return kind }
+func Wrap(operation string, kind error, target string, cause error) error { return kind }
+`)
+	path := writeFixture(t, root, "bridge/connect.go", `package bridge
+import "fmt"
+var errs = "occupied"
+func connect(left string, right int, cause error) error {
+	return fmt.Errorf("failed to connect %q to %d: %w", left, right, cause)
+}
+`)
+
+	if err := lintRoot(root, options{fix: true}, func(d diagnostic) {
+		t.Errorf("unexpected diagnostic: %+v", d)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readFixture(t, path)
+	for _, want := range []string{
+		`errs2 "example.test/repolint/bridge/errs"`,
+		`errs2.Wrap("connect to", errs2.ErrConnect, fmt.Sprint(left, " ", right), cause)`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("fixed source does not contain %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestSentinelIdentifier(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"failed to open storage object": "ErrOpen",
+		"failed to frobnicate object":   "ErrFrobnicate",
+		"invalid widget configuration":  "ErrInvalidWidgetConfig",
+	}
+	for message, want := range tests {
+		if got := sentinelIdentifier(message); got != want {
+			t.Errorf("sentinelIdentifier(%q) = %q, want %q", message, got, want)
+		}
+	}
+}
+
+func TestStructuredErrorFixCreatesDomain(t *testing.T) {
+	t.Parallel()
+
+	root := newFixtureModule(t)
+	path := writeFixture(t, root, "virt/hypervisor/qemu/domain.go", `package qemu
+import "fmt"
+func start(id string, err error) error {
+	return fmt.Errorf("failed to start object %q: %w", id, err)
+}
+`)
+
+	if err := lintRoot(root, options{fix: true}, func(d diagnostic) {
+		t.Errorf("unexpected diagnostic: %+v", d)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readFixture(t, path)
+	if !strings.Contains(got, `errs.Wrap(errs.ErrStart, id, err)`) {
+		t.Fatalf("fixed source uses wrong generated domain:\n%s", got)
+	}
+	errorsSource := readFixture(t, filepath.Join(root, filepath.FromSlash("virt/hypervisor/qemu/errs/errors.go")))
+	for _, want := range []string{"type OpError struct", "func (e *OpError) Unwrap() []error", "func New(", "func Wrap("} {
+		if !strings.Contains(errorsSource, want) {
+			t.Errorf("generated errors.go does not contain %q:\n%s", want, errorsSource)
+		}
+	}
+}
+
+func TestDirectStructuredErrorComparison(t *testing.T) {
+	t.Parallel()
+
+	const src = `package p
+import storageerrs "example.test/storage/errs"
+func bad(err error) bool { return err == storageerrs.ErrOpen }
+`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "storage/bad.go", src, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var diagnostics []diagnostic
+	lintDirectErrorComparisons(fset, file, func(d diagnostic) {
+		diagnostics = append(diagnostics, d)
+	})
+	if len(diagnostics) != 1 || diagnostics[0].Rule != ruleErrorComparison {
+		t.Fatalf("diagnostics = %+v", diagnostics)
+	}
+}
+
+func newFixtureModule(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	writeFixture(t, root, "go.mod", "module example.test/repolint\n\ngo 1.26.4\n")
+	return root
+}
+
+func writeFixture(t *testing.T, root, name, value string) string {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(name))
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	// #nosec G306 -- fixture Go files use normal source permissions.
+	if err := os.WriteFile(path, []byte(value), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func readFixture(t *testing.T, path string) string {
+	t.Helper()
+	// #nosec G304 -- tests only read paths inside their temporary fixture.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }

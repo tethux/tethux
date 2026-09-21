@@ -7,8 +7,12 @@
 //     This rule supports automatic fixing with -fix.
 //
 //   - structured-error:
-//     Production code under storage/ and bridge/ must use structured error
-//     constructors instead of fmt.Errorf or errors.New.
+//     Production code under storage/, bridge/, and virt/hypervisor/ must use
+//     structured error constructors instead of fmt.Errorf or errors.New.
+//     This rule supports repository-aware automatic fixing with -fix.
+//
+//   - direct-error-comparison:
+//     Structured Err* categories must be matched with errors.Is.
 //
 // Suppression:
 //
@@ -39,6 +43,7 @@ import (
 const (
 	ruleExpensiveAssertion = "expensive-assertion"
 	ruleStructuredError    = "structured-error"
+	ruleErrorComparison    = "direct-error-comparison"
 )
 
 type diagnostic struct {
@@ -124,12 +129,19 @@ func main() {
 		}
 	}
 
-	if failed && !opts.fix {
+	if failed {
 		os.Exit(1)
 	}
 }
 
 func lintRoot(root string, opts options, report reporter) error {
+	if opts.fix {
+		fixErr := fixStructuredErrors(root)
+		if fixErr != nil {
+			return fixErr
+		}
+	}
+
 	return filepath.WalkDir(
 		root,
 		func(path string, entry fs.DirEntry, walkErr error) error {
@@ -211,6 +223,7 @@ func lintFile(path string, opts options, report reporter) error {
 
 	if enforcesStructuredErrors(path) {
 		lintErrorConstructors(fset, file, report)
+		lintDirectErrorComparisons(fset, file, report)
 	}
 
 	return nil
@@ -472,7 +485,17 @@ func lintAssertions(
 }
 
 func enforcesStructuredErrors(path string) bool {
+	originalPath := path
 	path = normalizedRepoPath(path)
+	if filepath.IsAbs(originalPath) || strings.HasPrefix(path, "../") {
+		if absolutePath, err := filepath.Abs(originalPath); err == nil {
+			if root, _, moduleErr := findModule(absolutePath); moduleErr == nil {
+				if rel, relErr := filepath.Rel(root, absolutePath); relErr == nil {
+					path = filepath.ToSlash(rel)
+				}
+			}
+		}
+	}
 
 	if strings.HasSuffix(path, "_test.go") {
 		return false
@@ -485,6 +508,54 @@ func enforcesStructuredErrors(path string) bool {
 	return hasPathPrefix(path, "storage") ||
 		hasPathPrefix(path, "bridge") ||
 		hasPathPrefix(path, "virt/hypervisor")
+}
+
+func lintDirectErrorComparisons(
+	fset *token.FileSet,
+	file *ast.File,
+	report reporter,
+) {
+	imports := importAliases(file)
+
+	ast.Inspect(file, func(node ast.Node) bool {
+		binary, ok := node.(*ast.BinaryExpr)
+		if !ok || (binary.Op != token.EQL && binary.Op != token.NEQ) {
+			return true
+		}
+
+		if !isStructuredSentinel(binary.X, imports) &&
+			!isStructuredSentinel(binary.Y, imports) {
+			return true
+		}
+
+		if ignored(file, fset, binary.Pos(), ruleErrorComparison) {
+			return true
+		}
+
+		report(diagnostic{
+			Rule:       ruleErrorComparison,
+			Position:   fset.Position(binary.Pos()),
+			Message:    "structured error categories must not be compared directly",
+			Suggestion: "use errors.Is so wrapped OpError categories are matched",
+		})
+
+		return true
+	})
+}
+
+func isStructuredSentinel(expr ast.Expr, imports map[string]string) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || !strings.HasPrefix(selector.Sel.Name, "Err") {
+		return false
+	}
+
+	pkg, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+
+	importPath, ok := imports[pkg.Name]
+	return ok && strings.HasSuffix(importPath, "/errs")
 }
 
 func normalizedRepoPath(path string) string {
