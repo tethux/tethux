@@ -17,6 +17,7 @@ require (
 	github.com/spf13/cobra v1.10.1
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
+	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/sys v0.46.0
 	libvirt.org/go/libvirt v1.12006.0
 	libvirt.org/go/libvirtxml v1.12005.0

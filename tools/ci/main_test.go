@@ -36,6 +36,9 @@ func TestLaptopWorkflowRunsContainerIntegration(t *testing.T) {
 		t.Fatalf("bridge step does not depend on the CLI build: %#v", bridge.DependsOn)
 	}
 	topology := workflowStep(t, &workflow, "topology")
+	if !slices.Contains(topology.Args, "all") {
+		t.Fatalf("Docker laptop must test topologies on all providers: %#v", topology.Args)
+	}
 	if !slices.Contains(topology.Args, "--interface-timeout") || !slices.Contains(topology.Args, "45s") {
 		t.Fatalf("topology step lacks the host startup allowance: %#v", topology.Args)
 	}

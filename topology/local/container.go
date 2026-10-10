@@ -123,7 +123,7 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, basePort 
 		config := &container.RuntimeConfig{
 			NodeConfig: virt.NodeConfig{Name: fmt.Sprintf("tethux-topology-%s-%d", token, index)},
 			Image:      container.ParseImage(spec.Image), Cmd: spec.Command, Env: env,
-			NetworkMode: "none", CapAdd: []string{"NET_ADMIN", "NET_RAW"},
+			NetworkMode: "none", CapAdd: []string{"CAP_NET_ADMIN", "CAP_NET_RAW"},
 			Labels: map[string]string{"tethux.topology": string(top.ID), "tethux.node": string(node.ID)},
 		}
 		run.logger.InfoContext(ctx, "Creating container", "node", node.ID, "image", spec.Image)

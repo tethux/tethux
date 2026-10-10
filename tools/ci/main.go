@@ -351,13 +351,7 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 		}
 		if name == "topology" {
 			if runtimeName == "" || runtimeName == "all" {
-				base := workflow.Steps[0]
-				base.Name = "topology-podman"
-				base.Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", "podman"}
-				docker := base
-				docker.Name = "topology-docker"
-				docker.Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", "docker"}
-				workflow.Steps = []ciframework.Step{base, docker}
+				workflow.Steps[0].Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", "all"}
 			} else {
 				workflow.Steps[0].Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", runtimeName}
 			}
@@ -394,9 +388,13 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 				step.DependsOn = []string{"build-cli"}
 			}
 			if step.Name == "topology" {
+				topologyRuntime := runtimeName
+				if runtimeName == "docker" {
+					topologyRuntime = "all"
+				}
 				step.Args = []string{
 					"run", "./tools/bridge/example/container-udp",
-					"--runtime", runtimeName,
+					"--runtime", topologyRuntime,
 					"--interface-timeout", "45s",
 				}
 			}

@@ -103,9 +103,9 @@ description = "List bridge conformance backends without requiring root"
 run = "go run ./tools/ci bridge list"
 
 [tasks."topology:run"]
-description = "Run an archived container topology"
+description = "Run archived Lua and TOML container topologies"
 depends = ["fixture-registry:start"]
-run = "go run ./tools/ci bridge all --runtime ${RUNTIME:-podman} --archive-root ${ARCHIVE_ROOT:-./results/archive}"
+run = "go run ./tools/ci run topology --runtime ${RUNTIME:-podman} --archive --archive-root ${ARCHIVE_ROOT:-./results/archive}"
 
 [tasks.topology]
 description = "Run the local container topology"
@@ -124,7 +124,7 @@ description = "Write a local ignored inventory of NAS test archives and schemas"
 run = "go run ./tools/ci archive inventory --host ${NAS_HOST:-nas}"
 
 [tasks."test:host:topology"]
-description = "Run the privileged bridge topology test"
+description = "Run the privileged Lua and TOML topology tests"
 depends = ["topology"]
 
 [tasks."host:discover"]

@@ -1,7 +1,7 @@
 // Package local runs container topologies on one Linux host using UDP links.
 //
-// SelectContainerProvider selects a reachable Docker or Podman provider, or a
-// caller can supply an existing container.ContainerProvider in Options. Start
+// SelectContainerProvider selects a reachable Docker, Podman, or containerd
+// provider, or a caller can supply an existing container.ContainerProvider in Options. Start
 // validates the complete topology and its supported resource types before
 // creating network-isolated containers. Missing images are pulled through the
 // selected provider. Each declared Ethernet link creates two namespace veth

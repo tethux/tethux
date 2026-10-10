@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/containerd/errdefs"
 	mobycontainer "github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
 	"github.com/tethux/tethux/virt"
@@ -83,6 +84,14 @@ func (c *Client) DeleteContainer(ctx context.Context, id string, opts *mobyclien
 	o := mobyclient.ContainerRemoveOptions{}
 	if opts != nil {
 		o = *opts
+	}
+	if c.name == "podman" && o.Force {
+		// Podman's forced removal still waits for its default stop timeout.
+		timeout := 0
+		_, stopErr := c.cli.ContainerStop(ctx, id, mobyclient.ContainerStopOptions{Timeout: &timeout})
+		if stopErr != nil && !errdefs.IsNotFound(stopErr) {
+			return errs.Wrap(c.name, errs.ErrFailedToDeleteContainer, id, stopErr)
+		}
 	}
 	_, err := c.cli.ContainerRemove(ctx, id, o)
 	if err != nil {

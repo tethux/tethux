@@ -1,0 +1,22 @@
+id = "container-udp-toml-test"
+
+[[nodes]]
+id = "node-1"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.container]
+image = "127.0.0.1:5000/tethux/fixture-a:1"
+command = ["sh", "-ec", "until ip link show eth0 >/dev/null 2>&1; do sleep 0.1; done; ip addr add 10.77.0.1/24 dev eth0; exec sleep infinity"]
+
+[[nodes]]
+id = "node-2"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.container]
+image = "127.0.0.1:5000/tethux/fixture-a:1"
+command = ["sh", "-ec", "until ip link show eth0 >/dev/null 2>&1; do sleep 0.1; done; ip addr add 10.77.0.2/24 dev eth0; exec sleep infinity"]
+
+[[links]]
+id = "lan"
+kind = "ethernet"
+mtu = 1500
+a = { node = "node-1", port = "eth0" }
+b = { node = "node-2", port = "eth0" }

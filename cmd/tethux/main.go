@@ -31,8 +31,13 @@ func main() {
 			os.Exit(1)
 		}
 	case "tethux":
-		if err := newRootCmd().Execute(); err != nil {
-			slog.Error("Command failed", "error", err)
+		command, err := newRootCmd().ExecuteC()
+		if err != nil {
+			logger := slog.Default()
+			if command != nil && (command.CommandPath() == "tethux topology" || strings.HasPrefix(command.CommandPath(), "tethux topology ")) {
+				logger = slog.New(slog.NewJSONHandler(os.Stderr, nil))
+			}
+			logger.Error("Command failed", "error", err)
 			os.Exit(1)
 		}
 

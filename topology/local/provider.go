@@ -7,11 +7,12 @@ import (
 
 	"github.com/tethux/tethux/topology/errs"
 	"github.com/tethux/tethux/virt/container"
+	"github.com/tethux/tethux/virt/container/containerd"
 	"github.com/tethux/tethux/virt/container/docker"
 	"github.com/tethux/tethux/virt/container/podman"
 )
 
-// SelectContainerProvider selects a reachable local Docker or Podman provider.
+// SelectContainerProvider selects a reachable local container provider.
 // The name auto tries Docker before Podman. Explicit names never fall back.
 func SelectContainerProvider(ctx context.Context, name string) (container.ContainerProvider, error) {
 	names := []string{name}
@@ -27,8 +28,10 @@ func SelectContainerProvider(ctx context.Context, name string) (container.Contai
 			provider, err = docker.New()
 		case "podman":
 			provider, err = podman.New()
+		case "containerd":
+			provider, err = containerd.New()
 		default:
-			return nil, errs.New("select topology provider", errs.ErrUnsupported, "choose auto, docker, or podman")
+			return nil, errs.New("select topology provider", errs.ErrUnsupported, "choose auto, docker, podman, or containerd")
 		}
 		if err == nil {
 			probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)

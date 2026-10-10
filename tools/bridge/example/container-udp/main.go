@@ -1,22 +1,23 @@
-// Command container-udp verifies a chain through the shared topology runner.
+// Command container-udp verifies Lua and TOML graphs through the shared topology runner.
 package main
 
 import (
-	"bytes"
 	"context"
+	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	gotoml "github.com/pelletier/go-toml/v2"
+	"github.com/tethux/tethux/topology"
 	"github.com/tethux/tethux/topology/local"
+	topologylua "github.com/tethux/tethux/topology/lua"
 	topologytoml "github.com/tethux/tethux/topology/toml"
 	"github.com/tethux/tethux/virt/container"
 )
@@ -33,7 +34,7 @@ type config struct {
 }
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	err := run(ctx, parseFlags(), logger)
@@ -45,7 +46,7 @@ func main() {
 
 func parseFlags() config {
 	cfg := config{}
-	flag.StringVar(&cfg.runtime, "runtime", envDefault("RUNTIME", "podman"), "container provider: docker or podman")
+	flag.StringVar(&cfg.runtime, "runtime", envDefault("RUNTIME", "podman"), "container provider: docker, podman, containerd, or all")
 	flag.IntVar(&cfg.n, "n", 4, "container count (2..254)")
 	flag.IntVar(&cfg.basePort, "base-port", 23000, "first loopback UDP port")
 	flag.StringVar(&cfg.image, "image", envDefault("IMAGE", "127.0.0.1:5000/tethux/fixture-a:1"), "image with ip, bridge support, and ping")
@@ -57,32 +58,46 @@ func parseFlags() config {
 	return cfg
 }
 
-func run(ctx context.Context, cfg config, logger *slog.Logger) (resultErr error) {
+func run(ctx context.Context, cfg config, logger *slog.Logger) error {
 	if os.Geteuid() != 0 {
 		return errors.New("root privileges are required for the topology test")
 	}
 	if cfg.n < 2 || cfg.n > 254 || cfg.mtu < 68 || cfg.mtu > 65535 || cfg.pingCount < 1 || cfg.pingTimeout < 1 || cfg.ifTimeout <= 0 {
 		return errors.New("require 2..254 nodes, MTU 68..65535, and positive ping counts and timeouts")
 	}
-	if cfg.runtime != "docker" && cfg.runtime != "podman" {
-		return errors.New("--runtime must be docker or podman")
+	if cfg.runtime != "docker" && cfg.runtime != "podman" && cfg.runtime != "containerd" && cfg.runtime != "all" {
+		return errors.New("--runtime must be docker, podman, containerd, or all")
 	}
-	provider, err := local.SelectContainerProvider(ctx, cfg.runtime)
+	top, err := chainTopology(cfg)
 	if err != nil {
 		return err
 	}
-	document, err := chainTOML(cfg)
-	if err != nil {
-		return err
+	pair, pairErr := tomlTopology(cfg)
+	if pairErr != nil {
+		return pairErr
 	}
-	err = printTOML(os.Stdout, document, os.Getenv("NO_COLOR") == "")
-	if err != nil {
-		return err
+	names := []string{cfg.runtime}
+	if cfg.runtime == "all" {
+		names = []string{"docker", "podman", "containerd"}
 	}
-	top, err := topologytoml.Decode(bytes.NewReader(document))
-	if err != nil {
-		return err
+	for _, name := range names {
+		provider, providerErr := local.SelectContainerProvider(ctx, name)
+		if providerErr != nil {
+			return providerErr
+		}
+		for _, plan := range []*topology.Topology{top, pair} {
+			planLogger := logger.With("provider", name, "topology", plan.ID)
+			planLogger.InfoContext(ctx, "Testing topology")
+			startErr := testTopology(ctx, cfg, planLogger, provider, plan)
+			if startErr != nil {
+				return startErr
+			}
+		}
 	}
+	return nil
+}
+
+func testTopology(ctx context.Context, cfg config, logger *slog.Logger, provider container.ContainerProvider, top *topology.Topology) (resultErr error) {
 	running, err := local.Start(ctx, top, local.Options{Provider: provider, BasePort: cfg.basePort, Logger: logger})
 	if err != nil {
 		return err
@@ -113,104 +128,47 @@ func run(ctx context.Context, cfg config, logger *slog.Logger) (resultErr error)
 		}
 	}
 	for _, probe := range []struct{ source, destination string }{
-		{first, fmt.Sprintf("10.77.0.%d", cfg.n)}, {last, "10.77.0.1"},
+		{first, fmt.Sprintf("10.77.0.%d", len(top.Nodes))}, {last, "10.77.0.1"},
 	} {
 		logger.InfoContext(ctx, "Testing connectivity", "source", probe.source[:12], "destination", probe.destination)
-		command := exec.CommandContext(ctx, cfg.runtime, "exec", probe.source, "ping", "-c", fmt.Sprint(cfg.pingCount), "-W", fmt.Sprint(cfg.pingTimeout), probe.destination)
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
-		err = command.Run()
-		if err != nil {
-			return err
+		stdout, stderr, execErr := provider.Exec(ctx, probe.source, []string{"ping", "-c", fmt.Sprint(cfg.pingCount), "-W", fmt.Sprint(cfg.pingTimeout), probe.destination}, nil, nil)
+		logger.InfoContext(ctx, "Connectivity result", "stdout", string(stdout), "stderr", string(stderr))
+		if execErr != nil {
+			return execErr
 		}
 	}
 	logger.InfoContext(ctx, "Topology test passed", "nodes", len(top.Nodes), "links", len(top.Links))
 	return nil
 }
 
-const guestSetup = `until ip link show eth0 >/dev/null 2>&1; do sleep 0.1; done
-interface=eth0
-if [ "$BRIDGE" = 1 ]; then
- until ip link show eth1 >/dev/null 2>&1; do sleep 0.1; done
- ip link add br0 type bridge
- ip link set eth0 master br0
- ip link set eth1 master br0
- ip link set br0 up
- interface=br0
-fi
-ip addr add "$ADDRESS" dev "$interface"
-exec sleep infinity`
+//go:embed chain.lua
+var chainScript string
 
-func chainTOML(cfg config) ([]byte, error) {
-	document := chainDocument{ID: "container-udp-test", Nodes: make([]chainNode, 0, cfg.n), Links: make([]chainLink, 0, cfg.n-1)}
-	for index := 0; index < cfg.n; index++ {
-		ports := []chainPort{{ID: "eth0", Kind: "ethernet"}}
-		bridge := "0"
-		if index > 0 && index < cfg.n-1 {
-			ports = append(ports, chainPort{ID: "eth1", Kind: "ethernet"})
-			bridge = "1"
-		}
-		document.Nodes = append(document.Nodes, chainNode{
-			ID: fmt.Sprintf("node-%d", index+1), Ports: ports,
-			Container: chainContainer{Image: cfg.image, Command: []string{"sh", "-ec", guestSetup}, Env: []chainEnv{
-				{Name: "ADDRESS", Value: fmt.Sprintf("10.77.0.%d/24", index+1)}, {Name: "BRIDGE", Value: bridge},
-			}},
-		})
-		if index == 0 {
-			continue
-		}
-		leftPort := "eth1"
-		if index == 1 {
-			leftPort = "eth0"
-		}
-		document.Links = append(document.Links, chainLink{
-			ID: fmt.Sprintf("link-%d", index), Kind: "ethernet", MTU: cfg.mtu,
-			A: chainEndpoint{Node: document.Nodes[index-1].ID, Port: leftPort},
-			B: chainEndpoint{Node: document.Nodes[index].ID, Port: "eth0"},
-		})
+func chainTopology(cfg config) (*topology.Topology, error) {
+	return topologylua.Decode(strings.NewReader(chainScript), strconv.Itoa(cfg.n), cfg.image, strconv.Itoa(cfg.mtu))
+}
+
+//go:embed pair.toml
+var pairDocument string
+
+func tomlTopology(cfg config) (*topology.Topology, error) {
+	top, err := topologytoml.Decode(strings.NewReader(pairDocument))
+	if err != nil {
+		return nil, err
 	}
-	return gotoml.Marshal(document)
-}
-
-type chainDocument struct {
-	ID    string      `toml:"id"`
-	Nodes []chainNode `toml:"nodes"`
-	Links []chainLink `toml:"links"`
-}
-
-type chainNode struct {
-	ID        string         `toml:"id"`
-	Ports     []chainPort    `toml:"ports,inline"`
-	Container chainContainer `toml:"container"`
-}
-
-type chainPort struct {
-	ID   string `toml:"id"`
-	Kind string `toml:"kind"`
-}
-
-type chainContainer struct {
-	Image   string     `toml:"image"`
-	Command []string   `toml:"command,multiline"`
-	Env     []chainEnv `toml:"env,inline"`
-}
-
-type chainEnv struct {
-	Name  string `toml:"name"`
-	Value string `toml:"value"`
-}
-
-type chainLink struct {
-	ID   string        `toml:"id"`
-	Kind string        `toml:"kind"`
-	MTU  int           `toml:"mtu"`
-	A    chainEndpoint `toml:"a,inline"`
-	B    chainEndpoint `toml:"b,inline"`
-}
-
-type chainEndpoint struct {
-	Node string `toml:"node"`
-	Port string `toml:"port"`
+	for index := range top.Nodes {
+		spec, ok := top.Nodes[index].Spec.(topology.ContainerSpec)
+		if !ok {
+			return nil, errors.New("TOML topology fixture requires container nodes")
+		}
+		spec.Image = cfg.image
+		top.Nodes[index].Spec = spec
+	}
+	err = top.Validate()
+	if err != nil {
+		return nil, err
+	}
+	return top, nil
 }
 
 func waitForAddress(ctx context.Context, provider container.ContainerProvider, id, address string) error {

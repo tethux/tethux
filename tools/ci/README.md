@@ -79,6 +79,10 @@ go run ./tools/ci run remote-laptop \
 Available workflow names are `normal`, `laptop`, `local`, `remote-laptop`,
 `cross-laptop`, `provider`, `topology`, `bridge`, and `libvirt`.
 
+The Docker laptop runs the Lua chain and TOML pair on Docker, Podman, and
+containerd. The Podman laptop runs those graphs on Podman. Cross-laptop CI
+keeps the managed container link test until distributed topology execution exists.
+
 The laptop workflow also boots three Alpine domains through libvirt. Two
 isolated host bridges force endpoint traffic through the middle Alpine domain,
 which runs as an Ethernet switch; the test passes only after endpoint A reports
@@ -104,9 +108,11 @@ go run ./tools/ci bridge all --runtime podman
 
 The container topology driver uses `topology/local`, shared with
 `tethux topology run`, and checks pings in both directions through the generated
-chain. It prints the exact TOML test input with syntax colors, including in
-CI logs; set `NO_COLOR=1` for plain output. It no longer builds separate switch
-processes. Container and bridge lifecycle handling uses the shared runner.
+chain and TOML pair. The embedded `chain.lua` script generates nodes, ports,
+links, and guest setup, and `pair.toml` supplies the declarative test topology.
+The Go driver handles execution and connectivity checks. Normal CI also
+executes the Lua pair, ring, and chain tests and TOML pair test without starting containers.
+Container and bridge lifecycle handling uses the shared runner.
 
 These workflows create real network interfaces and containers. CI uses
 passwordless `sudo -n`; interactive local runs print a copyable `sudo` command

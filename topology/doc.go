@@ -9,6 +9,7 @@
 // Node specs are concrete values from the closed NodeSpec family. Validate
 // checks the declarative model without accessing images, allocating resources,
 // or selecting a provider. The topology/toml package decodes and validates
-// the same model from TOML documents. The topology/local package realizes
+// the same model from TOML documents; topology/lua builds it from trusted Lua
+// scripts. The topology/local package realizes
 // container workloads and Ethernet links on one Linux host.
 package topology

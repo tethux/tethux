@@ -15,7 +15,7 @@ func BuiltinWorkflows(root string) []Workflow {
 			Outputs:       []Output{{Name: "providers", Path: filepath.Join(artifactDir, "provider-results.jsonl"), Kind: "application/x-ndjson"}},
 			CaptureStdout: filepath.Join(artifactDir, "provider-results.jsonl"),
 		}}},
-		{Name: "topology", Description: "container topology", Steps: []Step{{
+		{Name: "topology", Description: "Lua and TOML container topologies", Steps: []Step{{
 			Name: "topology", Command: "go", Args: []string{"run", "./tools/bridge/example/container-udp", "--runtime", "all"},
 			Dir: root, Privilege: PrivilegeRoot, Timeout: 45 * time.Minute,
 		}}},

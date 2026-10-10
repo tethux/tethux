@@ -18,8 +18,9 @@ RUNTIME=docker mise run fixture-registry:start
 pkexec "$PWD/tethux" topology run "$PWD/topology/examples/container-chain.toml"
 ```
 
-The command selects an available Docker or Podman provider, logs startup and
-cleanup through slog, and prints commands for inspecting and using the running
-nodes. Use absolute paths with `pkexec`. Ctrl+C removes the run's resources.
-See the [topology README](../../topology/README.md) for TOML and library details,
+The command reads TOML or Lua, selects an available Docker or Podman provider,
+and logs startup, nodes, links, and cleanup as JSON Lines through slog on stderr.
+Use `--provider containerd` to select containerd. Use absolute paths with `pkexec`.
+Ctrl+C removes the run's resources.
+See the [topology README](../../topology/README.md) for TOML, Lua, and library details,
 and [topology commands](../topology/README.md) for the CLI options.

@@ -5,7 +5,7 @@
 - `tethux` builds the multicall binary with the `bridge`, `virt`, and `topology`
   subcommands.
 - `bridge` defines Ethernet switch, port, namespace, and container commands.
-- `topology` defines declarative TOML topology commands.
+- `topology` defines TOML and Lua topology commands.
 - `virt` defines provider inspection and integration-test commands.
 - `bridge/main` and `virt/main` build standalone component binaries.
 
