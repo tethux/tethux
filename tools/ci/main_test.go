@@ -15,11 +15,12 @@ func TestLaptopWorkflowRunsContainerIntegration(t *testing.T) {
 	}
 
 	wanted := map[string]bool{
-		"build-cli":       false,
-		"bridge":          false,
-		"provider":        false,
-		"topology":        false,
-		"libvirt-network": false,
+		"build-cli":         false,
+		"bridge":            false,
+		"provider":          false,
+		"topology":          false,
+		"libvirt-network":   false,
+		"dynamips-topology": false,
 	}
 	for _, step := range workflow.Steps {
 		if _, ok := wanted[step.Name]; ok {

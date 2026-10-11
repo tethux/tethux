@@ -87,11 +87,15 @@ func runCommand(ctx context.Context, args []string) error {
 		return errors.New("repository root could not be determined")
 	}
 
-	if name == "remote-laptop" {
+	if name == "remote-laptop" || name == "remote-dynamips" {
 		if *host == "" {
 			return errors.New("--host is required")
 		}
-		return runRemoteLaptop(ctx, *root, *host, *jump, *runtimeName, *archiveRoot, *device, *archiveEnabled, *dryRun)
+		workflow := "laptop"
+		if name == "remote-dynamips" {
+			workflow = "dynamips"
+		}
+		return runRemoteWorkflow(ctx, *root, *host, *jump, *runtimeName, *archiveRoot, *device, workflow, *archiveEnabled, *dryRun)
 	}
 	if name == "cross-laptop" {
 		return runCrossLaptop(ctx, *root, *hostA, *hostB, *archiveRoot, *device, *archiveEnabled, *dryRun)
@@ -275,6 +279,11 @@ func executeWorkflow(ctx context.Context, workflow ciframework.Workflow, options
 		}
 		for index := range workflow.Steps {
 			step := &workflow.Steps[index]
+			for argumentIndex, argument := range step.Args {
+				if argument == filepath.Join(options.Root, "results", "current", "artifacts", "tethux") {
+					step.Args[argumentIndex] = filepath.Join(writer.ArtifactDir(), "tethux")
+				}
+			}
 			if step.CaptureStdout != "" {
 				step.CaptureStdout = filepath.Join(writer.ArtifactDir(), filepath.Base(step.CaptureStdout))
 			}
@@ -356,7 +365,7 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 				workflow.Steps[0].Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", runtimeName}
 			}
 		}
-		if name == "bridge" {
+		if name == "bridge" || name == "dynamips" {
 			cliPath := filepath.Join(root, "results", "current", "artifacts", "tethux")
 			workflow.Steps[0].Args = append(workflow.Steps[0].Args, "--tethux", cliPath)
 			workflow.Steps[0].DependsOn = []string{"build-cli"}
@@ -380,10 +389,11 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 		Name: "build-cli", Command: "go", Args: []string{"build", "-o", cliPath, "./cmd/tethux"}, Dir: root,
 	}}
 	libvirt, _ := registry.Workflow("libvirt")
-	for _, group := range [][]ciframework.Step{backends.Steps, providers.Steps, topology.Steps, libvirt.Steps} {
+	dynamips, _ := registry.Workflow("dynamips")
+	for _, group := range [][]ciframework.Step{backends.Steps, providers.Steps, topology.Steps, libvirt.Steps, dynamips.Steps} {
 		for _, step := range group {
 			step.DependsOn = nil
-			if step.Name == "bridge" {
+			if step.Name == "bridge" || step.Name == "dynamips-topology" {
 				step.Args = append(step.Args, "--tethux", cliPath)
 				step.DependsOn = []string{"build-cli"}
 			}
@@ -541,38 +551,50 @@ func topologyCommand(ctx context.Context, args []string) error {
 	return err
 }
 
-func runRemoteLaptop(ctx context.Context, root, target, jump, runtimeName, archiveRoot, device string, archive, dryRun bool) error {
-	if runtimeName != "docker" && runtimeName != "podman" {
+func runRemoteWorkflow(ctx context.Context, root, target, jump, runtimeName, archiveRoot, device, workflow string, archive, dryRun bool) error {
+	if workflow == "laptop" && runtimeName != "docker" && runtimeName != "podman" {
 		return errors.New("remote laptop requires --runtime docker or podman")
 	}
 	revision, err := commandOutput(root, "git", "rev-parse", "HEAD")
 	if err != nil {
 		return err
 	}
-	remoteDir := "/tmp/tethux-ci-" + revision[:12]
+	remoteParent := "/tmp/tethux-ci-" + revision[:12]
+	remoteDir := filepath.Join(remoteParent, "sme")
 	remote := ciframework.Remote{Target: target, JumpHost: jump}
 	if dryRun {
-		fmt.Printf("stage %s at %s:%s and run laptop-%s\n", root, target, remoteDir, runtimeName)
+		fmt.Printf("stage %s at %s:%s and run %s\n", root, target, remoteDir, workflow)
 		return nil
 	}
-	_ = remote.Run(ctx, io.Discard, io.Discard, "rm", "-rf", remoteDir)
+	_ = remote.Run(ctx, io.Discard, io.Discard, "rm", "-rf", remoteParent)
 	if err := remote.Run(ctx, os.Stdout, os.Stderr, "mkdir", "-p", remoteDir); err != nil {
 		return err
 	}
 	defer func() {
-		_ = remote.Run(context.WithoutCancel(ctx), io.Discard, io.Discard, "rm", "-rf", remoteDir)
+		_ = remote.Run(context.WithoutCancel(ctx), io.Discard, io.Discard, "rm", "-rf", remoteParent)
 	}()
 	if err := streamRepository(ctx, remote, root, remoteDir); err != nil {
 		return err
 	}
 	remoteArgs := remoteLaptopArgs(remoteDir, runtimeName, device)
+	if workflow != "laptop" {
+		for index, arg := range remoteArgs {
+			if arg == "laptop" && index > 0 && remoteArgs[index-1] == "run" {
+				remoteArgs[index] = workflow
+			}
+		}
+	}
 	if !archive {
 		return remote.Run(ctx, os.Stdout, os.Stderr, remoteArgs...)
 	}
 
 	started := time.Now().UTC()
+	archiveWorkflow := "remote-" + workflow
+	if workflow == "laptop" {
+		archiveWorkflow += "-" + runtimeName
+	}
 	writer, err := ciframework.NewArchiveWriter(ciframework.ArchiveOptions{
-		Root: archiveRoot, Repository: root, Workflow: "remote-laptop-" + runtimeName,
+		Root: archiveRoot, Repository: root, Workflow: archiveWorkflow,
 		DeviceID: device, Runtime: runtimeName, StartedAt: started,
 	})
 	if err != nil {
@@ -609,8 +631,10 @@ func remoteLaptopArgs(remoteDir, runtimeName, device string) []string {
 		"--extra-experimental-features", "flakes",
 		"-c", "env", ciframework.CIEnvironmentVariable + "=1",
 		"go", "run", "./tools/ci", "run", "laptop",
-		"--runtime", runtimeName,
 		"--root", remoteDir,
+	}
+	if runtimeName != "" {
+		args = append(args, "--runtime", runtimeName)
 	}
 	if device != "" {
 		args = append(args, "--device", device)
@@ -629,8 +653,9 @@ func runCrossLaptop(ctx context.Context, root, hostA, hostB, archiveRoot, device
 }
 
 func streamRepository(ctx context.Context, remote ciframework.Remote, root, destination string) error {
-	tarCmd := exec.CommandContext(ctx, "tar", "--exclude=.git", "--exclude=.jj", "--exclude=bin", "--exclude=results", "-czf", "-", ".")
+	tarCmd := exec.CommandContext(ctx, "tar", "--exclude=.git", "--exclude=.jj", "--exclude=bin", "--exclude=build", "--exclude=results", "--exclude=ingestion/archive", "-czf", "-", ".")
 	tarCmd.Dir = root
+	tarCmd.Stderr = os.Stderr
 	pipe, err := tarCmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -892,8 +917,8 @@ groups:
 	  task      format, check-format, lint, test, build, check
 	  laptop    run the useful laptop integration suite
 	  bridge    list, test, udp-loss, topology, all
-	run       normal, laptop, local, remote-laptop, cross-laptop,
-	            provider, topology, bridge, libvirt
+	run       normal, laptop, local, remote-laptop, remote-dynamips, cross-laptop,
+	            provider, topology, bridge, libvirt, dynamips
   archive   run, finalize, publish, inventory
   host      discover, audit, install
 

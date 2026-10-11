@@ -8,6 +8,7 @@ library APIs or end-user command packages.
 | `ci/` | Unified test, archive, remote-runner, and host-management command | [`ci/README.md`](ci/README.md) |
 | `assertlint/` | Repository-specific assertion and structured-error checks | source and tests |
 | `bridge/` | Private bridge integration drivers invoked by `tools/ci` | [`bridge/README.md`](bridge/README.md) |
+| `dynamips/` | Real IOS topology, lifecycle, persistence, and CLI integration | [`ci/README.md`](ci/README.md#dynamips-integration) |
 
 `tools/ci` owns the monorepo task declarations and local execution. Dagger uses
 the same command inside its traced CI functions. Privileged and remote

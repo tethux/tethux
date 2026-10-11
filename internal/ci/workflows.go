@@ -8,6 +8,12 @@ import (
 func BuiltinWorkflows(root string) []Workflow {
 	artifactDir := filepath.Join(root, "results", "current", "artifacts")
 	return []Workflow{
+		{Name: "dynamips", Description: "real IOS topology, lifecycle, persistence, and CLI", Steps: []Step{{
+			Name: "dynamips-topology", Command: "go", Args: []string{"run", "./tools/dynamips/testing/topology-smoke"},
+			Dir: root, Timeout: 8 * time.Minute,
+			Outputs:       []Output{{Name: "dynamips", Path: filepath.Join(artifactDir, "dynamips-results.jsonl"), Kind: "application/x-ndjson"}},
+			CaptureStdout: filepath.Join(artifactDir, "dynamips-results.jsonl"),
+		}}},
 		{Name: "provider", Description: "container provider lifecycle", Steps: []Step{{
 			Name: "provider", Command: "go",
 			Args: []string{"run", "./cmd/tethux", "virt", "test", "--provider", "all", "--output", "json"},

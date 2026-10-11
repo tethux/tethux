@@ -77,6 +77,12 @@ func (m *Tethux) CrossLaptop(
 		Stdout(ctx)
 }
 
+// Dynamips runs the real IOS integration workflow on a specified test host.
+func (m *Tethux) Dynamips(ctx context.Context, source *dagger.Directory, sshKey, knownHosts *dagger.Secret, host string) (string, error) {
+	return m.remote(source, sshKey, knownHosts).
+		WithExec(nixDevelop("go", "run", "./tools/ci", "run", "remote-dynamips", "--host", host, "--archive")).Stdout(ctx)
+}
+
 func (m *Tethux) repositoryTask(source *dagger.Directory, task string) *dagger.Container {
 	return m.base(source).WithExec(nixDevelop("go", "run", "./tools/ci", "task", task))
 }

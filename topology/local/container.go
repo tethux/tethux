@@ -16,18 +16,20 @@ import (
 	"github.com/tethux/tethux/topology/errs"
 	"github.com/tethux/tethux/virt"
 	"github.com/tethux/tethux/virt/container"
+	"github.com/tethux/tethux/virt/emulator/dynamips"
 )
 
 // Options selects host resources without changing the declarative topology.
 type Options struct {
 	Provider container.ContainerProvider
+	Dynamips *DynamipsOptions
 	// Logger receives lifecycle progress. Nil disables logging.
 	Logger *slog.Logger
 	// BasePort starts consecutive loopback UDP port pairs. Zero selects 23000.
 	BasePort int
 }
 
-// Running owns the containers and bridges created by Start.
+// Running owns the workloads and bridges created by Start.
 // Call Close with a live context when finished. Methods are not concurrent-safe.
 type Running struct {
 	provider container.ContainerProvider
@@ -35,9 +37,12 @@ type Running struct {
 	nodes    map[topology.NodeID]string
 	order    []topology.NodeID
 	bridges  []*bridge.ContainerBridge
+	dynamips *dynamips.Adapter
+	manager  *dynamips.Manager
+	routers  map[topology.NodeID]*dynamips.PreparedResources
 }
 
-// Start creates network-isolated containers and connects the declared Ethernet links.
+// Start creates workloads and connects the declared Ethernet links.
 // Missing images are pulled through the provider. Only container specs and
 // Ethernet ports are supported. Linked port IDs become container interface names.
 // Unlinked ports are left unattached. The caller needs namespace and raw-socket
@@ -63,9 +68,19 @@ func Start(ctx context.Context, top *topology.Topology, options Options) (*Runni
 		nodes:    make(map[topology.NodeID]string, len(top.Nodes)),
 		order:    make([]topology.NodeID, 0, len(top.Nodes)),
 		bridges:  make([]*bridge.ContainerBridge, 0, 2*len(top.Links)),
+		dynamips: nil,
+		routers:  make(map[topology.NodeID]*dynamips.PreparedResources),
+	}
+	if options.Dynamips != nil {
+		manager, managerErr := routerManager(options.Dynamips.StateRoot)
+		if managerErr != nil {
+			return nil, managerErr
+		}
+		run.manager = manager
+		run.dynamips = options.Dynamips.Provider
 	}
 	token := strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
-	err = run.start(ctx, top, options.BasePort, token)
+	err = run.start(ctx, top, options, token)
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
@@ -77,9 +92,6 @@ func Start(ctx context.Context, top *topology.Topology, options Options) (*Runni
 }
 
 func validateSupport(top *topology.Topology, options Options) error {
-	if options.Provider == nil {
-		return errs.New("start local topology", errs.ErrStart, "container provider is required")
-	}
 	basePort := options.BasePort
 	if basePort == 0 {
 		basePort = 23000
@@ -88,15 +100,25 @@ func validateSupport(top *topology.Topology, options Options) error {
 		return errs.New("start local topology", errs.ErrStart, "UDP port range must fit within 1..65535")
 	}
 	for _, node := range top.Nodes {
-		if _, ok := node.Spec.(topology.ContainerSpec); !ok {
-			return errs.New("start local topology", errs.ErrUnsupported, fmt.Sprintf("node %q is not a container", node.ID))
+		switch node.Spec.(type) {
+		case topology.ContainerSpec:
+			if options.Provider == nil {
+				return errs.New("start local topology", errs.ErrStart, "container provider is required")
+			}
+		case topology.DynamipsSpec:
+			if options.Dynamips == nil || options.Dynamips.Provider == nil || options.Dynamips.StateRoot == "" {
+				return errs.New("start local topology", errs.ErrStart, "Dynamips provider and state root are required")
+			}
+		default:
+			return errs.New("start local topology", errs.ErrUnsupported, fmt.Sprintf("node %q has an unsupported workload", node.ID))
 		}
 		for _, port := range node.Ports {
 			if port.Kind != topology.PortEthernet {
 				return errs.New("start local topology", errs.ErrUnsupported, fmt.Sprintf("node %q port %q is not Ethernet", node.ID, port.ID))
 			}
 			name := string(port.ID)
-			if len(name) > 15 || name == "." || name == ".." || name == "lo" || strings.ContainsAny(name, "/:\x00 \t\r\n") {
+			_, isContainer := node.Spec.(topology.ContainerSpec)
+			if isContainer && (len(name) > 15 || name == "." || name == ".." || name == "lo" || strings.ContainsAny(name, "/:\x00 \t\r\n")) {
 				return errs.New("start local topology", errs.ErrUnsupported, fmt.Sprintf("port %q must be a Linux interface name other than lo", port.ID))
 			}
 		}
@@ -109,9 +131,16 @@ func validateSupport(top *topology.Topology, options Options) error {
 	return nil
 }
 
-func (run *Running) start(ctx context.Context, top *topology.Topology, basePort int, token string) error {
+func (run *Running) start(ctx context.Context, top *topology.Topology, options Options, token string) error {
+	basePort := options.BasePort
 	pids := make(map[topology.NodeID]int, len(top.Nodes))
 	for index, node := range top.Nodes {
+		if spec, isRouter := node.Spec.(topology.DynamipsSpec); isRouter {
+			if routerErr := run.startRouter(ctx, top, &node, &spec, options, token, index); routerErr != nil {
+				return routerErr
+			}
+			continue
+		}
 		spec, ok := node.Spec.(topology.ContainerSpec)
 		if !ok {
 			return errs.New("start local topology", errs.ErrUnsupported, string(node.ID))
@@ -162,6 +191,9 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, basePort 
 			mtu = 1500
 		}
 		for side, endpoint := range []topology.Endpoint{link.A, link.B} {
+			if _, isRouter := run.routers[endpoint.Node]; isRouter {
+				continue
+			}
 			err := ctx.Err()
 			if err != nil {
 				return err
@@ -184,6 +216,9 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, basePort 
 
 // ContainerID resolves a topology node to its provider's runtime identity.
 func (run *Running) ContainerID(node topology.NodeID) (string, error) {
+	if _, isRouter := run.routers[node]; isRouter {
+		return "", errs.New("find local container", errs.ErrUnsupported, string(node))
+	}
 	id, exists := run.nodes[node]
 	if !exists {
 		return "", errs.New("find local topology node", errs.ErrNotFound, string(node))
@@ -191,7 +226,7 @@ func (run *Running) ContainerID(node topology.NodeID) (string, error) {
 	return id, nil
 }
 
-// Close stops bridges and deletes this run's containers, including running ones.
+// Close stops bridges and deletes this run's workloads, retaining router storage.
 // It is safe to call again; failed deletions remain available for retry.
 func (run *Running) Close(ctx context.Context) error {
 	if run == nil {
@@ -211,7 +246,17 @@ func (run *Running) Close(ctx context.Context) error {
 		if !exists {
 			continue
 		}
-		run.logger.InfoContext(ctx, "Removing container", "node", node)
+		run.logger.InfoContext(ctx, "Removing node", "node", node)
+		if resources, isRouter := run.routers[node]; isRouter {
+			routerErr := run.manager.Delete(ctx, run.dynamips, id, resources)
+			if routerErr != nil {
+				failures = append(failures, routerErr)
+				continue
+			}
+			delete(run.routers, node)
+			delete(run.nodes, node)
+			continue
+		}
 		err := run.provider.DeleteContainer(ctx, id, &mobyclient.ContainerRemoveOptions{Force: true})
 		if err != nil {
 			failures = append(failures, errs.Wrap("delete local topology node", errs.ErrCleanup, string(node), err))

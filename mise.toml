@@ -94,6 +94,10 @@ run = "go run ./tools/ci run local --integration --runtime ${RUNTIME:?set RUNTIM
 description = "Run bridge unit and parser tests"
 run = "go test -tags debug ./cmd/bridge/... ./bridge/..."
 
+[tasks."test:dynamips"]
+description = "Run real IOS topology, lifecycle, persistence, and CLI checks"
+run = "go run ./tools/ci run dynamips --archive --archive-root ${ARCHIVE_ROOT:-./results/archive}"
+
 [tasks."test:bridge:integration"]
 description = "Run and archive UDP/raw/pcap/TAP bridge conformance tests"
 run = "go run ./tools/ci bridge test --archive --archive-root ${ARCHIVE_ROOT:-./results/archive}"

@@ -7,6 +7,10 @@ preparation, and the optional serial-console contract. The
 [libvirt provider](hypervisor/libvirt/README.md) connects to an externally
 managed daemon and reports normalized lifecycle events.
 
+`virt/emulator` defines emulated workloads. The
+[Dynamips provider](emulator/dynamips/README.md) owns router VMs within a shared
+native runtime and prepares persistent NVRAM/disks through the storage API.
+
 ```go
 image := container.ParseImage("docker.io/library/alpine:3.22")
 provider, err := docker.New()

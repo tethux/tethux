@@ -1,0 +1,43 @@
+id = "dynamips-pair"
+
+[[nodes]]
+id = "r1"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.dynamips]
+image = "c7200-a3jk9s-mz.124-25g.bin"
+ram_mb = 512
+platform = "c7200"
+cards = [{ slot = 1, name = "PA-FE-TX" }]
+interfaces = [{ id = "eth0", slot = 1, port = 0 }]
+startup_config = """
+hostname R1
+no ip domain-lookup
+interface FastEthernet1/0
+ ip address 10.77.0.1 255.255.255.0
+ no shutdown
+end
+"""
+
+[[nodes]]
+id = "r2"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.dynamips]
+image = "c7200-a3jk9s-mz.124-25g.bin"
+ram_mb = 512
+platform = "c7200"
+cards = [{ slot = 1, name = "PA-FE-TX" }]
+interfaces = [{ id = "eth0", slot = 1, port = 0 }]
+startup_config = """
+hostname R2
+no ip domain-lookup
+interface FastEthernet1/0
+ ip address 10.77.0.2 255.255.255.0
+ no shutdown
+end
+"""
+
+[[links]]
+id = "r1-r2"
+kind = "ethernet"
+a = { node = "r1", port = "eth0" }
+b = { node = "r2", port = "eth0" }

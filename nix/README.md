@@ -67,6 +67,13 @@ integration chain for pull requests and for pushes to `master`: Docker, Podman,
 then the cross-host workflow. Feature-branch pushes do not start a duplicate
 physical-host run. Proxmox integration is not part of CI yet.
 
+Both laptop workflows also run the real Dynamips IOS topology suite. Each host
+needs an unpacked C7200 image at
+`~/.local/share/tethux/images/cisco/c7200-a3jk9s-mz.124-25g.bin`. Images are local
+fixtures and are never uploaded with the source. Run only that suite with
+`go run ./tools/ci run remote-dynamips --host ci@10.0.0.100 --archive` or the same
+command targeting `ci@10.0.0.78`.
+
 ## Test archives
 
 Archive-aware runs write:

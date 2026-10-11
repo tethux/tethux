@@ -3,8 +3,8 @@
 `topology` describes workloads, logical ports, point-to-point links, and optional
 views without choosing a provider or host. `topology/toml` decodes that model,
 `topology/lua` builds it from trusted Lua scripts, and `topology/local` runs
-container workloads and Ethernet links on one Linux
-host using the existing container providers and UDP bridges.
+container and Dynamips workloads with Ethernet links on one Linux host, using
+container providers, native router NIOs, and UDP bridges.
 
 ## Run a TOML topology
 
@@ -65,14 +65,17 @@ endpoints use inline tables, as in the example. Unknown fields are rejected.
 
 Container specs contain `image`, `command`, and `env`, where environment
 variables are `{ name = "NAME", value = "value" }` entries. Domain specs use
-`image`, `cpus`, and `memory_mb`; Dynamips specs use `image` and `ram_mb`.
+`image`, `cpus`, and `memory_mb`; Dynamips specs use `image`, `ram_mb`, `platform`, optional `npe`/`midplane`,
+`console_port`, `enhanced_console`, `startup_config`, `cards`, and `interfaces`.
+Cards select native slot drivers; interfaces map logical port IDs to native
+slot and port numbers.
 A view's `nodes` place `{ node, position = { x, y } }` entries, while `links`
 provide `{ link, points = [{ x, y }] }` entries.
 
-The current local runner accepts container specs and Ethernet ports/links.
-Linked port IDs become Linux interface names, must fit within 15 bytes, and
+The current local runner accepts container and Dynamips specs with Ethernet ports/links.
+Linked container port IDs become Linux interface names, must fit within 15 bytes, and
 cannot be `lo`. Unlinked ports are left unattached. MTU zero selects 1500.
-Domain, emulator, and serial resources are rejected before allocation.
+Domain, Shitnet, and serial resources are rejected before allocation.
 
 ## Library use
 
@@ -120,3 +123,25 @@ mise exec -- go doc ./topology/toml
 mise exec -- go doc ./topology/lua
 mise exec -- go doc ./topology/local
 ```
+
+## Dynamips routers
+
+The [two-router example](examples/dynamips-pair.toml) provisions C7200 routers
+with connected FastEthernet interfaces. Supply an unpacked IOS image:
+
+```bash
+export TETHUX_DYNAMIPS_IMAGE="$HOME/.local/share/tethux/images/cisco/c7200-a3jk9s-mz.124-25g.bin"
+tethux topology run topology/examples/dynamips-pair.toml
+```
+
+Router-only topologies require no root privileges. Console ports start at 20000;
+`--console-base-port` selects another range. `--state-root` defaults to
+`~/.local/share/tethux/routers`. Each topology/node pair owns a persistent
+directory containing native NVRAM and disk files. Ctrl+C deletes the runtime
+instances and releases storage leases while retaining those files. An explicit
+`startup_config` provisions the router again on each run.
+
+Library callers supply `Options.Dynamips` with a caller-owned adapter, storage
+root, and optional image override. One native runtime owns multiple router VMs;
+each router has its own leased state directory. Close the running topology
+before closing the adapter and native runtime.

@@ -77,7 +77,8 @@ go run ./tools/ci run remote-laptop \
 ```
 
 Available workflow names are `normal`, `laptop`, `local`, `remote-laptop`,
-`cross-laptop`, `provider`, `topology`, `bridge`, and `libvirt`.
+`remote-dynamips`, `cross-laptop`, `provider`, `topology`, `bridge`, `libvirt`,
+and `dynamips`.
 
 The Docker laptop runs the Lua chain and TOML pair on Docker, Podman, and
 containerd. The Podman laptop runs those graphs on Podman. Cross-laptop CI
@@ -129,3 +130,22 @@ go run ./tools/ci host audit --host ci@10.0.0.100
 See [`nix/test-archive/README.md`](../../nix/test-archive/README.md) for the
 archive contract and [`nix/README.md`](../../nix/README.md) for test-host
 installation, privilege, and recovery details.
+
+## Dynamips integration
+
+The native library is pinned to a published Go module revision. No sibling
+checkout is required. IOS images remain local fixtures and are not included
+in source archives.
+
+```bash
+TETHUX_DYNAMIPS_IMAGE=/absolute/path/to/c7200.bin mise run test:dynamips
+mise exec -- go run ./tools/ci run remote-dynamips --host ci@10.0.0.100 --archive
+mise exec -- go run ./tools/ci run remote-dynamips --host ci@10.0.0.78 --archive
+```
+
+The remote default image is
+`~/.local/share/tethux/images/cisco/c7200-a3jk9s-mz.124-25g.bin`. The suite
+boots the real CLI and native two-router example, checks bidirectional IOS
+pings, suspend/resume/restart/stop, saved NVRAM, and signal cleanup. It is also
+included in the laptop workflow. Routers use temporary leased directories
+that are removed after the test.

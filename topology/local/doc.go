@@ -1,4 +1,4 @@
-// Package local runs container topologies on one Linux host using UDP links.
+// Package local runs container and Dynamips topologies on one Linux host using UDP links.
 //
 // SelectContainerProvider selects a reachable Docker, Podman, or containerd
 // provider, or a caller can supply an existing container.ContainerProvider in Options. Start
@@ -8,8 +8,9 @@
 // attachments connected by a pair of loopback UDP bridges.
 //
 // Linked port IDs become Linux interface names. Guest commands own address and
-// routing configuration; Start only prepares the containers and links. Views
-// have no effect on execution. Domain, emulator, and serial resources are not
+// routing configuration; Start prepares workloads and links. DynamipsOptions
+// supplies a native adapter and persistent state root for router workloads.
+// Views have no effect on execution. Domain, Shitnet, and serial resources are not
 // supported by this runner.
 //
 // Running owns its resources, and a failed Start rolls them back. The caller

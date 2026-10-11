@@ -110,8 +110,27 @@ type domainDocument struct {
 }
 
 type dynamipsDocument struct {
-	Image string `toml:"image"`
-	RAMMB uint32 `toml:"ram_mb"`
+	Image           string                      `toml:"image"`
+	RAMMB           uint32                      `toml:"ram_mb"`
+	Platform        string                      `toml:"platform"`
+	NPE             string                      `toml:"npe"`
+	Midplane        string                      `toml:"midplane"`
+	ConsolePort     uint16                      `toml:"console_port"`
+	EnhancedConsole bool                        `toml:"enhanced_console"`
+	StartupConfig   string                      `toml:"startup_config"`
+	Cards           []dynamipsCardDocument      `toml:"cards"`
+	Interfaces      []dynamipsInterfaceDocument `toml:"interfaces"`
+}
+
+type dynamipsCardDocument struct {
+	Slot uint32 `toml:"slot"`
+	Name string `toml:"name"`
+}
+
+type dynamipsInterfaceDocument struct {
+	ID   topology.PortID `toml:"id"`
+	Slot uint32          `toml:"slot"`
+	Port uint32          `toml:"port"`
 }
 
 func (node *nodeDocument) spec() (topology.NodeSpec, error) {
@@ -135,7 +154,25 @@ func (node *nodeDocument) spec() (topology.NodeSpec, error) {
 	}
 	if node.Dynamips != nil {
 		count++
-		result = topology.DynamipsSpec{Image: node.Dynamips.Image, RAMMB: node.Dynamips.RAMMB}
+		doc := node.Dynamips
+		spec := topology.DynamipsSpec{
+			Image: doc.Image, RAMMB: doc.RAMMB, Platform: doc.Platform,
+			NPE: doc.NPE, Midplane: doc.Midplane, ConsolePort: doc.ConsolePort,
+			EnhancedConsole: doc.EnhancedConsole, StartupConfig: doc.StartupConfig,
+		}
+		if len(doc.Cards) > 0 {
+			spec.Cards = make([]topology.DynamipsCard, 0, len(doc.Cards))
+		}
+		for _, card := range doc.Cards {
+			spec.Cards = append(spec.Cards, topology.DynamipsCard{Slot: card.Slot, Name: card.Name})
+		}
+		if len(doc.Interfaces) > 0 {
+			spec.Interfaces = make([]topology.DynamipsInterface, 0, len(doc.Interfaces))
+		}
+		for _, iface := range doc.Interfaces {
+			spec.Interfaces = append(spec.Interfaces, topology.DynamipsInterface{ID: iface.ID, Slot: iface.Slot, Port: iface.Port})
+		}
+		result = spec
 	}
 	if count != 1 {
 		return nil, errs.New("decode topology node", errs.ErrInvalidNode,

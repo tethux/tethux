@@ -81,8 +81,29 @@ func (ShitnetSpec) Kind() NodeKind {
 
 // DynamipsSpec describes a router image and optional RAM size in MiB.
 type DynamipsSpec struct {
-	Image string
-	RAMMB uint32
+	Image           string
+	RAMMB           uint32
+	Platform        string
+	NPE             string
+	Midplane        string
+	ConsolePort     uint16
+	EnhancedConsole bool
+	StartupConfig   string
+	Cards           []DynamipsCard
+	Interfaces      []DynamipsInterface
+}
+
+// DynamipsCard installs a card before the router boots.
+type DynamipsCard struct {
+	Slot uint32
+	Name string
+}
+
+// DynamipsInterface maps a logical topology port to a native router port.
+type DynamipsInterface struct {
+	ID   PortID
+	Slot uint32
+	Port uint32
 }
 
 func (DynamipsSpec) nodeSpec() {}

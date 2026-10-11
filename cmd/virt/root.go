@@ -13,6 +13,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.AddCommand(
 		testCmd(),
 		libvirtCmd(),
+		dynamipsCmd(),
 		linkCmd(),
 		smokeCmd(),
 		listCmd(),

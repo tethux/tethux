@@ -125,3 +125,21 @@ Runtime implementations return typed errors from
 `virt/container/errs`. Callers can use `errors.Is` with the
 stable category (for example `ErrFailedToStartContainer`) while retaining the
 Docker, Podman, or containerd daemon error as the underlying cause.
+
+## Dynamips routers
+
+Run one foreground router with its persistent native state:
+
+```bash
+tethux virt dynamips run \
+  --image "$HOME/.local/share/tethux/images/cisco/c7200-a3jk9s-mz.124-25g.bin" \
+  --name router --ram 512 --enhanced
+```
+
+`--enhanced` selects the native library's line editor. The default console uses
+`telnet`; `--console=false` runs headless. `--console-port` defaults to 20000.
+Ctrl+C releases the VM and retains NVRAM/disks under
+`~/.local/share/tethux/routers/<name>`. Use `--state-root` to change placement
+and `--startup-config` to provision a configuration file explicitly.
+The C7200 defaults to NPE-400 and VXR; `--platform` selects another supported
+native router family.

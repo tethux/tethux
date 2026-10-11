@@ -10,10 +10,19 @@ import (
 	"github.com/tethux/tethux/topology"
 	"github.com/tethux/tethux/topology/local"
 	"github.com/tethux/tethux/virt/container"
+	"github.com/tethux/tethux/virt/emulator/dynamips"
 )
 
-func logSummary(ctx context.Context, logger *slog.Logger, top *topology.Topology, run *local.Running, provider container.ContainerProvider) error {
+func logSummary(ctx context.Context, logger *slog.Logger, top *topology.Topology, run *local.Running, provider container.ContainerProvider, routers *dynamips.Adapter) error {
 	for _, node := range top.Nodes {
+		if node.Spec.Kind() == topology.NodeKindDynamips {
+			router, reloadErr := routers.Reload(ctx, string(node.ID))
+			if reloadErr != nil {
+				return reloadErr
+			}
+			logger.InfoContext(ctx, "Topology router", "node", node.ID, "console_host", router.Console.Host, "console_port", router.Console.Port)
+			continue
+		}
 		id, err := run.ContainerID(node.ID)
 		if err != nil {
 			return err
