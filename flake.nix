@@ -97,7 +97,7 @@
           postPatch = ''
             rm -rf vendor
           '';
-          vendorHash = "sha256-bEckot+lFUvYamuCzYDUB4PjaDEO7G75eUhddOxkWI0=";
+          vendorHash = "sha256-+4riYvPVkEf+cn/CYcoOfBSsgvlnLmVLx2ik0gskehc=";
           nativeBuildInputs = [ pkgs.pkg-config ];
           buildInputs = [ pkgs.libpcap pkgs.libvirt pkgs.libelf pkgs.libnsl ];
         };

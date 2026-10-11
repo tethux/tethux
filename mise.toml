@@ -138,3 +138,7 @@ run = "go run ./tools/ci host audit --host ${HOST:?set HOST=user@host}"
 [tasks."host:audit:proxmox-vm-9901"]
 description = "Audit optional Proxmox VM 9901 through its Tailscale-reachable jump host"
 run = "go run ./tools/ci host audit --jump-host ${TETHUX_SSH_JUMP:-root@100.115.225.73} --host ${HOST:-ci@192.168.0.107}"
+
+[tasks."fix:go"]
+description = "Apply permitted Go policy fixes"
+run = "go tool repolint --fix ."

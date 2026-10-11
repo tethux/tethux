@@ -1,0 +1,29 @@
+schema = 1
+
+[rules.expensive-assertion]
+enabled = true
+paths = ["."]
+include_tests = true
+calls = ["assertValid*", "assertInvariants*"]
+guard = "assert.Enabled"
+fix = "safe"
+
+[rules.structured-error]
+enabled = true
+paths = ["storage", "bridge", "virt/hypervisor"]
+error_package = "errs"
+dialect = "constructors"
+fix = "structural"
+generate_domains = true
+constructor_roles = ["kind", "target"]
+
+[rules.direct-error-comparison]
+enabled = true
+paths = ["storage", "bridge", "virt/hypervisor"]
+exclude_dirs = ["storage/errs", "bridge/errs", "virt/hypervisor/libvirt/errs", "virt/hypervisor/qemu/errs"]
+error_packages = ["errs"]
+sentinel_prefix = "Err"
+
+[rules.no-any]
+enabled = true
+paths = ["storage", "bridge", "topology", "virt"]

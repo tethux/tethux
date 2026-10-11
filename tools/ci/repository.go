@@ -105,7 +105,7 @@ func (builder *repositoryWorkflowBuilder) checkFormat(after []string) (steps []c
 
 func (builder *repositoryWorkflowBuilder) lint(after []string) (steps []ciframework.Step, tail []string) {
 	steps = []ciframework.Step{
-		builder.step("repolint", builder.root, "go", []string{"run", "./tools/repolint", "."}, after),
+		builder.step("repolint", builder.root, "go", []string{"tool", "repolint", "."}, after),
 		builder.step("go-lint", builder.root, "golangci-lint", []string{"run", "-c", ".golangci.yml"}, []string{"repolint"}),
 	}
 	return steps, []string{"go-lint"}
