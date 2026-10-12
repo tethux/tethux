@@ -119,8 +119,8 @@
             cgoPcapEnv = {
               CGO_ENABLED = "1";
               CGO_CFLAGS = "-I${pkgs.libpcap}/include";
-              CGO_LDFLAGS = "-L${pkgs.libpcap.lib}/lib -lpcap";
-              LD_LIBRARY_PATH = "${pkgs.libpcap.lib}/lib";
+              CGO_LDFLAGS = "-L${pkgs.lib.getLib pkgs.libpcap}/lib -L${pkgs.lib.getLib pkgs.libelf}/lib -L${pkgs.lib.getLib pkgs.libnsl}/lib -lpcap";
+              LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.libpcap pkgs.libelf pkgs.libnsl ];
             };
             miseTaskTools = with pkgs; [
               daggerCLI

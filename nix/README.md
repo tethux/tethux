@@ -74,6 +74,10 @@ fixtures and are never uploaded with the source. Run only that suite with
 `go run ./tools/ci run remote-dynamips --host ci@10.0.0.100 --archive` or the same
 command targeting `ci@10.0.0.78`.
 
+The development shells export explicit libpcap, libelf, and libnsl linker paths
+through `CGO_LDFLAGS` and `LD_LIBRARY_PATH`. The CI runner preserves those values
+when rebuilding the multicall binary for privileged provider tests.
+
 ## Test archives
 
 Archive-aware runs write:
