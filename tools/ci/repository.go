@@ -14,9 +14,11 @@ import (
 
 const repositoryStepTimeout = 30 * time.Minute
 
+const requiredArchitectureRules = "package-boundaries,no-discarded-cleanup-error,cleanup-context-policy,subprocess-context,blocking-under-lock,suppression-policy"
+
 func repositoryTaskCommand(ctx context.Context, args []string) error {
 	if len(args) != 1 {
-		return usageError("task requires one of format, check-format, lint, test, build, or check")
+		return usageError("task requires one of format, check-format, lint, lint-architecture, test, build, or check")
 	}
 	root, err := ciframework.RepositoryRoot()
 	if err != nil {
@@ -47,6 +49,8 @@ func repositoryWorkflow(root, name string) (ciframework.Workflow, error) {
 		steps, _ = builder.checkFormat(nil)
 	case "lint":
 		steps, _ = builder.lint(nil)
+	case "lint-architecture":
+		steps, _ = builder.architecture(nil)
 	case "test":
 		steps, _ = builder.test(nil)
 	case "build":
@@ -106,9 +110,18 @@ func (builder *repositoryWorkflowBuilder) checkFormat(after []string) (steps []c
 func (builder *repositoryWorkflowBuilder) lint(after []string) (steps []ciframework.Step, tail []string) {
 	steps = []ciframework.Step{
 		builder.step("repolint", builder.root, "go", []string{"tool", "repolint", "."}, after),
-		builder.step("go-lint", builder.root, "golangci-lint", []string{"run", "-c", ".golangci.yml"}, []string{"repolint"}),
+		builder.step("repolint-architecture", builder.root, "go", architectureArgs(), []string{"repolint"}),
+		builder.step("go-lint", builder.root, "golangci-lint", []string{"run", "-c", ".golangci.yml"}, []string{"repolint-architecture"}),
 	}
 	return steps, []string{"go-lint"}
+}
+
+func architectureArgs() []string {
+	return []string{"tool", "repolint", "--require-rules=" + requiredArchitectureRules, "--config", ".repolint-architecture.toml", "."}
+}
+
+func (builder *repositoryWorkflowBuilder) architecture(after []string) (steps []ciframework.Step, tail []string) {
+	return []ciframework.Step{builder.step("repolint-architecture", builder.root, "go", architectureArgs(), after)}, []string{"repolint-architecture"}
 }
 
 func (builder *repositoryWorkflowBuilder) test(after []string) (steps []ciframework.Step, tail []string) {

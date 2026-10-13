@@ -149,17 +149,9 @@ run = "go tool repolint --fix ."
 
 
 [tasks."lint:architecture"]
-description = "Check repository contracts with repolint"
-run = '''
-root="$PWD"
-if [ -n "${REPOLINT_BIN:-}" ]; then
-  "$REPOLINT_BIN" --require-rules=package-boundaries,no-discarded-cleanup-error,cleanup-context-policy,subprocess-context,blocking-under-lock,suppression-policy --config "$root/.repolint-architecture.toml" "$root"
-else
-  source="${REPOLINT_SOURCE:-../repolint}"
-  if [ ! -f "$source/go.mod" ]; then
-    echo "repolint checkout missing: $source; set REPOLINT_SOURCE or REPOLINT_BIN" >&2
-    exit 2
-  fi
-  go -C "$source" run ./cmd/repolint --require-rules=package-boundaries,no-discarded-cleanup-error,cleanup-context-policy,subprocess-context,blocking-under-lock,suppression-policy --config "$root/.repolint-architecture.toml" "$root"
-fi
-'''
+description = "Check repository contracts with the pinned repolint tool"
+run = "go run ./tools/ci task lint-architecture"
+
+[tasks."test:mixed"]
+description = "Run the all-provider Ethernet topology and lifecycle checks"
+run = "go run ./tools/ci run mixed --archive --archive-root ${ARCHIVE_ROOT:-./results/archive}"

@@ -74,11 +74,18 @@ func TestRepositoryCheckIsOneDeclarativeWorkflow(t *testing.T) {
 	if err := ciframework.ValidateWorkflow(workflow); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"goimports-check", "go-lint", "go-test", "build-tethux", "build-ci"} {
+	for _, name := range []string{"goimports-check", "repolint-architecture", "go-lint", "go-test", "build-tethux", "build-ci"} {
 		step := workflowStep(t, &workflow, name)
 		if step.Command == "mise" || step.Timeout == 0 {
 			t.Fatalf("step %q is not a complete command declaration: %+v", name, step)
 		}
+	}
+	architecture := workflowStep(t, &workflow, "repolint-architecture")
+	if architecture.Command != "go" || !slices.Contains(architecture.Args, "--require-rules="+requiredArchitectureRules) || !slices.Contains(architecture.Args, ".repolint-architecture.toml") {
+		t.Fatalf("architecture policies are not enforced by the pinned tool: %#v", architecture)
+	}
+	if !slices.Equal(workflowStep(t, &workflow, "go-lint").DependsOn, []string{"repolint-architecture"}) {
+		t.Fatal("golangci-lint must depend on architecture policy checks")
 	}
 	if !workflowStep(t, &workflow, "goimports-check").RequireEmptyStdout {
 		t.Fatal("goimports check does not declare its stdout contract")

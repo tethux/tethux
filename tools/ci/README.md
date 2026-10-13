@@ -15,6 +15,7 @@ The Go command owns the monorepo quality gates:
 ```console
 go run ./tools/ci task format
 go run ./tools/ci task lint
+go run ./tools/ci task lint-architecture
 go run ./tools/ci task test
 go run ./tools/ci task build
 go run ./tools/ci task check
@@ -23,6 +24,13 @@ go run ./tools/ci task check
 The matching `mise run fmt`, `lint`, `test`, `build`, and `check` tasks are
 short aliases. Add repository-wide behavior to `repository.go`, not to
 `mise.toml`.
+
+The lint gate runs the pinned repolint release against `.repolint.toml` and
+`.repolint-architecture.toml` before golangci-lint. Architecture checks require
+all six configured policy rules to remain enabled and nonempty in scope;
+unknown required rules also fail. `mise run lint:architecture` selects only
+that step. Local checks, GitHub Actions, and Dagger share these declarations,
+so normal CI needs no sibling repolint checkout.
 
 ## Dagger and SigNoz
 

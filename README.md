@@ -133,7 +133,6 @@ Enter the development shell and run the normal checks:
 ```bash
 nix develop
 mise run check
-mise run lint:architecture
 go run ./cmd/tethux --help
 ```
 
@@ -160,10 +159,10 @@ lab host. Privileged suites run only when explicitly selected. The combined
 Commands are documented in
 [`nix/README.md`](nix/README.md).
 
-`lint:architecture` checks package boundaries, cleanup, subprocess contexts,
-blocking operations, and suppressions using `../repolint` (override with
-`REPOLINT_SOURCE` or provide a checker through `REPOLINT_BIN`). Its policies live in `.repolint-architecture.toml` while the
-published Go tool continues using `.repolint.toml`. Move these policies into the
-main quality gate when a repolint release includes the new rules. Cleanup policies
-also reject ignored release errors and require the bounded cleanup context helper
-in workload manager rollback paths.
+`mise run lint` and `mise run check` run the pinned repolint Go tool against
+both `.repolint.toml` and `.repolint-architecture.toml`. The architecture gate
+checks package boundaries, cleanup errors and contexts, subprocess contexts,
+blocking operations, and suppressions. `--require-rules` rejects disabled,
+unknown, or empty required policies. `mise run lint:architecture` runs that
+same gate independently; no sibling checkout is needed. Cleanup policies
+require the bounded cleanup context helper in workload manager rollback paths.

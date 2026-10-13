@@ -920,7 +920,7 @@ func printUsage(output io.Writer) {
 	_, _ = fmt.Fprintln(output, `usage: tethux-ci GROUP COMMAND [flags]
 
 groups:
-	  task      format, check-format, lint, test, build, check
+	  task      format, check-format, lint, lint-architecture, test, build, check
 	  laptop    run the useful laptop integration suite
 	  bridge    list, test, udp-loss, topology, all
 	run       normal, laptop, local, remote-laptop, remote-dynamips, remote-mixed, cross-laptop,
