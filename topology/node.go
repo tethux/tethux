@@ -11,7 +11,7 @@ const (
 	NodeKindContainer NodeKind = "container"
 	// NodeKindDomain identifies a virtual machine workload.
 	NodeKindDomain NodeKind = "domain"
-	// NodeKindShitnet identifies a future shitnet provider workload.
+	// NodeKindShitnet identifies a native IPv4 endpoint.
 	NodeKindShitnet NodeKind = "shitnet"
 	// NodeKindDynamips identifies a Dynamips router workload.
 	NodeKindDynamips NodeKind = "dynamips"
@@ -67,9 +67,10 @@ func (DomainSpec) Kind() NodeKind {
 	return NodeKindDomain
 }
 
-// ShitnetSpec reserves a node kind for the future provider.
+// ShitnetSpec assigns an IPv4 address and Ethernet MAC to a native endpoint.
 type ShitnetSpec struct {
-	// Whenever i add the provider
+	IP  string
+	MAC string
 }
 
 func (ShitnetSpec) nodeSpec() {}

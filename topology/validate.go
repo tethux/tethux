@@ -3,6 +3,8 @@ package topology
 import (
 	"fmt"
 	"math"
+	"net"
+	"net/netip"
 	"strings"
 
 	"github.com/tethux/tethux/topology/errs"
@@ -107,6 +109,11 @@ func validateNode(node Node) error {
 				fmt.Sprintf("domain %q requires an image", node.ID))
 		}
 	case ShitnetSpec:
+		ip, ipErr := netip.ParseAddr(spec.IP)
+		mac, macErr := net.ParseMAC(spec.MAC)
+		if ipErr != nil || !ip.Is4() || ip.IsUnspecified() || macErr != nil || len(mac) != 6 || mac[0]&1 != 0 {
+			return errs.New("validate topology node", errs.ErrInvalidNode, "Shitnet requires an IPv4 address and unicast Ethernet MAC")
+		}
 	case DynamipsSpec:
 		if spec.Image == "" {
 			return errs.New("validate topology node", errs.ErrInvalidNode,

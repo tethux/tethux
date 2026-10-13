@@ -1,0 +1,21 @@
+id = "shitnet-pair"
+
+[[nodes]]
+id = "a"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.shitnet]
+ip = "10.77.0.1"
+mac = "02:00:00:00:00:01"
+
+[[nodes]]
+id = "b"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.shitnet]
+ip = "10.77.0.2"
+mac = "02:00:00:00:00:02"
+
+[[links]]
+id = "a-b"
+kind = "ethernet"
+a = { node = "a", port = "eth0" }
+b = { node = "b", port = "eth0" }

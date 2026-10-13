@@ -88,7 +88,7 @@ type nodeDocument struct {
 	Ports     []portDocument     `toml:"ports"`
 	Container *containerDocument `toml:"container"`
 	Domain    *domainDocument    `toml:"domain"`
-	Shitnet   *struct{}          `toml:"shitnet"`
+	Shitnet   *shitnetDocument   `toml:"shitnet"`
 	Dynamips  *dynamipsDocument  `toml:"dynamips"`
 }
 
@@ -101,6 +101,11 @@ type containerDocument struct {
 type envDocument struct {
 	Name  string `toml:"name"`
 	Value string `toml:"value"`
+}
+
+type shitnetDocument struct {
+	IP  string `toml:"ip"`
+	MAC string `toml:"mac"`
 }
 
 type domainDocument struct {
@@ -150,7 +155,7 @@ func (node *nodeDocument) spec() (topology.NodeSpec, error) {
 	}
 	if node.Shitnet != nil {
 		count++
-		result = topology.ShitnetSpec{}
+		result = topology.ShitnetSpec{IP: node.Shitnet.IP, MAC: node.Shitnet.MAC}
 	}
 	if node.Dynamips != nil {
 		count++

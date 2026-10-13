@@ -92,14 +92,15 @@
             install -Dm755 dagger "$out/bin/dagger"
           '';
         };
+        shitnet = import ./nix/shitnet.nix { inherit pkgs; };
         goInputs = {
           src = ./.;
           postPatch = ''
             rm -rf vendor
           '';
-          vendorHash = "sha256-cLVMEKj6TOWY82VUbctH+5bAsHd98VtcloRjrzpBPzg=";
+          vendorHash = "sha256-78ZZNb5dB4yBG2FJ2pCwIyhQQnayE1w+LHaeMpbgJmA=";
           nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = [ pkgs.libpcap pkgs.libvirt pkgs.libelf pkgs.libnsl ];
+          buildInputs = [ pkgs.libpcap pkgs.libvirt pkgs.libelf pkgs.libnsl shitnet ];
         };
         tethux = pkgs.buildGoModule (goInputs // {
           pname = "tethux";
@@ -109,7 +110,7 @@
       in
       {
         packages = {
-          inherit tethux;
+          inherit tethux shitnet;
           libvirtFixture = alpineCloudImage;
           default = tethux;
         };
@@ -139,6 +140,7 @@
               // {
                 MISE_ENABLE_TOOLS = "";
                 packages = miseTaskTools ++ (with pkgs; [
+                  shitnet
                   bashInteractive
                   docker-client
                   git
@@ -161,6 +163,7 @@
                 TETHUX_LIBVIRT_IMAGE = alpineCloudImage;
                 packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
+                  shitnet
                   bridge-utils
                   containerd
                   curl
@@ -189,6 +192,7 @@
               // {
                 packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
+                  shitnet
                   bridge-utils
                   curl
                   dynamips

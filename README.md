@@ -24,6 +24,7 @@ and examples live in the README nearest each subsystem.
 | `storage/` | Public storage abstractions and local provider | [README](storage/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/storage) |
 | `virt/` | Public workload, container, and virtual-machine APIs | [README](virt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt) |
 | `virt/hypervisor/libvirt/` | Public libvirt domain provider | [README](virt/hypervisor/libvirt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt/hypervisor/libvirt) |
+| `virt/emulator/shitnet/` | Native IPv4 endpoints over UDP Ethernet | [README](virt/emulator/shitnet/README.md) |
 | `virt/emulator/dynamips/` | Embedded router lifecycle and persistent state | [README](virt/emulator/dynamips/README.md) |
 | `tools/` | Repository CI, archive, and host tooling | [`tools/README.md`](tools/README.md) |
 | `tools/ci/` | Unified repository test, archive, and host CLI | [`tools/ci/README.md`](tools/ci/README.md) |
@@ -40,6 +41,7 @@ and examples live in the README nearest each subsystem.
 - a common lifecycle API over Docker, Podman, and containerd;
 - a libvirt domain provider with lifecycle events, storage preparation, serial
   consoles, SPICE displays, and bridged networking;
+- Shitnet IPv4 endpoints with native ARP/ICMP and context-bounded ping probes;
 - embedded Dynamips routers with persistent NVRAM/disks, enhanced consoles,
   Ethernet links, and a real IOS topology CI suite;
 - JSON Lines provider tests covering two images and every provider operation;
@@ -86,7 +88,8 @@ The multicall binary also embeds Dynamips. Its bundled native archives target
 Linux amd64 and need libelf, libpcap, libnsl, and the C++ runtime. On Debian/Ubuntu,
 install `libelf-dev`, `libpcap-dev`, and `libnsl-dev` alongside libvirt. The Nix
 development shell supplies these dependencies. Dynamips bindings are pinned to
-a published Go module revision; no sibling checkout is required.
+a published Go module revision; no sibling checkout is required. Shitnet requires
+its native pkg-config package; the Nix shell builds the pinned upstream source.
 
 Releases use semantic `vX.Y.Z` Git tags. Go tooling and pkg.go.dev discover the
 public packages from those tags, so documentation and API changes are tagged

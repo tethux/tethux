@@ -72,10 +72,11 @@ slot and port numbers.
 A view's `nodes` place `{ node, position = { x, y } }` entries, while `links`
 provide `{ link, points = [{ x, y }] }` entries.
 
-The current local runner accepts container and Dynamips specs with Ethernet ports/links.
+The current local runner accepts container, Dynamips, and Shitnet specs with
+Ethernet ports/links.
 Linked container port IDs become Linux interface names, must fit within 15 bytes, and
 cannot be `lo`. Unlinked ports are left unattached. MTU zero selects 1500.
-Domain, Shitnet, and serial resources are rejected before allocation.
+Domain and serial resources are rejected before allocation.
 
 ## Library use
 
@@ -145,3 +146,18 @@ Library callers supply `Options.Dynamips` with a caller-owned adapter, storage
 root, and optional image override. One native runtime owns multiple router VMs;
 each router has its own leased state directory. Close the running topology
 before closing the adapter and native runtime.
+
+## Shitnet endpoints
+
+`[nodes.shitnet]` assigns an `ip` and a unicast Ethernet `mac` to a native IPv4
+endpoint with one linked Ethernet port. The [pair example](examples/shitnet-pair.toml)
+runs without root privileges. The native stack answers ARP and ICMP requests;
+its adapter also exposes context-bounded outbound `Ping` exchanges.
+
+```bash
+nix develop -c go run ./cmd/tethux topology run topology/examples/shitnet-pair.toml
+```
+
+Library callers supply `Options.Shitnet` with a caller-owned adapter. Cleanup
+closes UDP sockets, joins packet workers, and frees native stacks. The Nix
+shell supplies the pinned native pkg-config package used by the Go binding.

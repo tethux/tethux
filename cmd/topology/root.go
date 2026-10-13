@@ -23,6 +23,7 @@ import (
 	topologytoml "github.com/tethux/tethux/topology/toml"
 	"github.com/tethux/tethux/virt/container"
 	"github.com/tethux/tethux/virt/emulator/dynamips"
+	"github.com/tethux/tethux/virt/emulator/shitnet"
 )
 
 // NewRootCmd creates the topology command tree.
@@ -37,7 +38,7 @@ func newRunCmd() *cobra.Command {
 	var basePort, consoleBasePort int
 	var duration time.Duration
 	command := &cobra.Command{
-		Use: "run <file.toml|file.lua>", Short: "Run a local container or Dynamips topology until Ctrl+C",
+		Use: "run <file.toml|file.lua>", Short: "Run a local network topology until Ctrl+C",
 		Long: "Run a local topology until Ctrl+C. Files ending in .lua execute trusted Lua scripts; other files are decoded as TOML.",
 		Args: cobra.ExactArgs(1), SilenceUsage: true,
 		RunE: func(command *cobra.Command, args []string) (resultErr error) {
@@ -45,10 +46,11 @@ func newRunCmd() *cobra.Command {
 			if decodeErr != nil {
 				return decodeErr
 			}
-			var hasContainers, hasRouters bool
+			var hasContainers, hasRouters, hasEndpoints bool
 			for _, node := range top.Nodes {
 				hasContainers = hasContainers || node.Spec.Kind() == topologymodel.NodeKindContainer
 				hasRouters = hasRouters || node.Spec.Kind() == topologymodel.NodeKindDynamips
+				hasEndpoints = hasEndpoints || node.Spec.Kind() == topologymodel.NodeKindShitnet
 			}
 			if hasContainers && os.Geteuid() != 0 {
 				return errs.New("run topology", errs.ErrStart, "namespace and raw-socket privileges required")
@@ -78,10 +80,16 @@ func newRunCmd() *cobra.Command {
 				defer func() { resultErr = errors.Join(resultErr, routers.Close(), runtime.Close()) }()
 			}
 			logger := slog.New(slog.NewJSONHandler(command.ErrOrStderr(), nil)).With("topology", string(top.ID))
+			var endpoints *shitnet.Adapter
+			if hasEndpoints {
+				endpoints = &shitnet.Adapter{}
+				defer func() { resultErr = errors.Join(resultErr, endpoints.Close()) }()
+			}
 			logger.InfoContext(ctx, "Starting topology", "nodes", len(top.Nodes), "links", len(top.Links))
 			running, startErr := local.Start(ctx, top, local.Options{
 				Provider: provider, BasePort: basePort, Logger: logger,
 				Dynamips: routerOptions(routers, stateRoot, dynamipsImage, consoleBasePort),
+				Shitnet:  endpoints,
 			})
 			if startErr != nil {
 				if running != nil {

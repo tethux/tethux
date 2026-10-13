@@ -17,12 +17,14 @@ import (
 	"github.com/tethux/tethux/virt"
 	"github.com/tethux/tethux/virt/container"
 	"github.com/tethux/tethux/virt/emulator/dynamips"
+	"github.com/tethux/tethux/virt/emulator/shitnet"
 )
 
 // Options selects host resources without changing the declarative topology.
 type Options struct {
 	Provider container.ContainerProvider
 	Dynamips *DynamipsOptions
+	Shitnet  *shitnet.Adapter
 	// Logger receives lifecycle progress. Nil disables logging.
 	Logger *slog.Logger
 	// BasePort starts consecutive loopback UDP port pairs. Zero selects 23000.
@@ -32,19 +34,21 @@ type Options struct {
 // Running owns the workloads and bridges created by Start.
 // Call Close with a live context when finished. Methods are not concurrent-safe.
 type Running struct {
-	provider container.ContainerProvider
-	logger   *slog.Logger
-	nodes    map[topology.NodeID]string
-	order    []topology.NodeID
-	bridges  []*bridge.ContainerBridge
-	dynamips *dynamips.Adapter
-	manager  *dynamips.Manager
-	routers  map[topology.NodeID]*dynamips.PreparedResources
+	provider  container.ContainerProvider
+	logger    *slog.Logger
+	nodes     map[topology.NodeID]string
+	order     []topology.NodeID
+	bridges   []*bridge.ContainerBridge
+	dynamips  *dynamips.Adapter
+	manager   *dynamips.Manager
+	routers   map[topology.NodeID]*dynamips.PreparedResources
+	shitnet   *shitnet.Adapter
+	endpoints map[topology.NodeID]struct{}
 }
 
 // Start creates workloads and connects the declared Ethernet links.
-// Missing images are pulled through the provider. Only container specs and
-// Ethernet ports are supported. Linked port IDs become container interface names.
+// Missing container images are pulled through their provider. Containers,
+// Dynamips routers, and Shitnet endpoints support Ethernet links. Linked port IDs become container interface names.
 // Unlinked ports are left unattached. The caller needs namespace and raw-socket
 // privileges on the host running the containers. A failed start rolls back its resources.
 // If rollback fails, the caller owns the returned Running handle and must retry Close.
@@ -71,6 +75,7 @@ func Start(ctx context.Context, top *topology.Topology, options Options) (*Runni
 		bridges:  make([]*bridge.ContainerBridge, 0, 2*len(top.Links)),
 		dynamips: nil,
 		routers:  make(map[topology.NodeID]*dynamips.PreparedResources),
+		shitnet:  options.Shitnet, endpoints: make(map[topology.NodeID]struct{}),
 	}
 	if options.Dynamips != nil {
 		manager, managerErr := routerManager(options.Dynamips.StateRoot)
@@ -113,6 +118,10 @@ func validateSupport(top *topology.Topology, options Options) error {
 			if options.Dynamips == nil || options.Dynamips.Provider == nil || options.Dynamips.StateRoot == "" {
 				return errs.New("start local topology", errs.ErrStart, "Dynamips provider and state root are required")
 			}
+		case topology.ShitnetSpec:
+			if options.Shitnet == nil || len(node.Ports) != 1 {
+				return errs.New("start local topology", errs.ErrUnsupported, "Shitnet requires a provider and one Ethernet port")
+			}
 		default:
 			return errs.New("start local topology", errs.ErrUnsupported, fmt.Sprintf("node %q has an unsupported workload", node.ID))
 		}
@@ -139,6 +148,12 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, options O
 	basePort := options.BasePort
 	pids := make(map[topology.NodeID]int, len(top.Nodes))
 	for index, node := range top.Nodes {
+		if spec, isEndpoint := node.Spec.(topology.ShitnetSpec); isEndpoint {
+			if endpointErr := run.startEndpoint(ctx, top, &node, &spec, basePort); endpointErr != nil {
+				return endpointErr
+			}
+			continue
+		}
 		if spec, isRouter := node.Spec.(topology.DynamipsSpec); isRouter {
 			if routerErr := run.startRouter(ctx, top, &node, &spec, options, token, index); routerErr != nil {
 				return routerErr
@@ -195,6 +210,9 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, options O
 			mtu = 1500
 		}
 		for side, endpoint := range []topology.Endpoint{link.A, link.B} {
+			if _, isEndpoint := run.endpoints[endpoint.Node]; isEndpoint {
+				continue
+			}
 			if _, isRouter := run.routers[endpoint.Node]; isRouter {
 				continue
 			}
@@ -220,6 +238,9 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, options O
 
 // ContainerID resolves a topology node to its provider's runtime identity.
 func (run *Running) ContainerID(node topology.NodeID) (string, error) {
+	if _, isEndpoint := run.endpoints[node]; isEndpoint {
+		return "", errs.New("find local container", errs.ErrUnsupported, string(node))
+	}
 	if _, isRouter := run.routers[node]; isRouter {
 		return "", errs.New("find local container", errs.ErrUnsupported, string(node))
 	}
@@ -252,6 +273,15 @@ func (run *Running) Close(ctx context.Context) error {
 			continue
 		}
 		run.logger.InfoContext(ctx, "Removing node", "node", node)
+		if _, isEndpoint := run.endpoints[node]; isEndpoint {
+			if deleteErr := run.shitnet.Delete(ctx, id); deleteErr != nil {
+				failures = append(failures, deleteErr)
+				continue
+			}
+			delete(run.endpoints, node)
+			delete(run.nodes, node)
+			continue
+		}
 		if resources, isRouter := run.routers[node]; isRouter {
 			routerErr := run.manager.Delete(ctx, run.dynamips, id, resources)
 			if routerErr != nil {

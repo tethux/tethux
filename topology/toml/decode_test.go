@@ -35,7 +35,7 @@ func TestDecode(t *testing.T) {
 		topology.ContainerSpec{Image: "alpine:3.23", Command: []string{"sleep", "infinity"}, Env: []topology.Env{{Name: "ROLE", Value: "client"}}},
 		topology.DomainSpec{Image: "alpine.qcow2", CPUs: 2, MemoryMB: 512},
 		topology.DynamipsSpec{Image: "router.bin", RAMMB: 256},
-		topology.ShitnetSpec{},
+		topology.ShitnetSpec{IP: "10.77.0.2", MAC: "02:00:00:00:00:02"},
 	}
 	for index, want := range wantSpecs {
 		if !reflect.DeepEqual(top.Nodes[index].Spec, want) {

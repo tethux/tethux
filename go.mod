@@ -16,6 +16,7 @@ require (
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/spf13/cobra v1.10.1
 	github.com/tethux/dynamips-downgrade v0.2.28-0.20261012153035-e77e6d5c9fc0
+	github.com/tethux/shitnet v0.0.3-0.20261012154746-f5fdf6cdbea5
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/yuin/gopher-lua v1.1.2
@@ -60,7 +61,6 @@ require (
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tethux/repolint v0.2.1 // indirect
-	github.com/tethux/shitnet v0.0.3-0.20261012154746-f5fdf6cdbea5 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect

@@ -15,6 +15,10 @@ import (
 
 func logSummary(ctx context.Context, logger *slog.Logger, top *topology.Topology, run *local.Running, provider container.ContainerProvider, routers *dynamips.Adapter) error {
 	for _, node := range top.Nodes {
+		if spec, isEndpoint := node.Spec.(topology.ShitnetSpec); isEndpoint {
+			logger.InfoContext(ctx, "Topology endpoint", "node", node.ID, "ipv4", spec.IP, "mac", spec.MAC)
+			continue
+		}
 		if node.Spec.Kind() == topology.NodeKindDynamips {
 			router, reloadErr := routers.Reload(ctx, string(node.ID))
 			if reloadErr != nil {
