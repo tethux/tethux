@@ -1,0 +1,95 @@
+id = "provider-matrix"
+
+[[nodes]]
+id = "r1"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.dynamips]
+image = "c7200-a3jk9s-mz.124-25g.bin"
+ram_mb = 512
+platform = "c7200"
+cards = [{ slot = 1, name = "PA-FE-TX" }]
+interfaces = [{ id = "eth0", slot = 1, port = 0 }]
+startup_config = """
+hostname R1
+no ip domain-lookup
+interface FastEthernet1/0
+ ip address 10.77.0.1 255.255.255.0
+ no shutdown
+end
+"""
+
+[[nodes]]
+id = "docker"
+ports = [{ id = "eth0", kind = "ethernet" }, { id = "eth1", kind = "ethernet" }]
+[nodes.container]
+provider = "docker"
+image = "127.0.0.1:5000/tethux/fixture-a:1"
+command = ["sh", "-ec", "until ip link show eth0 >/dev/null 2>&1 && ip link show eth1 >/dev/null 2>&1; do sleep 0.1; done; ip link add br0 type bridge; ip link set eth0 master br0; ip link set eth1 master br0; ip link set br0 up; exec sleep infinity"]
+
+[[nodes]]
+id = "podman"
+ports = [{ id = "eth0", kind = "ethernet" }, { id = "eth1", kind = "ethernet" }]
+[nodes.container]
+provider = "podman"
+image = "127.0.0.1:5000/tethux/fixture-a:1"
+command = ["sh", "-ec", "until ip link show eth0 >/dev/null 2>&1 && ip link show eth1 >/dev/null 2>&1; do sleep 0.1; done; ip link add br0 type bridge; ip link set eth0 master br0; ip link set eth1 master br0; ip link set br0 up; exec sleep infinity"]
+
+[[nodes]]
+id = "containerd"
+ports = [{ id = "eth0", kind = "ethernet" }, { id = "eth1", kind = "ethernet" }]
+[nodes.container]
+provider = "containerd"
+image = "127.0.0.1:5000/tethux/fixture-a:1"
+command = ["sh", "-ec", "until ip link show eth0 >/dev/null 2>&1 && ip link show eth1 >/dev/null 2>&1; do sleep 0.1; done; ip link add br0 type bridge; ip link set eth0 master br0; ip link set eth1 master br0; ip link set br0 up; exec sleep infinity"]
+
+[[nodes]]
+id = "vm"
+ports = [{ id = "eth0", kind = "ethernet" }, { id = "eth1", kind = "ethernet" }]
+[nodes.domain]
+image = "alpine.qcow2"
+seed_image = "bridge-seed.iso"
+cpus = 1
+memory_mb = 256
+
+[[nodes]]
+id = "pc"
+ports = [{ id = "eth0", kind = "ethernet" }]
+[nodes.shitnet]
+ip = "10.77.0.2"
+mac = "02:00:00:00:00:02"
+
+[[links]]
+id = "r1-docker"
+kind = "ethernet"
+mtu = 1500
+a = { node = "r1", port = "eth0" }
+b = { node = "docker", port = "eth0" }
+
+[[links]]
+id = "docker-podman"
+kind = "ethernet"
+mtu = 1500
+a = { node = "docker", port = "eth1" }
+b = { node = "podman", port = "eth0" }
+
+[[links]]
+id = "podman-containerd"
+kind = "ethernet"
+mtu = 1500
+a = { node = "podman", port = "eth1" }
+b = { node = "containerd", port = "eth0" }
+
+[[links]]
+id = "containerd-vm"
+kind = "ethernet"
+mtu = 1500
+a = { node = "containerd", port = "eth1" }
+b = { node = "vm", port = "eth0" }
+
+[[links]]
+id = "vm-pc"
+kind = "ethernet"
+mtu = 1500
+a = { node = "vm", port = "eth1" }
+b = { node = "pc", port = "eth0" }
+

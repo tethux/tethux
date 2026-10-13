@@ -1,13 +1,24 @@
 package ci
 
 import (
+	"os"
 	"path/filepath"
 	"time"
 )
 
 func BuiltinWorkflows(root string) []Workflow {
+	image := os.Getenv("TETHUX_DYNAMIPS_IMAGE")
+	if image == "" {
+		image = filepath.Join(os.Getenv("HOME"), ".local", "share", "tethux", "images", "cisco", "c7200-a3jk9s-mz.124-25g.bin")
+	}
 	artifactDir := filepath.Join(root, "results", "current", "artifacts")
 	return []Workflow{
+		{Name: "mixed", Description: "all-provider Ethernet topology and lifecycle", Steps: []Step{{
+			Name: "provider-matrix", Command: "go", Args: []string{"run", "./tools/topology/testing/provider-matrix", "--image", image},
+			Dir: root, Privilege: PrivilegeRoot, Timeout: 8 * time.Minute,
+			Outputs:       []Output{{Name: "provider-matrix", Path: filepath.Join(artifactDir, "provider-matrix.jsonl"), Kind: "application/x-ndjson"}},
+			CaptureStdout: filepath.Join(artifactDir, "provider-matrix.jsonl"),
+		}}},
 		{Name: "dynamips", Description: "real IOS topology, lifecycle, persistence, and CLI", Steps: []Step{{
 			Name: "dynamips-topology", Command: "go", Args: []string{"run", "./tools/dynamips/testing/topology-smoke"},
 			Dir: root, Timeout: 8 * time.Minute,

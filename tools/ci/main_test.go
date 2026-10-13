@@ -21,6 +21,7 @@ func TestLaptopWorkflowRunsContainerIntegration(t *testing.T) {
 		"topology":          false,
 		"libvirt-network":   false,
 		"dynamips-topology": false,
+		"provider-matrix":   false,
 	}
 	for _, step := range workflow.Steps {
 		if _, ok := wanted[step.Name]; ok {
@@ -31,6 +32,10 @@ func TestLaptopWorkflowRunsContainerIntegration(t *testing.T) {
 		if !found {
 			t.Errorf("laptop workflow is missing host integration step %q", name)
 		}
+	}
+	matrix := workflowStep(t, &workflow, "provider-matrix")
+	if !slices.Equal(matrix.DependsOn, []string{"build-cli"}) || matrix.Privilege != ciframework.PrivilegeRoot {
+		t.Fatalf("mixed graph needs the CLI and root: %#v", matrix)
 	}
 	bridge := workflowStep(t, &workflow, "bridge")
 	if len(bridge.DependsOn) != 1 || bridge.DependsOn[0] != "build-cli" {

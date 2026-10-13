@@ -77,8 +77,8 @@ go run ./tools/ci run remote-laptop \
 ```
 
 Available workflow names are `normal`, `laptop`, `local`, `remote-laptop`,
-`remote-dynamips`, `cross-laptop`, `provider`, `topology`, `bridge`, `libvirt`,
-and `dynamips`.
+`remote-dynamips`, `remote-mixed`, `cross-laptop`, `provider`, `topology`, `bridge`, `libvirt`,
+`dynamips`, and `mixed`.
 
 The Docker laptop runs the Lua chain and TOML pair on Docker, Podman, and
 containerd. The Podman laptop runs those graphs on Podman. Cross-laptop CI
@@ -149,3 +149,25 @@ boots the real CLI and native two-router example, checks bidirectional IOS
 pings, suspend/resume/restart/stop, saved NVRAM, and signal cleanup. It is also
 included in the laptop workflow. Routers use temporary leased directories
 that are removed after the test.
+
+## All-provider integration
+
+Both laptops run [provider-matrix.toml](../../topology/examples/provider-matrix.toml):
+IOS → Docker → Podman → containerd → Alpine/libvirt → Shitnet. Each intermediate
+workload forwards Ethernet between two isolated links. The driver checks all six
+providers are running, bidirectional ICMP, loss of connectivity while the guest is
+suspended, recovery on resume and Shitnet restart, and CLI shutdown on SIGINT.
+No provider is skipped or replaced when unavailable. Output is captured as JSONL.
+
+```bash
+mise run test:mixed
+mise exec -- go run ./tools/ci run remote-mixed --host ci@10.0.0.100 --archive
+mise exec -- go run ./tools/ci run remote-mixed --host ci@10.0.0.78 --archive
+```
+
+The integration shell supplies Shitnet's native pkg-config library, Alpine,
+QEMU, and xorriso. IOS remains an operator-owned local fixture selected by
+`TETHUX_DYNAMIPS_IMAGE`; its path is resolved before sudo. The test creates a
+Tiny Cloud seed ISO that bridges `eth0` and `eth1` inside the guest. Domain overlays,
+interfaces, sockets, containers, and temporary fixture files are released after
+both API and CLI phases. Router state uses the test's temporary storage root.

@@ -87,13 +87,16 @@ func runCommand(ctx context.Context, args []string) error {
 		return errors.New("repository root could not be determined")
 	}
 
-	if name == "remote-laptop" || name == "remote-dynamips" {
+	if name == "remote-laptop" || name == "remote-dynamips" || name == "remote-mixed" {
 		if *host == "" {
 			return errors.New("--host is required")
 		}
 		workflow := "laptop"
 		if name == "remote-dynamips" {
 			workflow = "dynamips"
+		}
+		if name == "remote-mixed" {
+			workflow = "mixed"
 		}
 		return runRemoteWorkflow(ctx, *root, *host, *jump, *runtimeName, *archiveRoot, *device, workflow, *archiveEnabled, *dryRun)
 	}
@@ -365,7 +368,7 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 				workflow.Steps[0].Args = []string{"run", "./tools/bridge/example/container-udp", "--runtime", runtimeName}
 			}
 		}
-		if name == "bridge" || name == "dynamips" {
+		if name == "bridge" || name == "dynamips" || name == "mixed" {
 			cliPath := filepath.Join(root, "results", "current", "artifacts", "tethux")
 			workflow.Steps[0].Args = append(workflow.Steps[0].Args, "--tethux", cliPath)
 			workflow.Steps[0].DependsOn = []string{"build-cli"}
@@ -390,10 +393,11 @@ func workflowFor(name, root, runtimeName, provider, runID string) (ciframework.W
 	}}
 	libvirt, _ := registry.Workflow("libvirt")
 	dynamips, _ := registry.Workflow("dynamips")
-	for _, group := range [][]ciframework.Step{backends.Steps, providers.Steps, topology.Steps, libvirt.Steps, dynamips.Steps} {
+	mixed, _ := registry.Workflow("mixed")
+	for _, group := range [][]ciframework.Step{backends.Steps, providers.Steps, topology.Steps, libvirt.Steps, dynamips.Steps, mixed.Steps} {
 		for _, step := range group {
 			step.DependsOn = nil
-			if step.Name == "bridge" || step.Name == "dynamips-topology" {
+			if step.Name == "bridge" || step.Name == "dynamips-topology" || step.Name == "provider-matrix" {
 				step.Args = append(step.Args, "--tethux", cliPath)
 				step.DependsOn = []string{"build-cli"}
 			}
@@ -917,8 +921,8 @@ groups:
 	  task      format, check-format, lint, test, build, check
 	  laptop    run the useful laptop integration suite
 	  bridge    list, test, udp-loss, topology, all
-	run       normal, laptop, local, remote-laptop, remote-dynamips, cross-laptop,
-	            provider, topology, bridge, libvirt, dynamips
+	run       normal, laptop, local, remote-laptop, remote-dynamips, remote-mixed, cross-laptop,
+	            provider, topology, bridge, libvirt, dynamips, mixed
   archive   run, finalize, publish, inventory
   host      discover, audit, install
 

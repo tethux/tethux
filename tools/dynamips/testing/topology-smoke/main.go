@@ -2,25 +2,21 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"net"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/tethux/tethux/internal/cleanup"
+	"github.com/tethux/tethux/internal/integration/ios"
 
 	native "github.com/tethux/dynamips-downgrade"
 	"github.com/tethux/dynamips-downgrade/console"
@@ -30,8 +26,6 @@ import (
 	"github.com/tethux/tethux/virt/emulator/dynamips"
 	"github.com/tethux/tethux/virt/emulator/dynamips/errs"
 )
-
-var promptPattern = regexp.MustCompile(`(?:^|[\r\n])([A-Za-z][A-Za-z0-9_.-]*(?:\([^()\r\n]*\))?[>#])\s*$`)
 
 type report struct {
 	Name    string   `json:"name"`
@@ -149,11 +143,11 @@ func run(ctx context.Context, image, binary, example string, result *report) (re
 		return startErr
 	}
 	defer func() { resultErr = errors.Join(resultErr, running.Close(context.WithoutCancel(ctx))) }()
-	connections, connectionErr := readyConsoles(ctx, []int{28100, 28101})
+	connections, connectionErr := ios.Ready(ctx, []int{28100, 28101})
 	if connectionErr != nil {
 		return connectionErr
 	}
-	defer closeConsoles(connections)
+	defer func() { resultErr = errors.Join(resultErr, ios.Close(connections)) }()
 	if pingErr := pingPair(ctx, connections); pingErr != nil {
 		return pingErr
 	}
@@ -177,7 +171,7 @@ func run(ctx context.Context, image, binary, example string, result *report) (re
 		return stateErr
 	}
 	for _, input := range []string{"configure terminal", "hostname PersistedR1", "end", "write memory"} {
-		if _, commandErr := command(ctx, connections[0], input); commandErr != nil {
+		if _, commandErr := ios.Command(ctx, connections[0], input); commandErr != nil {
 			return commandErr
 		}
 	}
@@ -185,12 +179,12 @@ func run(ctx context.Context, image, binary, example string, result *report) (re
 		return restartErr
 	}
 	_ = connections[0].Close()
-	reopened, reopenErr := readyConsoles(ctx, []int{28100})
+	reopened, reopenErr := ios.Ready(ctx, []int{28100})
 	if reopenErr != nil {
 		return reopenErr
 	}
 	connections[0] = reopened[0]
-	output, versionErr := command(ctx, connections[0], "show version")
+	output, versionErr := ios.Command(ctx, connections[0], "show version")
 	if versionErr != nil || !strings.Contains(output, "PersistedR1") {
 		return errors.Join(versionErr, errs.New("verify saved NVRAM", errs.ErrLifecycle, output))
 	}
@@ -236,17 +230,17 @@ func runCLI(ctx context.Context, binary string, args []string, ports []int, ping
 			resultErr = errors.Join(resultErr, process.Wait())
 		}
 	}()
-	connections, readyErr := readyConsoles(ctx, ports)
+	connections, readyErr := ios.Ready(ctx, ports)
 	if readyErr != nil {
 		return readyErr
 	}
-	defer closeConsoles(connections)
+	defer func() { resultErr = errors.Join(resultErr, ios.Close(connections)) }()
 	if ping {
 		if pingErr := pingPair(ctx, connections); pingErr != nil {
 			return pingErr
 		}
 	} else {
-		output, commandErr := command(ctx, connections[0], "show version")
+		output, commandErr := ios.Command(ctx, connections[0], "show version")
 		if commandErr != nil || !strings.Contains(output, "Cisco IOS Software") {
 			return errors.Join(commandErr, errs.New("verify CLI IOS boot", errs.ErrLifecycle, output))
 		}
@@ -259,113 +253,11 @@ func runCLI(ctx context.Context, binary string, args []string, ports []int, ping
 	return waitErr
 }
 
-func readyConsoles(ctx context.Context, ports []int) ([]*console.Connection, error) {
-	connections := make([]*console.Connection, 0, len(ports))
-	for _, port := range ports {
-		address := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
-		var connection *console.Connection
-		for {
-			conn, dialErr := console.Dial(ctx, address)
-			if dialErr == nil {
-				connection = conn
-				break
-			}
-			timer := time.NewTimer(200 * time.Millisecond)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				closeConsoles(connections)
-				return nil, errors.Join(ctx.Err(), dialErr)
-			case <-timer.C:
-			}
-		}
-		connections = append(connections, connection)
-		prompt, _, promptErr := readPrompt(ctx, connection, true, "")
-		if promptErr != nil {
-			closeConsoles(connections)
-			return nil, promptErr
-		}
-		if strings.HasSuffix(prompt, ">") {
-			if _, enableErr := command(ctx, connection, "enable"); enableErr != nil {
-				closeConsoles(connections)
-				return nil, enableErr
-			}
-		}
-		if _, pagingErr := command(ctx, connection, "terminal length 0"); pagingErr != nil {
-			closeConsoles(connections)
-			return nil, pagingErr
-		}
-	}
-	return connections, nil
-}
-
-func closeConsoles(connections []*console.Connection) {
-	for _, connection := range connections {
-		_ = connection.Close()
-	}
-}
-
-func command(ctx context.Context, connection *console.Connection, input string) (string, error) {
-	if _, writeErr := io.WriteString(connection, input+"\r"); writeErr != nil {
-		return "", writeErr
-	}
-	_, output, readErr := readPrompt(ctx, connection, false, input)
-	if readErr != nil {
-		return output, readErr
-	}
-	if strings.Contains(output, "% Invalid") || strings.Contains(output, "% Incomplete") || strings.Contains(output, "% Error") {
-		return output, errs.New("IOS command "+input, errs.ErrLifecycle, output)
-	}
-	return output, nil
-}
-
-func readPrompt(ctx context.Context, connection *console.Connection, boot bool, input string) (prompt, transcript string, resultErr error) {
-	deadline := time.Now().Add(90 * time.Second)
-	var output bytes.Buffer
-	buffer := make([]byte, 4096)
-	lastNudge := time.Time{}
-	for time.Now().Before(deadline) {
-		if contextErr := ctx.Err(); contextErr != nil {
-			return "", output.String(), contextErr
-		}
-		if deadlineErr := connection.SetDeadline(time.Now().Add(time.Second)); deadlineErr != nil {
-			return "", output.String(), deadlineErr
-		}
-		count, readErr := connection.Read(buffer)
-		output.Write(buffer[:count])
-		text := output.String()
-		if output.Len() > 2<<20 {
-			return "", text, errs.New("read IOS prompt", errs.ErrLifecycle, "console exceeded 2 MiB")
-		}
-		if match := promptPattern.FindStringSubmatch(text); match != nil && (input == "" || strings.Contains(text, input)) {
-			return match[1], text, nil
-		}
-		if boot && time.Since(lastNudge) > 3*time.Second {
-			reply := "\r"
-			if strings.Contains(strings.ToLower(text), "initial configuration dialog") {
-				reply = "no\r"
-			}
-			if strings.Contains(strings.ToLower(text), "terminate autoinstall") {
-				reply = "yes\r"
-			}
-			if _, writeErr := io.WriteString(connection, reply); writeErr != nil {
-				return "", text, writeErr
-			}
-			lastNudge = time.Now()
-		}
-		var timeout net.Error
-		if readErr != nil && (!errors.As(readErr, &timeout) || !timeout.Timeout()) {
-			return "", text, readErr
-		}
-	}
-	return "", output.String(), errs.New("read IOS prompt", errs.ErrLifecycle, "timed out: "+output.String())
-}
-
 func pingPair(ctx context.Context, connections []*console.Connection) error {
 	for index, target := range []string{"10.77.0.2", "10.77.0.1"} {
 		passed := false
 		for attempt := 0; attempt < 3; attempt++ {
-			output, commandErr := command(ctx, connections[index], "ping "+target+" repeat 3 timeout 1")
+			output, commandErr := ios.Command(ctx, connections[index], "ping "+target+" repeat 3 timeout 1")
 			if commandErr != nil {
 				return commandErr
 			}

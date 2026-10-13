@@ -3,7 +3,7 @@
 `topology` describes workloads, logical ports, point-to-point links, and optional
 views without choosing a provider or host. `topology/toml` decodes that model,
 `topology/lua` builds it from trusted Lua scripts, and `topology/local` runs
-container and Dynamips workloads with Ethernet links on one Linux host, using
+container, domain, Dynamips, and Shitnet workloads with Ethernet links on one Linux host, using
 container providers, native router NIOs, and UDP bridges.
 
 ## Run a TOML topology
@@ -63,20 +63,23 @@ A TOML document has a required `id`, then `[[nodes]]`, `[[links]]`, and optional
 `dynamips`, or `shitnet`. Ports have explicit `id` and `kind` values. Link
 endpoints use inline tables, as in the example. Unknown fields are rejected.
 
-Container specs contain `image`, `command`, and `env`, where environment
+Container specs contain optional `provider` (docker, podman, or containerd), `image`, `command`, and `env`, where environment
 variables are `{ name = "NAME", value = "value" }` entries. Domain specs use
-`image`, `cpus`, and `memory_mb`; Dynamips specs use `image`, `ram_mb`, `platform`, optional `npe`/`midplane`,
+`image`, optional `seed_image`, `cpus`, and `memory_mb`; Dynamips specs use `image`, `ram_mb`, `platform`, optional `npe`/`midplane`,
 `console_port`, `enhanced_console`, `startup_config`, `cards`, and `interfaces`.
 Cards select native slot drivers; interfaces map logical port IDs to native
 slot and port numbers.
 A view's `nodes` place `{ node, position = { x, y } }` entries, while `links`
 provide `{ link, points = [{ x, y }] }` entries.
 
-The current local runner accepts container, Dynamips, and Shitnet specs with
+The current local runner accepts container, domain, Dynamips, and Shitnet specs with
 Ethernet ports/links.
 Linked container port IDs become Linux interface names, must fit within 15 bytes, and
 cannot be `lo`. Unlinked ports are left unattached. MTU zero selects 1500.
-Domain and serial resources are rejected before allocation.
+Serial links are rejected before allocation. Domains use temporary qcow2 overlays
+backed by the selected image. Each guest NIC connects to a separate isolated host
+bridge and UDP link; guest setup supplies forwarding or addressing. Optional seed
+ISOs are copied into the run directory. Overlays and seeds are removed at shutdown.
 
 ## Library use
 
@@ -105,6 +108,11 @@ the command's privileges. See [pair.lua](examples/pair.lua) and
 [ring.lua](examples/ring.lua).
 LuaLS definitions live in `lua/types`, with a scoped `.luarc.json` for this
 directory.
+
+`Options.Containers` maps explicit provider names to caller-owned container adapters.
+`Options.Domains` supplies a caller-owned domain provider and optional image/seed
+overrides. `Running.Node` refreshes any workload snapshot;
+`Running.ContainerProvider` returns a container node's selected adapter.
 
 `Running.ContainerID` resolves a declarative node ID to its runtime ID. The
 caller owns `Running` and must call `Close` with a live cleanup context.
@@ -161,3 +169,22 @@ nix develop -c go run ./cmd/tethux topology run topology/examples/shitnet-pair.t
 Library callers supply `Options.Shitnet` with a caller-owned adapter. Cleanup
 closes UDP sockets, joins packet workers, and frees native stacks. The Nix
 shell supplies the pinned native pkg-config package used by the Go binding.
+
+## Cross-provider graph
+
+[provider-matrix.toml](examples/provider-matrix.toml) connects IOS to Shitnet
+through Docker, Podman, containerd, and an Alpine libvirt guest. Every intermediate
+workload bridges its two Ethernet ports. Explicit container providers are required;
+unavailable providers fail startup.
+
+```bash
+# Supply absolute paths to the local IOS image, Alpine qcow2, and bridge seed ISO.
+pkexec "$PWD/tethux" topology run "$PWD/topology/examples/provider-matrix.toml" \
+  --dynamips-image /absolute/path/to/c7200.bin \
+  --domain-image /absolute/path/to/alpine.qcow2 \
+  --domain-seed-image /absolute/path/to/bridge-seed.iso
+```
+
+`tools/ci run mixed` builds the seed, checks native and IOS pings in both directions,
+pauses the guest to verify the path breaks, resumes it, restarts Shitnet, and runs
+the same graph through the CLI. Both laptop CI workflows include this graph.
