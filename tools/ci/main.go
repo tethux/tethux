@@ -874,7 +874,9 @@ func writeJSON(path string, value any) error {
 }
 
 func commandOutput(dir, name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	output, err := cmd.Output()
 	return strings.TrimSpace(string(output)), err

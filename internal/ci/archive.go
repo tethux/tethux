@@ -178,8 +178,7 @@ func writeArchiveDone(archivePath string) error {
 	}
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
-		_ = file.Close()
-		return err
+		return errors.Join(err, file.Close())
 	}
 	if err := file.Close(); err != nil {
 		return err
@@ -195,7 +194,7 @@ func writeArchiveDone(archivePath string) error {
 func (w *ArchiveWriter) collectResults(ctx context.Context) (archiveformat.ResultsDocument, error) {
 	document := archiveformat.ResultsDocument{SchemaVersion: 1, RunID: w.Options.RunID}
 	attempts := make(map[string]int64)
-	err := filepath.WalkDir(w.ArtifactDir(), func(path string, entry os.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(w.ArtifactDir(), func(path string, entry os.DirEntry, walkErr error) (resultErr error) {
 		if walkErr != nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
 			return walkErr
 		}
@@ -203,7 +202,7 @@ func (w *ArchiveWriter) collectResults(ctx context.Context) (archiveformat.Resul
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() { resultErr = errors.Join(resultErr, file.Close()) }()
 		scanner := bufio.NewScanner(file)
 		scanner.Buffer(make([]byte, 64<<10), 16<<20)
 		for scanner.Scan() {
@@ -395,8 +394,7 @@ func writeTarZstd(destination, stage string) error {
 	}
 	encoder, err := zstd.NewWriter(file)
 	if err != nil {
-		file.Close()
-		return err
+		return errors.Join(err, file.Close())
 	}
 	tw := tar.NewWriter(encoder)
 	walkErr := filepath.WalkDir(stage, func(path string, entry os.DirEntry, err error) error {
@@ -431,7 +429,9 @@ func writeTarZstd(destination, stage string) error {
 }
 
 func gitOutput(root string, args ...string) (string, error) {
-	cmd := exec.CommandContext(context.Background(), "git", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = root
 	output, err := cmd.Output()
 	if err != nil {

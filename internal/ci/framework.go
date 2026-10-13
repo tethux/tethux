@@ -197,12 +197,15 @@ func (r *Runner) RunStep(ctx context.Context, step Step) (StepResult, error) {
 		if err != nil {
 			return result, fmt.Errorf("open captured output: %w", err)
 		}
-		defer capture.Close()
+
 		stdout = io.MultiWriter(r.Stdout, capture)
 	}
 	cmd.Stdout = stdout
 	cmd.Stderr = r.Stderr
 	err := cmd.Run()
+	if capture != nil {
+		err = errors.Join(err, capture.Close())
+	}
 	result.FinishedAt = time.Now().UTC()
 	result.Duration = result.FinishedAt.Sub(result.StartedAt)
 	outputContractFailed := err == nil && step.RequireEmptyStdout && strings.TrimSpace(stdoutBuffer.String()) != ""
@@ -370,6 +373,8 @@ func mergedEnvironment(base, overlay map[string]string) []string {
 }
 
 func RepositoryRoot() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	if configured := os.Getenv("TETHUX_REPOSITORY_ROOT"); configured != "" {
 		root := filepath.Clean(configured)
 		if !filepath.IsAbs(root) {
@@ -386,7 +391,7 @@ func RepositoryRoot() (string, error) {
 	}
 	var rootErr error
 	for _, command := range commands {
-		output, err := exec.CommandContext(context.Background(), command[0], command[1:]...).Output()
+		output, err := exec.CommandContext(ctx, command[0], command[1:]...).Output()
 		if err == nil {
 			return filepath.Clean(strings.TrimSpace(string(output))), nil
 		}
