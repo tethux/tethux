@@ -223,34 +223,28 @@ func (p *Provider) Put(
 
 	tmpPath := tmp.Name()
 
-	cleanup := func() {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
+	cleanup := func() error {
+		return errors.Join(tmp.Close(), os.Remove(tmpPath))
 	}
 
 	if err := tmp.Chmod(mode); err != nil {
-		cleanup()
-		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), err)
+		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), errors.Join(err, cleanup()))
 	}
 
 	if _, err := copyContext(ctx, tmp, r); err != nil {
-		cleanup()
-		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), err)
+		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), errors.Join(err, cleanup()))
 	}
 
 	if err := tmp.Sync(); err != nil {
-		cleanup()
-		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), err)
+		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), errors.Join(err, cleanup()))
 	}
 
 	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), err)
+		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), errors.Join(err, os.Remove(tmpPath)))
 	}
 
 	if err := os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
-		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), err)
+		return storageerrs.Wrap(string(p.name), storageerrs.ErrPut, ref.String(), errors.Join(err, os.Remove(tmpPath)))
 	}
 
 	return nil
