@@ -50,16 +50,6 @@ func newOperation(
 	}
 	op.status.ID = op.id
 
-	go func() {
-		<-opCtx.Done()
-		op.mu.RLock()
-		finished := op.finished
-		op.mu.RUnlock()
-		if !finished {
-			op.finish(opCtx.Err())
-		}
-	}()
-
 	return op
 }
 
@@ -181,7 +171,13 @@ func (o *operation) Events(ctx context.Context) (<-chan storage.Event, error) {
 		}()
 
 		for {
-			event, ok := <-subscriber
+			var event storage.Event
+			var ok bool
+			select {
+			case event, ok = <-subscriber:
+			case <-ctx.Done():
+				return
+			}
 			if !ok {
 				return
 			}
@@ -219,6 +215,7 @@ func (o *operation) finish(err error) {
 	}
 
 	o.finished = true
+	o.cancel()
 	o.status.CompletedAt = time.Now()
 	switch {
 	case err == nil:
@@ -253,6 +250,7 @@ func (o *operation) finish(err error) {
 
 func (o *operation) broadcastLocked(event *storage.Event) {
 	for _, subscriber := range o.subscribers {
+		//repolint:ignore blocking-under-lock -- at most two events are sent to each 16-slot subscriber buffer
 		subscriber <- *event
 	}
 }

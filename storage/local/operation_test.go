@@ -58,20 +58,53 @@ func TestOperationFailure(t *testing.T) {
 }
 
 func TestOperationCancel(t *testing.T) {
-	op := newOperation(context.Background(), storage.OperationCopy, nil, nil)
-	if err := op.Cancel(context.Background()); err != nil {
-		t.Fatal(err)
+	op := newOperation(t.Context(), storage.OperationCopy, nil, nil)
+	op.start()
+	canceled := make(chan struct{})
+	release := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	go func() { <-op.context().Done(); close(canceled); <-release; op.finish(op.context().Err()) }()
+	if cancelErr := op.Cancel(t.Context()); cancelErr != nil {
+		t.Fatal(cancelErr)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	<-canceled
+	waitCtx, stop := context.WithTimeout(t.Context(), 25*time.Millisecond)
+	defer stop()
+	if _, waitErr := op.Wait(waitCtx); !errors.Is(waitErr, context.DeadlineExceeded) {
+		t.Fatalf("reported terminal state before worker stopped: %v", waitErr)
+	}
+	close(release)
+	released = true
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	status, err := op.Wait(ctx)
-	if err != nil {
-		t.Fatal(err)
+	status, waitErr := op.Wait(ctx)
+	if waitErr != nil || status.State != storage.OperationCanceled {
+		t.Fatalf("completed worker status: %v, %v", status, waitErr)
 	}
-	if status.State != storage.OperationCanceled {
-		t.Fatalf("state = %q, want canceled", status.State)
+}
+
+func TestEventsCancelWithoutAnEvent(t *testing.T) {
+	op := newOperation(t.Context(), storage.OperationCopy, nil, nil)
+	ctx, cancel := context.WithCancel(t.Context())
+	events, eventErr := op.Events(ctx)
+	if eventErr != nil {
+		t.Fatal(eventErr)
 	}
+	cancel()
+	select {
+	case _, open := <-events:
+		if open {
+			t.Fatal("unexpected event")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("subscriber did not stop on cancellation")
+	}
+	op.finish(nil)
 }
 
 func TestOperationWaitHonorsContext(t *testing.T) {
