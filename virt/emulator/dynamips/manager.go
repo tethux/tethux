@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 
+	"github.com/tethux/tethux/internal/cleanup"
 	"github.com/tethux/tethux/storage"
 	"github.com/tethux/tethux/virt/emulator"
 	"github.com/tethux/tethux/virt/emulator/dynamips/errs"
@@ -43,7 +44,9 @@ func (m *Manager) Prepare(ctx context.Context, cfg *Config) (*RuntimeConfig, *Pr
 	resources := &PreparedResources{State: prepared}
 	if prepared.Location.Kind != storage.LocationPath || !filepath.IsAbs(prepared.Location.Value) {
 		locationErr := errs.New("prepare router state", errs.ErrUnsupported, "state storage must resolve to an absolute directory path")
-		releaseErr := m.Release(context.WithoutCancel(ctx), resources)
+		cleanupCtx, cancel := cleanup.NewContext(ctx)
+		defer cancel()
+		releaseErr := m.Release(cleanupCtx, resources)
 		if releaseErr != nil {
 			return nil, resources, errors.Join(locationErr, releaseErr)
 		}
@@ -84,7 +87,9 @@ func (m *Manager) Create(ctx context.Context, provider Provider, cfg *Config) (*
 		if errors.Is(createErr, errs.ErrCleanup) {
 			return nil, resources, createErr
 		}
-		releaseErr := m.Release(context.WithoutCancel(ctx), resources)
+		cleanupCtx, cancel := cleanup.NewContext(ctx)
+		defer cancel()
+		releaseErr := m.Release(cleanupCtx, resources)
 		if releaseErr != nil {
 			return nil, resources, errors.Join(createErr, releaseErr)
 		}

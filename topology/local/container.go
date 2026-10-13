@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/containerd/errdefs"
 	"github.com/google/uuid"
 	mobyclient "github.com/moby/moby/client"
 	"github.com/tethux/tethux/bridge"
+	"github.com/tethux/tethux/internal/cleanup"
 	"github.com/tethux/tethux/topology"
 	"github.com/tethux/tethux/topology/errs"
 	"github.com/tethux/tethux/virt"
@@ -47,6 +47,7 @@ type Running struct {
 // Ethernet ports are supported. Linked port IDs become container interface names.
 // Unlinked ports are left unattached. The caller needs namespace and raw-socket
 // privileges on the host running the containers. A failed start rolls back its resources.
+// If rollback fails, the caller owns the returned Running handle and must retry Close.
 func Start(ctx context.Context, top *topology.Topology, options Options) (*Running, error) {
 	err := top.Validate()
 	if err != nil {
@@ -82,11 +83,14 @@ func Start(ctx context.Context, top *topology.Topology, options Options) (*Runni
 	token := strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 	err = run.start(ctx, top, options, token)
 	if err != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		cleanupCtx, cancel := cleanup.NewContext(ctx)
 		defer cancel()
 		run.logger.WarnContext(cleanupCtx, "Rolling back topology startup", "error", err)
 		cleanupErr := run.Close(cleanupCtx)
-		return nil, errors.Join(errs.Wrap("start local topology", errs.ErrStart, string(top.ID), err), cleanupErr)
+		if cleanupErr != nil {
+			return run, errors.Join(errs.Wrap("start local topology", errs.ErrStart, string(top.ID), err), cleanupErr)
+		}
+		return nil, errs.Wrap("start local topology", errs.ErrStart, string(top.ID), err)
 	}
 	return run, nil
 }
@@ -237,9 +241,10 @@ func (run *Running) Close(ctx context.Context) error {
 		err := run.bridges[index].Close()
 		if err != nil {
 			failures = append(failures, errs.Wrap("close local topology bridge", errs.ErrCleanup, "", err))
+		} else {
+			run.bridges = append(run.bridges[:index], run.bridges[index+1:]...)
 		}
 	}
-	run.bridges = nil
 	for index := len(run.order) - 1; index >= 0; index-- {
 		node := run.order[index]
 		id, exists := run.nodes[node]

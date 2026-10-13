@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tethux/tethux/internal/cleanup"
+
 	"github.com/tethux/tethux/topology"
 	"github.com/tethux/tethux/topology/local"
 	topologylua "github.com/tethux/tethux/topology/lua"
@@ -100,6 +102,11 @@ func run(ctx context.Context, cfg config, logger *slog.Logger) error {
 func testTopology(ctx context.Context, cfg config, logger *slog.Logger, provider container.ContainerProvider, top *topology.Topology) (resultErr error) {
 	running, err := local.Start(ctx, top, local.Options{Provider: provider, BasePort: cfg.basePort, Logger: logger})
 	if err != nil {
+		if running != nil {
+			cleanupCtx, cancel := cleanup.NewContext(ctx)
+			defer cancel()
+			return errors.Join(err, running.Close(cleanupCtx))
+		}
 		return err
 	}
 	defer func() {

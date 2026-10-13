@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tethux/tethux/internal/cleanup"
+
 	"github.com/spf13/cobra"
 	native "github.com/tethux/dynamips-downgrade"
 	topologymodel "github.com/tethux/tethux/topology"
@@ -82,6 +84,11 @@ func newRunCmd() *cobra.Command {
 				Dynamips: routerOptions(routers, stateRoot, dynamipsImage, consoleBasePort),
 			})
 			if startErr != nil {
+				if running != nil {
+					cleanupCtx, cancel := cleanup.NewContext(ctx)
+					defer cancel()
+					return errors.Join(startErr, running.Close(cleanupCtx))
+				}
 				return startErr
 			}
 			defer func() {

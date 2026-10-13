@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/tethux/tethux/internal/cleanup"
 	"github.com/tethux/tethux/storage"
 	containererrs "github.com/tethux/tethux/virt/container/errs"
 )
@@ -27,12 +28,13 @@ type PreparedResources struct {
 }
 
 // Prepare resolves a portable container configuration into runtime resources.
+// On error, returned resources remain owned by the caller.
 func (m *Manager) Prepare(
 	ctx context.Context,
 	cfg *ContainerConfig,
 ) (*RuntimeConfig, *PreparedResources, error) {
-	if cfg == nil {
-		return nil, nil, containererrs.New("manager", containererrs.ErrInvalidConfig, "config is nil")
+	if m == nil || m.storage == nil || cfg == nil {
+		return nil, nil, containererrs.New("manager", containererrs.ErrInvalidConfig, "storage manager and config are required")
 	}
 
 	runtimeVolumes := make(
@@ -65,21 +67,14 @@ func (m *Manager) Prepare(
 			},
 		)
 		if err != nil {
-			_ = m.Release(ctx, resources)
-
-			return nil, nil, containererrs.Wrap("manager", containererrs.ErrInvalidConfig, volume.Source.String(), err)
+			return m.rollback(ctx, resources, containererrs.Wrap("manager", containererrs.ErrInvalidConfig, volume.Source.String(), err))
 		}
+
+		resources.Volumes = append(resources.Volumes, prepared)
 
 		if prepared.Location.Kind != storage.LocationPath {
-			_ = m.Release(ctx, resources)
-
-			return nil, nil, containererrs.New("manager", containererrs.ErrInvalidConfig, fmt.Sprintf("bind mount %s resolved to %q", volume.Source, prepared.Location.Kind))
+			return m.rollback(ctx, resources, containererrs.New("manager", containererrs.ErrInvalidConfig, fmt.Sprintf("bind mount %s resolved to %q", volume.Source, prepared.Location.Kind)))
 		}
-
-		resources.Volumes = append(
-			resources.Volumes,
-			prepared,
-		)
 
 		runtimeVolumes = append(
 			runtimeVolumes,
@@ -124,32 +119,44 @@ func (m *Manager) Release(
 		return nil
 	}
 
-	var errs []error
-
-	for _, volume := range resources.Volumes {
-		if err := m.storage.Release(ctx, volume); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return errors.Join(errs...)
+	remaining, releaseErr := storage.ReleaseResources(ctx, m.storage, resources.Volumes)
+	resources.Volumes = remaining
+	return releaseErr
 }
 
 // Create prepares cfg and asks p to create the container.
+// On error, the caller owns returned nodes and resources; delete nodes before release.
 func (m *Manager) Create(
 	ctx context.Context,
 	p ContainerProvider,
 	cfg *ContainerConfig,
 ) (*ContainerNode, *PreparedResources, error) {
+	if p == nil {
+		return nil, nil, containererrs.New("manager", containererrs.ErrInvalidConfig, "provider is nil")
+	}
 	runtimeCfg, resources, err := m.Prepare(ctx, cfg)
 	if err != nil {
-		return nil, nil, err
+		return nil, resources, err
 	}
 
 	node, err := p.CreateContainer(ctx, runtimeCfg)
 	if err != nil {
-		_ = m.Release(ctx, resources)
-		return nil, nil, err
+		if node != nil {
+			return node, resources, err
+		}
+		_, remaining, rollbackErr := m.rollback(ctx, resources, err)
+		return nil, remaining, rollbackErr
 	}
 	return node, resources, nil
+}
+
+// rollback retains failed leases so callers can retry cleanup.
+func (m *Manager) rollback(ctx context.Context, resources *PreparedResources, cause error) (*RuntimeConfig, *PreparedResources, error) {
+	cleanupCtx, cancel := cleanup.NewContext(ctx)
+	defer cancel()
+	releaseErr := m.Release(cleanupCtx, resources)
+	if releaseErr != nil {
+		return nil, resources, errors.Join(cause, releaseErr)
+	}
+	return nil, nil, cause
 }

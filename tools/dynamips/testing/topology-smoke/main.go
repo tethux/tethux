@@ -20,6 +20,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tethux/tethux/internal/cleanup"
+
 	native "github.com/tethux/dynamips-downgrade"
 	"github.com/tethux/dynamips-downgrade/console"
 	"github.com/tethux/tethux/topology/local"
@@ -139,6 +141,11 @@ func run(ctx context.Context, image, binary, example string, result *report) (re
 		Provider: adapter, StateRoot: stateRoot, Image: image, ConsoleBasePort: 28100,
 	}})
 	if startErr != nil {
+		if running != nil {
+			cleanupCtx, cancel := cleanup.NewContext(ctx)
+			defer cancel()
+			return errors.Join(startErr, running.Close(cleanupCtx))
+		}
 		return startErr
 	}
 	defer func() { resultErr = errors.Join(resultErr, running.Close(context.WithoutCancel(ctx))) }()

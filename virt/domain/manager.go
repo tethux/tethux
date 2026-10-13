@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/tethux/tethux/internal/cleanup"
 	"github.com/tethux/tethux/storage"
+	storageerrs "github.com/tethux/tethux/storage/errs"
 )
 
 // Manager prepares storage-backed domain configuration before provider calls.
@@ -26,15 +28,16 @@ type PreparedResources struct {
 }
 
 // Prepare resolves a portable domain configuration into provider-ready paths.
+// On error, returned resources remain owned by the caller.
 func (m *Manager) Prepare(
 	ctx context.Context,
 	cfg *Config,
 ) (*RuntimeConfig, *PreparedResources, error) {
 	if m == nil || m.storage == nil {
-		return nil, nil, errors.New("domain storage manager is not configured")
+		return nil, nil, storageerrs.New("domain", storageerrs.ErrInvalidOptions, "storage manager is not configured")
 	}
 	if cfg == nil {
-		return nil, nil, errors.New("domain configuration is nil")
+		return nil, nil, storageerrs.New("domain", storageerrs.ErrInvalidOptions, "configuration is nil")
 	}
 	resources := &PreparedResources{
 		Disks: make([]*storage.Prepared, 0, len(cfg.Disks)),
@@ -57,21 +60,15 @@ func (m *Manager) Prepare(
 			},
 		)
 		if err != nil {
-			releaseErr := m.Release(context.WithoutCancel(ctx), resources)
-			return nil, nil, errors.Join(err, releaseErr)
-		}
-
-		if prepared.Location.Kind != storage.LocationPath {
-			releaseErr := m.Release(context.WithoutCancel(ctx), resources)
-			locationErr := fmt.Errorf(
-				"domain disk %s resolved to unsupported location %q",
-				disk.Source,
-				prepared.Location.Kind,
-			)
-			return nil, nil, errors.Join(locationErr, releaseErr)
+			return m.rollback(ctx, resources, err)
 		}
 
 		resources.Disks = append(resources.Disks, prepared)
+
+		if prepared.Location.Kind != storage.LocationPath {
+			locationErr := storageerrs.New("domain", storageerrs.ErrInvalidResourceType, fmt.Sprintf("disk %s resolved to unsupported location %q", disk.Source, prepared.Location.Kind))
+			return m.rollback(ctx, resources, locationErr)
+		}
 
 		disks = append(disks, RuntimeDisk{
 			Source:   prepared.Location.Value,
@@ -103,37 +100,45 @@ func (m *Manager) Release(
 		return nil
 	}
 
-	var errs []error
-
-	for _, disk := range resources.Disks {
-		if err := m.storage.Release(ctx, disk); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return errors.Join(errs...)
+	remaining, releaseErr := storage.ReleaseResources(ctx, m.storage, resources.Disks)
+	resources.Disks = remaining
+	return releaseErr
 }
 
 // Create prepares cfg and asks provider to create the domain.
-// The caller owns the returned resources and must release them after deletion.
+// On error, the caller owns returned nodes and resources; delete nodes before release.
 func (m *Manager) Create(
 	ctx context.Context,
 	provider Provider,
 	cfg *Config,
 ) (*Node, *PreparedResources, error) {
 	if provider == nil {
-		return nil, nil, errors.New("domain provider is nil")
+		return nil, nil, storageerrs.New("domain", storageerrs.ErrInvalidOptions, "provider is nil")
 	}
 	runtimeCfg, resources, err := m.Prepare(ctx, cfg)
 	if err != nil {
-		return nil, nil, err
+		return nil, resources, err
 	}
 
 	node, err := provider.CreateDomain(ctx, runtimeCfg)
 	if err != nil {
-		releaseErr := m.Release(context.WithoutCancel(ctx), resources)
-		return nil, nil, errors.Join(err, releaseErr)
+		if node != nil {
+			return node, resources, err
+		}
+		_, remaining, rollbackErr := m.rollback(ctx, resources, err)
+		return nil, remaining, rollbackErr
 	}
 
 	return node, resources, nil
+}
+
+// rollback retains failed leases so callers can retry cleanup.
+func (m *Manager) rollback(ctx context.Context, resources *PreparedResources, cause error) (*RuntimeConfig, *PreparedResources, error) {
+	cleanupCtx, cancel := cleanup.NewContext(ctx)
+	defer cancel()
+	releaseErr := m.Release(cleanupCtx, resources)
+	if releaseErr != nil {
+		return nil, resources, errors.Join(cause, releaseErr)
+	}
+	return nil, nil, cause
 }
