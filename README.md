@@ -160,8 +160,9 @@ lab host. Privileged suites run only when explicitly selected. The combined
 Commands are documented in
 [`nix/README.md`](nix/README.md).
 
-`lint:architecture` checks package boundaries using `../repolint` (override with
-`REPOLINT_SOURCE`). Its policies live in `.repolint-architecture.toml` while the
+`lint:architecture` checks package boundaries, cleanup, subprocess contexts,
+blocking operations, and suppressions using `../repolint` (override with
+`REPOLINT_SOURCE` or provide a checker through `REPOLINT_BIN`). Its policies live in `.repolint-architecture.toml` while the
 published Go tool continues using `.repolint.toml`. Move these policies into the
 main quality gate when a repolint release includes the new rules. Cleanup policies
 also reject ignored release errors and require the bounded cleanup context helper

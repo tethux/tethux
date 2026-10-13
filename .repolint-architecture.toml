@@ -1,5 +1,8 @@
 schema = 1
 
+[analysis]
+build_tags=["debug"]
+
 [rules.no-any]
 enabled = false
 
@@ -33,8 +36,9 @@ exclude_dirs = ["topology/local"]
 
 [rules.no-discarded-cleanup-error]
 enabled = true
-paths = ["storage/release.go", "virt/container/manager.go", "virt/domain/manager.go", "virt/emulator/dynamips/manager.go", "topology/local"]
-calls = ["*.Release", "*.Close"]
+type_check = true
+paths = ["storage", "virt", "topology", "cmd/virt", "cmd/topology", "internal/ci"]
+calls = ["*.Release", "*.Close", "*.Free", "*.Delete", "*.DeleteContainer"]
 
 [rules.cleanup-context-policy]
 enabled = true
@@ -42,3 +46,16 @@ paths = ["virt/container/manager.go", "virt/domain/manager.go", "virt/emulator/d
 functions = ["rollback", "Prepare", "Create", "Start"]
 calls = ["*.Release", "*.Close"]
 context_factories = ["github.com/tethux/tethux/internal/cleanup.NewContext"]
+
+[rules.subprocess-context]
+enabled=true
+type_check=true
+context_factories=["context.WithTimeout", "context.WithDeadline", "os/signal.NotifyContext", "github.com/spf13/cobra.Command.Context"]
+paths=["internal/ci", "cmd/virt", "tools/ci"]
+[rules.blocking-under-lock]
+enabled=true
+paths=["storage", "virt", "topology"]
+guard="o.mu"
+assume_locked_functions=["broadcastLocked"]
+[rules.suppression-policy]
+enabled=true
