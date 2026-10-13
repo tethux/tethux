@@ -17,8 +17,6 @@ var (
 	ErrState = errors.New("endpoint is not running")
 	// ErrNetwork identifies a frame transport or native packet failure.
 	ErrNetwork = errors.New("endpoint network failure")
-	// ErrProbe identifies a failed ICMP probe.
-	ErrProbe = errors.New("ICMP probe failed")
 	// ErrUnsupported identifies an unavailable endpoint operation.
 	ErrUnsupported = errors.New("unsupported endpoint operation")
 )

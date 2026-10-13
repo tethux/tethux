@@ -26,7 +26,7 @@ type Options struct {
 	Containers map[string]container.ContainerProvider
 	Domains    *DomainOptions
 	Dynamips   *DynamipsOptions
-	Shitnet    *shitnet.Adapter
+	Shitnet    shitnet.Provider
 	// Logger receives lifecycle progress. Nil disables logging.
 	Logger *slog.Logger
 	// BasePort starts consecutive loopback UDP port pairs. Zero selects 23000.
@@ -44,7 +44,7 @@ type Running struct {
 	dynamips       *dynamips.Adapter
 	manager        *dynamips.Manager
 	routers        map[topology.NodeID]*dynamips.PreparedResources
-	shitnet        *shitnet.Adapter
+	shitnet        shitnet.Provider
 	endpoints      map[topology.NodeID]struct{}
 	domains        map[topology.NodeID]*domainResources
 	nextDomainPort int

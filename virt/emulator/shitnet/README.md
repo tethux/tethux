@@ -10,10 +10,10 @@ starts packet processing; `Stop` closes the socket and joins its worker.
 native stack. State, list, reload, and categorized errors follow the common
 provider contract. Pause and resume are explicitly unsupported.
 
-`Ping(ctx, id, target, count)` performs native ARP resolution and ICMP echo
-exchanges. Replies must match the source address, identifier, sequence, and
-payload. The context bounds waiting. Native packet handling and probes share
-a per-endpoint lock; adapter calls must be externally serialized.
+The provider owns stack allocation, Ethernet transport, and lifecycle only.
+It does not implement REPL commands or a console transport. Packet handling
+serializes native calls within each endpoint; adapter calls must be externally
+serialized.
 
 The binding needs the installed native `shitnet` pkg-config package. The Nix
 development and CI shells build a pinned published source revision and supply

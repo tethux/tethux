@@ -1,11 +1,9 @@
 package shitnet
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"net"
-	"net/netip"
 	"sort"
 	"sync"
 
@@ -17,7 +15,7 @@ import (
 )
 
 // Adapter owns endpoints. Calls must be externally serialized.
-// Packet handling and probes serialize native calls within each endpoint.
+// Packet handling serializes native calls within each endpoint.
 type Adapter struct{ nodes map[string]*endpoint }
 
 type endpoint struct {
@@ -29,18 +27,7 @@ type endpoint struct {
 	cancel  context.CancelFunc
 	done    chan struct{}
 	failure error
-	next    uint32
-	probes  map[uint32]*probe
 }
-
-type probe struct {
-	target       netip.Addr
-	id, sequence uint16
-	sent         bool
-	done         chan error
-}
-
-var probePayload = []byte("tethux")
 
 // Info reports endpoint capabilities.
 func (a *Adapter) Info() virt.ProviderInfo {
@@ -71,8 +58,8 @@ func (a *Adapter) CreateEndpoint(ctx context.Context, cfg *Config) (*virt.Node, 
 	if a.nodes == nil {
 		a.nodes = make(map[string]*endpoint)
 	}
-	a.nodes[cfg.ID] = &endpoint{cfg: *cfg, stack: stack, state: virt.NodeStopped, probes: make(map[uint32]*probe)}
-	return &virt.Node{ID: cfg.ID, Name: cfg.Name, State: virt.NodeStopped}, nil
+	a.nodes[cfg.ID] = &endpoint{cfg: *cfg, stack: stack, state: virt.NodeStopped}
+	return &virt.Node{ID: cfg.ID, Name: cfg.Name, State: virt.NodeStopped, Console: virt.Console{Type: virt.ConsoleNone}}, nil
 }
 
 func (a *Adapter) lookup(ctx context.Context, id string) (*endpoint, error) {
@@ -129,10 +116,6 @@ func (node *endpoint) run(ctx context.Context, port bridge.Port, done chan struc
 			failure = nil
 		}
 		node.state, node.failure = virt.NodeStopped, failure
-		for key, pending := range node.probes {
-			pending.done <- errs.Wrap("stop probe", errs.ErrState, node.cfg.ID, failure)
-			delete(node.probes, key)
-		}
 		node.mu.Unlock()
 		close(done)
 	}()
@@ -169,6 +152,7 @@ func (node *endpoint) run(ctx context.Context, port bridge.Port, done chan struc
 }
 
 func (node *endpoint) drain() ([][]byte, error) {
+	// Consume native notifications even when no console is attached.
 	for {
 		poll, pollErr := node.stack.PollEvent()
 		if pollErr != nil {
@@ -176,20 +160,6 @@ func (node *endpoint) drain() ([][]byte, error) {
 		}
 		if !poll.Available {
 			break
-		}
-		for key, pending := range node.probes {
-			if poll.Event.Type == native.EventARPLearned && poll.Event.ARP != nil && poll.Event.ARP.IP == pending.target && !pending.sent {
-				queued, queueErr := node.stack.ICMPEchoRequest(pending.target, pending.id, pending.sequence, probePayload)
-				if queueErr != nil {
-					return nil, queueErr
-				}
-				pending.sent = queued == native.QueueQueued
-			}
-			icmp := poll.Event.ICMP
-			if poll.Event.Type == native.EventICMPEchoReply && icmp != nil && icmp.Source == pending.target && icmp.Identifier == pending.id && icmp.Sequence == pending.sequence && bytes.Equal(icmp.Payload, probePayload) {
-				pending.done <- nil
-				delete(node.probes, key)
-			}
 		}
 	}
 	var frames [][]byte
@@ -212,65 +182,6 @@ func writeFrames(port bridge.Port, frames [][]byte) error {
 		}
 	}
 	return nil
-}
-
-// Ping performs sequential native ARP resolution and ICMP echo exchanges.
-func (a *Adapter) Ping(ctx context.Context, id string, target netip.Addr, count uint16) (PingResult, error) {
-	var result PingResult
-	if !target.Is4() || count == 0 {
-		return result, errs.New("ping endpoint", errs.ErrConfig, id)
-	}
-	node, lookupErr := a.lookup(ctx, id)
-	if lookupErr != nil {
-		return result, lookupErr
-	}
-	for index := uint16(0); index < count; index++ {
-		if contextErr := ctx.Err(); contextErr != nil {
-			return result, errs.Wrap("ping endpoint", errs.ErrProbe, id, contextErr)
-		}
-		sent, probeErr := node.ping(ctx, target)
-		if sent {
-			result.Sent++
-		}
-		if probeErr != nil {
-			return result, errs.Wrap("ping endpoint", errs.ErrProbe, id, probeErr)
-		}
-		result.Received++
-	}
-	return result, nil
-}
-
-func (node *endpoint) ping(ctx context.Context, target netip.Addr) (sent bool, resultErr error) {
-	node.mu.Lock()
-	if node.state != virt.NodeRunning {
-		node.mu.Unlock()
-		return false, errs.New("send echo", errs.ErrState, node.cfg.ID)
-	}
-	node.next++
-	key := node.next
-	pending := &probe{target: target, id: uint16(key >> 16), sequence: uint16(key & 0xffff), done: make(chan error, 1)}
-	node.probes[key] = pending
-	queued, queueErr := node.stack.ICMPEchoRequest(target, pending.id, pending.sequence, probePayload)
-	pending.sent = queued == native.QueueQueued
-	if queueErr == nil && !pending.sent {
-		queueErr = node.stack.ARPRequest(target)
-	}
-	frames, drainErr := node.drain()
-	port := node.port
-	node.mu.Unlock()
-	defer func() { node.mu.Lock(); sent = pending.sent; delete(node.probes, key); node.mu.Unlock() }()
-	if queueErr != nil || drainErr != nil {
-		return false, errors.Join(queueErr, drainErr)
-	}
-	if writeErr := writeFrames(port, frames); writeErr != nil {
-		return false, writeErr
-	}
-	select {
-	case probeErr := <-pending.done:
-		return false, probeErr
-	case <-ctx.Done():
-		return false, ctx.Err()
-	}
 }
 
 // Stop closes the transport and joins packet processing, retaining the native stack.
@@ -342,7 +253,7 @@ func (a *Adapter) Reload(ctx context.Context, id string) (*virt.Node, error) {
 	if stateErr != nil {
 		return nil, stateErr
 	}
-	return &virt.Node{ID: id, Name: a.nodes[id].cfg.Name, State: state}, nil
+	return &virt.Node{ID: id, Name: a.nodes[id].cfg.Name, State: state, Console: virt.Console{Type: virt.ConsoleNone}}, nil
 }
 
 // List returns endpoint snapshots sorted by ID.

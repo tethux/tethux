@@ -5,7 +5,6 @@ import (
 	"net/netip"
 
 	native "github.com/tethux/shitnet"
-	"github.com/tethux/tethux/virt"
 )
 
 // Config assigns one address and UDP Ethernet link to an endpoint.
@@ -18,7 +17,4 @@ type Config struct {
 	Remote netip.AddrPort
 }
 
-// PingResult counts requests and replies validated by source, ID, sequence, and payload.
-type PingResult struct{ Sent, Received uint16 }
-
-var _ virt.Provider = (*Adapter)(nil)
+var _ Provider = (*Adapter)(nil)

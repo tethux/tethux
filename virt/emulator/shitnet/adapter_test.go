@@ -23,9 +23,27 @@ func TestNativeEndpoints(t *testing.T) {
 		}
 	})
 	left, right := freeUDP(t), freeUDP(t)
+	peer, listenErr := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if listenErr != nil {
+		t.Fatal(listenErr)
+	}
+	t.Cleanup(func() {
+		if closeErr := peer.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	})
+	peerAddr, ok := peer.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		t.Fatal("unexpected UDP address")
+	}
+	stack, createErr := native.New(native.Config{IP: netip.MustParseAddr("10.77.0.3"), MAC: native.MAC{2, 0, 0, 0, 0, 3}})
+	if createErr != nil {
+		t.Fatal(createErr)
+	}
+	t.Cleanup(stack.Close)
 	configs := []Config{
-		{ID: "a", IP: netip.MustParseAddr("10.77.0.1"), MAC: native.MAC{2, 0, 0, 0, 0, 1}, Local: left, Remote: right},
-		{ID: "b", IP: netip.MustParseAddr("10.77.0.2"), MAC: native.MAC{2, 0, 0, 0, 0, 2}, Local: right, Remote: left},
+		{ID: "a", IP: netip.MustParseAddr("10.77.0.1"), MAC: native.MAC{2, 0, 0, 0, 0, 1}, Local: left, Remote: peerAddr.AddrPort()},
+		{ID: "b", IP: netip.MustParseAddr("10.77.0.2"), MAC: native.MAC{2, 0, 0, 0, 0, 2}, Local: right, Remote: peerAddr.AddrPort()},
 	}
 	for _, cfg := range configs {
 		if _, createErr := a.CreateEndpoint(ctx, &cfg); createErr != nil {
@@ -36,36 +54,12 @@ func TestNativeEndpoints(t *testing.T) {
 		}
 	}
 	for _, cfg := range configs {
-		target := configs[0].IP
-		if cfg.ID == "a" {
-			target = configs[1].IP
-		}
-		result, pingErr := a.Ping(ctx, cfg.ID, target, 3)
-		if pingErr != nil || result.Sent != 3 || result.Received != 3 {
-			t.Fatalf("real ARP/ICMP exchange: %+v %v", result, pingErr)
-		}
+		checkReply(t, peer, stack, &cfg)
 	}
 	if restartErr := a.Restart(ctx, "a"); restartErr != nil {
 		t.Fatal(restartErr)
 	}
-	if _, pingErr := a.Ping(ctx, "a", configs[1].IP, 1); pingErr != nil {
-		t.Fatal(pingErr)
-	}
-	if stopErr := a.Stop(ctx, "b"); stopErr != nil {
-		t.Fatal(stopErr)
-	}
-	probeCtx, probeCancel := context.WithTimeout(ctx, 20*time.Millisecond)
-	result, timeoutErr := a.Ping(probeCtx, "a", configs[1].IP, 1)
-	probeCancel()
-	if !errors.Is(timeoutErr, context.DeadlineExceeded) || result.Sent != 1 || result.Received != 0 {
-		t.Fatalf("lost echo and cancellation: %+v %v", result, timeoutErr)
-	}
-	if startErr := a.Start(ctx, "b"); startErr != nil {
-		t.Fatal(startErr)
-	}
-	if _, pingErr := a.Ping(ctx, "a", configs[1].IP, 1); pingErr != nil {
-		t.Fatalf("canceled probe blocked later traffic: %v", pingErr)
-	}
+	checkReply(t, peer, stack, &configs[0])
 	if suspendErr := a.Suspend(ctx, "a"); !errors.Is(suspendErr, errs.ErrUnsupported) {
 		t.Fatal(suspendErr)
 	}
@@ -92,6 +86,68 @@ func TestNativeEndpoints(t *testing.T) {
 	}
 	if closeErr := conn.Close(); closeErr != nil {
 		t.Fatal(closeErr)
+	}
+}
+
+// checkReply drives real ARP and ICMP traffic from an independent native peer.
+func checkReply(t *testing.T, peer *net.UDPConn, stack *native.Shitnet, cfg *Config) {
+	t.Helper()
+	if requestErr := stack.ARPRequest(cfg.IP); requestErr != nil {
+		t.Fatal(requestErr)
+	}
+	exchange(t, peer, stack, cfg.Local, native.EventARPLearned)
+	queued, queueErr := stack.ICMPEchoRequest(cfg.IP, 1, 1, []byte("peer"))
+	if queueErr != nil || queued != native.QueueQueued {
+		t.Fatalf("queue echo: %v %v", queued, queueErr)
+	}
+	event := exchange(t, peer, stack, cfg.Local, native.EventICMPEchoReply)
+	if event.ICMP == nil || event.ICMP.Source != cfg.IP || event.ICMP.Identifier != 1 ||
+		event.ICMP.Sequence != 1 || string(event.ICMP.Payload) != "peer" {
+		t.Fatalf("unexpected echo reply: %+v", event)
+	}
+}
+
+func exchange(t *testing.T, peer *net.UDPConn, stack *native.Shitnet, remote netip.AddrPort, expected native.EventType) native.Event {
+	t.Helper()
+	if deadlineErr := peer.SetReadDeadline(time.Now().Add(time.Second)); deadlineErr != nil {
+		t.Fatal(deadlineErr)
+	}
+	buffer := make([]byte, 65536)
+	for {
+		for {
+			poll, pollErr := stack.PollTX()
+			if pollErr != nil {
+				t.Fatal(pollErr)
+			}
+			if !poll.Available {
+				break
+			}
+			if _, writeErr := peer.WriteToUDPAddrPort(poll.Frame, remote); writeErr != nil {
+				t.Fatal(writeErr)
+			}
+		}
+		read, source, readErr := peer.ReadFromUDPAddrPort(buffer)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if source != remote {
+			t.Fatalf("unexpected frame source: %s", source)
+		}
+		if receiveErr := stack.Receive(buffer[:read]); receiveErr != nil {
+			t.Fatal(receiveErr)
+		}
+		for {
+			poll, pollErr := stack.PollEvent()
+			if pollErr != nil {
+				t.Fatal(pollErr)
+			}
+			if !poll.Available {
+				break
+			}
+			if poll.Event.Type == expected {
+				return poll.Event
+			}
+		}
 	}
 }
 

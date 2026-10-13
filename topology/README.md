@@ -161,8 +161,9 @@ before closing the adapter and native runtime.
 
 `[nodes.shitnet]` assigns an `ip` and a unicast Ethernet `mac` to a native IPv4
 endpoint with one linked Ethernet port. The [pair example](examples/shitnet-pair.toml)
-runs without root privileges. The native stack answers ARP and ICMP requests;
-its adapter also exposes context-bounded outbound `Ping` exchanges.
+runs without root privileges. The native stack answers ARP and ICMP requests.
+The provider manages lifecycle and Ethernet transport; console commands and
+console transport are not exposed yet.
 
 ```bash
 nix develop -c go run ./cmd/tethux topology run topology/examples/shitnet-pair.toml
@@ -187,7 +188,6 @@ pkexec "$PWD/tethux" topology run "$PWD/topology/examples/provider-matrix.toml" 
   --domain-seed-image /absolute/path/to/bridge-seed.iso
 ```
 
-`go run ./tools/ci run mixed` builds the seed, checks native and IOS pings in
-both directions,
+`go run ./tools/ci run mixed` builds the seed, checks IOS-to-Shitnet pings,
 pauses the guest to verify the path breaks, resumes it, restarts Shitnet, and runs
 the same graph through the CLI. Both laptop CI workflows include this graph.

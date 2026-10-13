@@ -11,7 +11,7 @@ managed daemon and reports normalized lifecycle events.
 [Dynamips provider](emulator/dynamips/README.md) owns router VMs within a shared
 native runtime and prepares persistent NVRAM/disks through the storage API.
 [Shitnet](emulator/shitnet/README.md) runs native ARP/ICMP endpoints over UDP
-Ethernet links with context-bounded ping probes.
+Ethernet links.
 
 ```go
 image := container.ParseImage("docker.io/library/alpine:3.22")

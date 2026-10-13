@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/netip"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -226,13 +225,10 @@ func runNative(ctx context.Context, top *topology.Topology, directory, image, do
 		return consoleErr
 	}
 	defer func() { resultErr = errors.Join(resultErr, ios.Close(connections)) }()
-	if pingErr := pingNative(ctx, endpoints); pingErr != nil {
-		return pingErr
-	}
 	if pingErr := pingIOS(ctx, connections[0]); pingErr != nil {
 		return pingErr
 	}
-	result.Checks = append(result.Checks, "Docker, Podman, containerd, libvirt, Dynamips, Shitnet running", "bidirectional IOS/Shitnet ICMP through all providers")
+	result.Checks = append(result.Checks, "Docker, Podman, containerd, libvirt, Dynamips, Shitnet running", "IOS-to-Shitnet ICMP through all providers")
 	vm, nodeErr := running.Node(ctx, "vm")
 	if nodeErr != nil {
 		return nodeErr
@@ -240,48 +236,27 @@ func runNative(ctx context.Context, top *topology.Topology, directory, image, do
 	if suspendErr := hypervisor.Suspend(ctx, vm.ID); suspendErr != nil {
 		return suspendErr
 	}
-	probeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	probe, probeErr := endpoints.Ping(probeCtx, "pc", netip.MustParseAddr("10.77.0.1"), 1)
-	cancel()
-	if !errors.Is(probeErr, context.DeadlineExceeded) || probe.Received != 0 {
-		return errs.Wrap("probe suspended guest", errs.ErrStart, "traffic must stop at the guest", probeErr)
+	output, probeErr := ios.Command(ctx, connections[0], "ping 10.77.0.2 repeat 3 timeout 1")
+	if probeErr != nil {
+		return probeErr
+	}
+	if !strings.Contains(output, "Success rate is 0 percent") {
+		return errs.New("probe suspended guest", errs.ErrStart, "traffic must stop at the guest: "+output)
 	}
 	if resumeErr := hypervisor.Resume(ctx, vm.ID); resumeErr != nil {
 		return resumeErr
 	}
-	if pingErr := pingNative(ctx, endpoints); pingErr != nil {
+	if pingErr := pingIOS(ctx, connections[0]); pingErr != nil {
 		return pingErr
 	}
 	if restartErr := endpoints.Restart(ctx, "pc"); restartErr != nil {
 		return restartErr
 	}
-	if pingErr := pingNative(ctx, endpoints); pingErr != nil {
-		return pingErr
-	}
 	if pingErr := pingIOS(ctx, connections[0]); pingErr != nil {
 		return pingErr
 	}
-	result.Checks = append(result.Checks, "guest suspend breaks path; resume restores it", "Shitnet restart restores bidirectional traffic")
+	result.Checks = append(result.Checks, "guest suspend breaks path; resume restores it", "Shitnet restart restores traffic")
 	return nil
-}
-
-func pingNative(ctx context.Context, endpoints *shitnet.Adapter) error {
-	readyCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
-	defer cancel()
-	for {
-		probeCtx, probeCancel := context.WithTimeout(readyCtx, 4*time.Second)
-		result, probeErr := endpoints.Ping(probeCtx, "pc", netip.MustParseAddr("10.77.0.1"), 3)
-		probeCancel()
-		if probeErr == nil && result.Received == 3 {
-			return nil
-		}
-		if readyCtx.Err() != nil {
-			return errors.Join(readyCtx.Err(), probeErr)
-		}
-		if !errors.Is(probeErr, context.DeadlineExceeded) {
-			return errs.Wrap("ping IOS", errs.ErrStart, "native probe", probeErr)
-		}
-	}
 }
 
 func pingIOS(ctx context.Context, connection *console.Connection) error {

@@ -42,7 +42,7 @@ and examples live in the README nearest each subsystem.
 - a common lifecycle API over Docker, Podman, and containerd;
 - a libvirt domain provider with lifecycle events, storage preparation, serial
   consoles, SPICE displays, and bridged networking;
-- Shitnet IPv4 endpoints with native ARP/ICMP and context-bounded ping probes;
+- Shitnet IPv4 endpoints with native ARP/ICMP replies and UDP Ethernet links;
 - embedded Dynamips routers with persistent NVRAM/disks, enhanced consoles,
   Ethernet links, and a real IOS topology CI suite;
 - JSON Lines provider tests covering two images and every provider operation;
