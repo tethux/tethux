@@ -146,3 +146,15 @@ run = "go run ./tools/ci host audit --jump-host ${TETHUX_SSH_JUMP:-root@100.115.
 [tasks."fix:go"]
 description = "Apply permitted Go policy fixes"
 run = "go tool repolint --fix ."
+
+[tasks."lint:architecture"]
+description = "Check architecture policies with the sibling repolint checkout"
+run = '''
+root="$PWD"
+source="${REPOLINT_SOURCE:-../repolint}"
+if [ ! -f "$source/go.mod" ]; then
+  echo "repolint checkout missing: $source; set REPOLINT_SOURCE to its path" >&2
+  exit 2
+fi
+go -C "$source" run ./cmd/repolint --config "$root/.repolint-architecture.toml" "$root"
+'''

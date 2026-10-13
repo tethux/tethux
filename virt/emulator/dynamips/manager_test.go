@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/tethux/tethux/storage"
+	//repolint:ignore package-boundaries -- real local storage fixture
 	"github.com/tethux/tethux/storage/local"
 	"github.com/tethux/tethux/virt"
 	"github.com/tethux/tethux/virt/emulator"

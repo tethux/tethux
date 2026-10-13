@@ -1,0 +1,32 @@
+schema = 1
+
+[rules.no-any]
+enabled = false
+
+[rules.direct-error-comparison]
+enabled = false
+
+[rules.package-boundaries]
+enabled = true
+include_tests = true
+
+[[rules.package-boundaries.boundaries]]
+name = "storage-is-independent"
+from = ["storage"]
+deny_imports = ["github.com/tethux/tethux/virt", "github.com/tethux/tethux/topology", "github.com/tethux/tethux/bridge"]
+
+[[rules.package-boundaries.boundaries]]
+name = "bridge-is-independent"
+from = ["bridge"]
+deny_imports = ["github.com/tethux/tethux/virt", "github.com/tethux/tethux/topology", "github.com/tethux/tethux/storage"]
+
+[[rules.package-boundaries.boundaries]]
+name = "providers-consume-storage-contracts"
+from = ["virt/container/docker", "virt/container/moby", "virt/container/podman", "virt/container/containerd", "virt/hypervisor", "virt/domain", "virt/emulator"]
+deny_imports = ["github.com/tethux/tethux/storage/local", "github.com/tethux/tethux/topology"]
+
+[[rules.package-boundaries.boundaries]]
+name = "topology-model-is-portable"
+from = ["topology"]
+deny_imports = ["github.com/tethux/tethux/virt", "github.com/tethux/tethux/storage", "github.com/tethux/tethux/bridge"]
+exclude_dirs = ["topology/local"]

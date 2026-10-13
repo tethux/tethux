@@ -128,6 +128,7 @@ Enter the development shell and run the normal checks:
 ```bash
 nix develop
 mise run check
+mise run lint:architecture
 go run ./cmd/tethux --help
 ```
 
@@ -152,3 +153,8 @@ namespaces, and UDP listeners. Use the NixOS test hosts or another disposable
 lab host. Local privileged integration is never automatic; opt in with
 `TETHUX_RUN_INTEGRATION=1` and the Mise tasks documented in
 [`nix/README.md`](nix/README.md).
+
+`lint:architecture` checks package boundaries using `../repolint` (override with
+`REPOLINT_SOURCE`). Its policies live in `.repolint-architecture.toml` while the
+published Go tool continues using `.repolint.toml`. Move these policies into the
+main quality gate when a repolint release includes the new rules.
