@@ -195,6 +195,12 @@ func (p *Provider) Put(
 	if r == nil {
 		return storageerrs.New(string(p.name), storageerrs.ErrInvalidOptions, "input reader is nil")
 	}
+	if opts.ExpectedGeneration != "" || opts.IfNotExists {
+		return storageerrs.New(string(p.name), storageerrs.ErrInvalidOptions, "conditional writes are not supported")
+	}
+	if opts.ContentType != "" || len(opts.Metadata) != 0 || opts.Kind != "" {
+		return storageerrs.New(string(p.name), storageerrs.ErrInvalidOptions, "object metadata is not supported")
+	}
 
 	path, err := p.pathFor(ref)
 	if err != nil {

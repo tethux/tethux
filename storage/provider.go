@@ -43,6 +43,7 @@ type ObjectInfo struct {
 }
 
 // PutOptions controls how a provider stores an object.
+// Unsupported nonzero guarantees or metadata must be rejected before writing.
 type PutOptions struct {
 	// Mode is the permission mode for newly created filesystem objects.
 	// Providers without filesystem permissions may ignore it.
