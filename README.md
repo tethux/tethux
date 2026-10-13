@@ -7,8 +7,8 @@ toolkit for building programmable Ethernet topologies across containers, virtual
 machines, and physical hosts.
 
 The project includes an Ethernet switch, UDP/TAP/raw/pcap transports, container
-and VM providers, embedded Dynamips routers, a declarative topology runner, and
-integration tooling. This repository is a Go and Nix monorepo; detailed commands
+and VM providers, Shitnet IPv4 endpoints, embedded Dynamips routers, a declarative
+topology runner, and integration tooling. This repository is a Go and Nix monorepo; detailed commands
 and examples live in the README nearest each subsystem.
 
 ## Monorepo map
@@ -20,7 +20,7 @@ and examples live in the README nearest each subsystem.
 | `cmd/topology/` | TOML and Lua topology commands | [`cmd/topology/README.md`](cmd/topology/README.md) |
 | `cmd/virt/` | Container, libvirt, and Dynamips management CLI | [`cmd/virt/README.md`](cmd/virt/README.md) |
 | `bridge/` | Public Ethernet switch, transports, and network primitives | [README](bridge/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/bridge) |
-| `topology/` | Topology model, TOML/Lua decoding, and local container/router execution | [README](topology/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/topology) |
+| `topology/` | Topology model, TOML/Lua decoding, and local execution across workload providers | [README](topology/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/topology) |
 | `storage/` | Public storage abstractions and local provider | [README](storage/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/storage) |
 | `virt/` | Public workload, container, and virtual-machine APIs | [README](virt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt) |
 | `virt/hypervisor/libvirt/` | Public libvirt domain provider | [README](virt/hypervisor/libvirt/README.md) · [Go reference](https://pkg.go.dev/github.com/tethux/tethux/virt/hypervisor/libvirt) |
@@ -38,6 +38,7 @@ and examples live in the README nearest each subsystem.
 - deterministic veth attachment to Linux namespaces and containers;
 - TOML and procedural Lua topologies on Docker, Podman, and containerd, with
   automatic Docker/Podman selection and owned cleanup;
+- mixed Ethernet graphs connecting those containers, libvirt, Dynamips, and Shitnet;
 - a common lifecycle API over Docker, Podman, and containerd;
 - a libvirt domain provider with lifecycle events, storage preparation, serial
   consoles, SPICE displays, and bridged networking;
@@ -105,9 +106,10 @@ pkexec "$PWD/tethux" topology run "$PWD/topology/examples/ring.lua"
 ```
 
 The CLI logs progress, nodes, addresses, links, and cleanup as JSON Lines on
-stderr. Press Ctrl+C to clean up. The local runner supports container, domain, Shitnet, and Dynamips
-nodes with Ethernet links on one Linux host. See the [topology README](topology/README.md)
-for bidirectional ping examples, TOML fields, the Lua DSL, and library usage.
+stderr. Press Ctrl+C to clean up. The local runner supports container, domain,
+Shitnet, and Dynamips nodes with Ethernet links on one Linux host. See the
+[topology README](topology/README.md) for bidirectional ping examples, TOML fields,
+the Lua DSL, and library usage.
 
 Run the router example with an unpacked local IOS image:
 
@@ -153,8 +155,9 @@ recovery, and CI archives, follow the subsystem README from the map above.
 
 Bridge and provider integration tests create real containers, veth devices,
 namespaces, and UDP listeners. Use the NixOS test hosts or another disposable
-lab host. Local privileged integration is never automatic; opt in with
-`TETHUX_RUN_INTEGRATION=1` and the Mise tasks documented in
+lab host. Privileged suites run only when explicitly selected. The combined
+`local` workflow additionally requires `--integration` or `TETHUX_RUN_INTEGRATION=1`.
+Commands are documented in
 [`nix/README.md`](nix/README.md).
 
 `lint:architecture` checks package boundaries using `../repolint` (override with

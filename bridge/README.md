@@ -6,7 +6,9 @@ and latency or packet-loss middleware.
 
 ```go
 sw := bridge.NewSwitch(bridge.SwitchOptions{})
-port, err := bridge.NewUDPPort(&bridge.PortOptions{Address: "127.0.0.1:9000"})
+port, err := bridge.NewUDPPort(&bridge.PortOptions{
+	ID: "link", LocalAddr: "127.0.0.1:9000", Remote: "127.0.0.1:9001", MTU: 1500,
+})
 ```
 
 Import it as `github.com/tethux/tethux/bridge`. Some transports and namespace

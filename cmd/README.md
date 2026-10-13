@@ -1,14 +1,26 @@
 # Command packages
 
-`cmd` contains the public tethux command tree and its executable entrypoints.
+`cmd/tethux` builds the multicall CLI with `bridge`, `virt`, and `topology`
+subcommands. Invoking it through a symlink named `bridge` or `virt` dispatches
+to that component. Nix and CI build this entrypoint.
 
-- `tethux` builds the multicall binary with the `bridge`, `virt`, and `topology`
-  subcommands.
-- `bridge` defines Ethernet switch, port, namespace, and container commands.
-- `topology` defines TOML and Lua topology commands.
-- `virt` defines provider inspection and integration-test commands.
-- `bridge/main` and `virt/main` build standalone component binaries.
+```bash
+mise exec -- go build -tags debug -o ./tethux ./cmd/tethux
+./tethux --help
+```
 
-The preferred user-facing binary is `tethux`. The standalone binaries use the
-same Cobra command constructors and are retained for focused deployments and
-compatibility.
+The component packages define the shared Cobra commands:
+
+- [`bridge`](bridge/README.md): Ethernet ports, switches, and namespace attachments.
+- [`topology`](topology/README.md): TOML and Lua graphs across local providers.
+- [`virt`](virt/README.md): container, libvirt, and Dynamips management and tests.
+
+For focused deployments, `cmd/bridge/main` and `cmd/virt/main` build standalone
+binaries using the same command constructors:
+
+```bash
+mise exec -- go build -o tethux-bridge ./cmd/bridge/main
+mise exec -- go build -o tethux-virt ./cmd/virt/main
+```
+
+Build-time native dependencies are described in the [root README](../README.md#quick-start).

@@ -12,7 +12,7 @@ decodes the embedded `pair.toml` fixture and tests its two-container link,
 using the selected fixture image for both formats.
 Guest commands configure addresses and bridge the middle containers. The driver
 waits for those addresses, verifies pings in both directions, then closes the
-run. Container and bridge lifecycle handling belongs to the shared runner:
+run. Container and bridge lifecycle handling belongs to the shared runner.
 
 Normal CI executes the pair, ring, and chain Lua scripts and the TOML pair
 through Go tests. The privileged topology workflows run both the Lua chain and

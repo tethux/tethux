@@ -1,6 +1,6 @@
 # Test automation
 
-`internal/ci` is the reusable test harness behind `tools/ci`.
+`internal/ci` is the private workflow engine behind `tools/ci`.
 
 - `Workflow` describes named steps and dependencies.
 - `Step` declares an executable, arguments, environment, directory, privilege,

@@ -3,8 +3,8 @@
 `topology` describes workloads, logical ports, point-to-point links, and optional
 views without choosing a provider or host. `topology/toml` decodes that model,
 `topology/lua` builds it from trusted Lua scripts, and `topology/local` runs
-container, domain, Dynamips, and Shitnet workloads with Ethernet links on one Linux host, using
-container providers, native router NIOs, and UDP bridges.
+container, domain, Dynamips, and Shitnet workloads with Ethernet links on one
+Linux host, using container providers, native router NIOs, and UDP bridges.
 
 ## Run a TOML topology
 
@@ -43,7 +43,7 @@ switch=$(docker ps -q --filter label=tethux.topology=container-chain --filter la
 docker exec "$client" ping -c 3 -W 2 10.77.0.3
 docker exec "$server" ping -c 3 -W 2 10.77.0.1
 docker exec -it "$client" sh
-docker exec "$switch" ip -br link
+docker exec "$switch" ip link show
 ```
 
 For Podman, replace `docker` with `podman` and use the same rootful socket/user
@@ -63,9 +63,11 @@ A TOML document has a required `id`, then `[[nodes]]`, `[[links]]`, and optional
 `dynamips`, or `shitnet`. Ports have explicit `id` and `kind` values. Link
 endpoints use inline tables, as in the example. Unknown fields are rejected.
 
-Container specs contain optional `provider` (docker, podman, or containerd), `image`, `command`, and `env`, where environment
-variables are `{ name = "NAME", value = "value" }` entries. Domain specs use
-`image`, optional `seed_image`, `cpus`, and `memory_mb`; Dynamips specs use `image`, `ram_mb`, `platform`, optional `npe`/`midplane`,
+Container specs contain optional `provider` (docker, podman, or containerd),
+`image`, `command`, and `env`, where environment variables are
+`{ name = "NAME", value = "value" }` entries. Domain specs use
+`image`, optional `seed_image`, `cpus`, and `memory_mb`. Dynamips specs use
+`image`, `ram_mb`, `platform`, optional `npe`/`midplane`,
 `console_port`, `enhanced_console`, `startup_config`, `cards`, and `interfaces`.
 Cards select native slot drivers; interfaces map logical port IDs to native
 slot and port numbers.
@@ -185,6 +187,7 @@ pkexec "$PWD/tethux" topology run "$PWD/topology/examples/provider-matrix.toml" 
   --domain-seed-image /absolute/path/to/bridge-seed.iso
 ```
 
-`tools/ci run mixed` builds the seed, checks native and IOS pings in both directions,
+`go run ./tools/ci run mixed` builds the seed, checks native and IOS pings in
+both directions,
 pauses the guest to verify the path breaks, resumes it, restarts Shitnet, and runs
 the same graph through the CLI. Both laptop CI workflows include this graph.

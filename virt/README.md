@@ -10,6 +10,8 @@ managed daemon and reports normalized lifecycle events.
 `virt/emulator` defines emulated workloads. The
 [Dynamips provider](emulator/dynamips/README.md) owns router VMs within a shared
 native runtime and prepares persistent NVRAM/disks through the storage API.
+[Shitnet](emulator/shitnet/README.md) runs native ARP/ICMP endpoints over UDP
+Ethernet links with context-bounded ping probes.
 
 ```go
 image := container.ParseImage("docker.io/library/alpine:3.22")
@@ -28,7 +30,9 @@ API reference: [virt](https://pkg.go.dev/github.com/tethux/tethux/virt) ·
 [libvirt](https://pkg.go.dev/github.com/tethux/tethux/virt/hypervisor/libvirt) ·
 [Docker](https://pkg.go.dev/github.com/tethux/tethux/virt/container/docker) ·
 [Podman](https://pkg.go.dev/github.com/tethux/tethux/virt/container/podman) ·
-[containerd](https://pkg.go.dev/github.com/tethux/tethux/virt/container/containerd)
+[containerd](https://pkg.go.dev/github.com/tethux/tethux/virt/container/containerd) ·
+[Dynamips](https://pkg.go.dev/github.com/tethux/tethux/virt/emulator/dynamips) ·
+[Shitnet](https://pkg.go.dev/github.com/tethux/tethux/virt/emulator/shitnet)
 
 The libvirt Go binding uses cgo. Building applications that import the provider
 requires libvirt headers and `pkg-config`; running it also requires access to a

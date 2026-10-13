@@ -40,7 +40,6 @@ The everyday foundation is:
 
 ```console
 mise run check
-mise run test:bridge
 ```
 
 Privileged suites are explicit:
@@ -49,6 +48,7 @@ Privileged suites are explicit:
 mise run test:host:providers
 mise run test:host:libvirt
 mise run test:host:topology
+mise run test:mixed
 RUNTIME=podman mise run test:integration:local
 ```
 
@@ -67,15 +67,18 @@ integration chain for pull requests and for pushes to `master`: Docker, Podman,
 then the cross-host workflow. Feature-branch pushes do not start a duplicate
 physical-host run. Proxmox integration is not part of CI yet.
 
-Both laptop workflows also run the real Dynamips IOS topology suite. Each host
-needs an unpacked C7200 image at
+Both laptop workflows run the real Dynamips IOS topology suite and the
+all-provider Ethernet graph: IOS, Docker, Podman, containerd,
+Alpine/libvirt, and Shitnet. See [CI commands](../tools/ci/README.md#all-provider-integration)
+for probe and lifecycle checks. Each host needs an unpacked C7200 image at
 `~/.local/share/tethux/images/cisco/c7200-a3jk9s-mz.124-25g.bin`. Images are local
 fixtures and are never uploaded with the source. Run only that suite with
 `go run ./tools/ci run remote-dynamips --host ci@10.0.0.100 --archive` or the same
 command targeting `ci@10.0.0.78`.
 
 The development shells export explicit libpcap, libelf, and libnsl linker paths
-through `CGO_LDFLAGS` and `LD_LIBRARY_PATH`. The CI runner preserves those values
+through `CGO_LDFLAGS` and `LD_LIBRARY_PATH`. They also supply the pinned Shitnet
+native library through pkg-config. The CI runner preserves those values
 when rebuilding the multicall binary for privileged provider tests.
 
 ## Test archives
