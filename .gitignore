@@ -50,5 +50,3 @@ coverage.out
 /bridge-backends.jsonl
 /bridge-backends.pcap
 
-# Local libvirt/QEMU test disks
-/.local/libvirt/

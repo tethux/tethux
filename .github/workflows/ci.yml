@@ -13,11 +13,6 @@ jobs:
     env:
       TETHUX_CI_RUNNER: "1"
     steps:
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcap-dev
-
       - name: Checkout code
         uses: actions/checkout@v4
 
