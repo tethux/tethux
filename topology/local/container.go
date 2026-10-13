@@ -22,9 +22,11 @@ import (
 
 // Options selects host resources without changing the declarative topology.
 type Options struct {
-	Provider container.ContainerProvider
-	Dynamips *DynamipsOptions
-	Shitnet  *shitnet.Adapter
+	Provider   container.ContainerProvider
+	Containers map[string]container.ContainerProvider
+	Domains    *DomainOptions
+	Dynamips   *DynamipsOptions
+	Shitnet    *shitnet.Adapter
 	// Logger receives lifecycle progress. Nil disables logging.
 	Logger *slog.Logger
 	// BasePort starts consecutive loopback UDP port pairs. Zero selects 23000.
@@ -34,16 +36,18 @@ type Options struct {
 // Running owns the workloads and bridges created by Start.
 // Call Close with a live context when finished. Methods are not concurrent-safe.
 type Running struct {
-	provider  container.ContainerProvider
-	logger    *slog.Logger
-	nodes     map[topology.NodeID]string
-	order     []topology.NodeID
-	bridges   []*bridge.ContainerBridge
-	dynamips  *dynamips.Adapter
-	manager   *dynamips.Manager
-	routers   map[topology.NodeID]*dynamips.PreparedResources
-	shitnet   *shitnet.Adapter
-	endpoints map[topology.NodeID]struct{}
+	providers      map[topology.NodeID]container.ContainerProvider
+	logger         *slog.Logger
+	nodes          map[topology.NodeID]string
+	order          []topology.NodeID
+	bridges        []*bridge.ContainerBridge
+	dynamips       *dynamips.Adapter
+	manager        *dynamips.Manager
+	routers        map[topology.NodeID]*dynamips.PreparedResources
+	shitnet        *shitnet.Adapter
+	endpoints      map[topology.NodeID]struct{}
+	domains        map[topology.NodeID]*domainResources
+	nextDomainPort int
 }
 
 // Start creates workloads and connects the declared Ethernet links.
@@ -68,14 +72,15 @@ func Start(ctx context.Context, top *topology.Topology, options Options) (*Runni
 		options.Logger = slog.New(slog.DiscardHandler)
 	}
 	run := &Running{
-		provider: options.Provider,
-		logger:   options.Logger,
-		nodes:    make(map[topology.NodeID]string, len(top.Nodes)),
-		order:    make([]topology.NodeID, 0, len(top.Nodes)),
-		bridges:  make([]*bridge.ContainerBridge, 0, 2*len(top.Links)),
-		dynamips: nil,
-		routers:  make(map[topology.NodeID]*dynamips.PreparedResources),
-		shitnet:  options.Shitnet, endpoints: make(map[topology.NodeID]struct{}),
+		providers: make(map[topology.NodeID]container.ContainerProvider),
+		domains:   make(map[topology.NodeID]*domainResources),
+		logger:    options.Logger,
+		nodes:     make(map[topology.NodeID]string, len(top.Nodes)),
+		order:     make([]topology.NodeID, 0, len(top.Nodes)),
+		bridges:   make([]*bridge.ContainerBridge, 0, 2*len(top.Links)),
+		dynamips:  nil,
+		routers:   make(map[topology.NodeID]*dynamips.PreparedResources),
+		shitnet:   options.Shitnet, endpoints: make(map[topology.NodeID]struct{}),
 	}
 	if options.Dynamips != nil {
 		manager, managerErr := routerManager(options.Dynamips.StateRoot)
@@ -109,14 +114,18 @@ func validateSupport(top *topology.Topology, options Options) error {
 		return errs.New("start local topology", errs.ErrStart, "UDP port range must fit within 1..65535")
 	}
 	for _, node := range top.Nodes {
-		switch node.Spec.(type) {
+		switch spec := node.Spec.(type) {
 		case topology.ContainerSpec:
-			if options.Provider == nil {
-				return errs.New("start local topology", errs.ErrStart, "container provider is required")
+			if _, providerErr := options.containerProvider(spec.Provider); providerErr != nil {
+				return providerErr
 			}
 		case topology.DynamipsSpec:
 			if options.Dynamips == nil || options.Dynamips.Provider == nil || options.Dynamips.StateRoot == "" {
 				return errs.New("start local topology", errs.ErrStart, "Dynamips provider and state root are required")
+			}
+		case topology.DomainSpec:
+			if options.Domains == nil || options.Domains.Provider == nil {
+				return errs.New("start local topology", errs.ErrStart, "domain provider is required")
 			}
 		case topology.ShitnetSpec:
 			if options.Shitnet == nil || len(node.Ports) != 1 {
@@ -148,6 +157,12 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, options O
 	basePort := options.BasePort
 	pids := make(map[topology.NodeID]int, len(top.Nodes))
 	for index, node := range top.Nodes {
+		if spec, isDomain := node.Spec.(topology.DomainSpec); isDomain {
+			if domainErr := run.startDomain(ctx, top, &node, &spec, options, token, index); domainErr != nil {
+				return domainErr
+			}
+			continue
+		}
 		if spec, isEndpoint := node.Spec.(topology.ShitnetSpec); isEndpoint {
 			if endpointErr := run.startEndpoint(ctx, top, &node, &spec, basePort); endpointErr != nil {
 				return endpointErr
@@ -164,6 +179,10 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, options O
 		if !ok {
 			return errs.New("start local topology", errs.ErrUnsupported, string(node.ID))
 		}
+		provider, providerErr := options.containerProvider(spec.Provider)
+		if providerErr != nil {
+			return providerErr
+		}
 		env := make([]string, 0, len(spec.Env))
 		for _, variable := range spec.Env {
 			env = append(env, variable.Name+"="+variable.Value)
@@ -175,25 +194,26 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, options O
 			Labels: map[string]string{"tethux.topology": string(top.ID), "tethux.node": string(node.ID)},
 		}
 		run.logger.InfoContext(ctx, "Creating container", "node", node.ID, "image", spec.Image)
-		created, err := run.provider.CreateContainer(ctx, config)
+		created, err := provider.CreateContainer(ctx, config)
 		if errors.Is(err, errdefs.ErrNotFound) {
 			run.logger.InfoContext(ctx, "Pulling image", "node", node.ID, "image", spec.Image)
-			err = run.provider.Pull(ctx, spec.Image, nil)
+			err = provider.Pull(ctx, spec.Image, nil)
 			if err != nil {
 				return err
 			}
-			created, err = run.provider.CreateContainer(ctx, config)
+			created, err = provider.CreateContainer(ctx, config)
 		}
 		if err != nil {
 			return err
 		}
 		run.nodes[node.ID] = created.ID
+		run.providers[node.ID] = provider
 		run.order = append(run.order, node.ID)
-		err = run.provider.Start(ctx, created.ID)
+		err = provider.Start(ctx, created.ID)
 		if err != nil {
 			return err
 		}
-		inspected, err := run.provider.Inspect(ctx, created.ID, nil)
+		inspected, err := provider.Inspect(ctx, created.ID, nil)
 		if err != nil {
 			return err
 		}
@@ -210,6 +230,9 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, options O
 			mtu = 1500
 		}
 		for side, endpoint := range []topology.Endpoint{link.A, link.B} {
+			if _, isDomain := run.domains[endpoint.Node]; isDomain {
+				continue
+			}
 			if _, isEndpoint := run.endpoints[endpoint.Node]; isEndpoint {
 				continue
 			}
@@ -238,6 +261,9 @@ func (run *Running) start(ctx context.Context, top *topology.Topology, options O
 
 // ContainerID resolves a topology node to its provider's runtime identity.
 func (run *Running) ContainerID(node topology.NodeID) (string, error) {
+	if _, isDomain := run.domains[node]; isDomain {
+		return "", errs.New("find local container", errs.ErrUnsupported, string(node))
+	}
 	if _, isEndpoint := run.endpoints[node]; isEndpoint {
 		return "", errs.New("find local container", errs.ErrUnsupported, string(node))
 	}
@@ -273,6 +299,15 @@ func (run *Running) Close(ctx context.Context) error {
 			continue
 		}
 		run.logger.InfoContext(ctx, "Removing node", "node", node)
+		if resources, isDomain := run.domains[node]; isDomain {
+			if closeErr := resources.close(ctx); closeErr != nil {
+				failures = append(failures, closeErr)
+				continue
+			}
+			delete(run.domains, node)
+			delete(run.nodes, node)
+			continue
+		}
 		if _, isEndpoint := run.endpoints[node]; isEndpoint {
 			if deleteErr := run.shitnet.Delete(ctx, id); deleteErr != nil {
 				failures = append(failures, deleteErr)
@@ -292,7 +327,7 @@ func (run *Running) Close(ctx context.Context) error {
 			delete(run.nodes, node)
 			continue
 		}
-		err := run.provider.DeleteContainer(ctx, id, &mobyclient.ContainerRemoveOptions{Force: true})
+		err := run.providers[node].DeleteContainer(ctx, id, &mobyclient.ContainerRemoveOptions{Force: true})
 		if err != nil {
 			failures = append(failures, errs.Wrap("delete local topology node", errs.ErrCleanup, string(node), err))
 			continue

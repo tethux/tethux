@@ -93,9 +93,10 @@ type nodeDocument struct {
 }
 
 type containerDocument struct {
-	Image   string        `toml:"image"`
-	Command []string      `toml:"command"`
-	Env     []envDocument `toml:"env"`
+	Provider string        `toml:"provider"`
+	Image    string        `toml:"image"`
+	Command  []string      `toml:"command"`
+	Env      []envDocument `toml:"env"`
 }
 
 type envDocument struct {
@@ -109,9 +110,10 @@ type shitnetDocument struct {
 }
 
 type domainDocument struct {
-	Image    string `toml:"image"`
-	CPUs     uint16 `toml:"cpus"`
-	MemoryMB uint32 `toml:"memory_mb"`
+	Image     string `toml:"image"`
+	SeedImage string `toml:"seed_image"`
+	CPUs      uint16 `toml:"cpus"`
+	MemoryMB  uint32 `toml:"memory_mb"`
 }
 
 type dynamipsDocument struct {
@@ -147,11 +149,11 @@ func (node *nodeDocument) spec() (topology.NodeSpec, error) {
 		for _, variable := range node.Container.Env {
 			env = append(env, topology.Env{Name: variable.Name, Value: variable.Value})
 		}
-		result = topology.ContainerSpec{Image: node.Container.Image, Command: node.Container.Command, Env: env}
+		result = topology.ContainerSpec{Provider: node.Container.Provider, Image: node.Container.Image, Command: node.Container.Command, Env: env}
 	}
 	if node.Domain != nil {
 		count++
-		result = topology.DomainSpec{Image: node.Domain.Image, CPUs: node.Domain.CPUs, MemoryMB: node.Domain.MemoryMB}
+		result = topology.DomainSpec{Image: node.Domain.Image, SeedImage: node.Domain.SeedImage, CPUs: node.Domain.CPUs, MemoryMB: node.Domain.MemoryMB}
 	}
 	if node.Shitnet != nil {
 		count++

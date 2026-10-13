@@ -105,7 +105,7 @@ pkexec "$PWD/tethux" topology run "$PWD/topology/examples/ring.lua"
 ```
 
 The CLI logs progress, nodes, addresses, links, and cleanup as JSON Lines on
-stderr. Press Ctrl+C to clean up. The local runner supports container and Dynamips
+stderr. Press Ctrl+C to clean up. The local runner supports container, domain, Shitnet, and Dynamips
 nodes with Ethernet links on one Linux host. See the [topology README](topology/README.md)
 for bidirectional ping examples, TOML fields, the Lua DSL, and library usage.
 

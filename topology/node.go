@@ -34,9 +34,10 @@ type NodeSpec interface {
 
 // ContainerSpec describes an OCI workload.
 type ContainerSpec struct {
-	Image   string
-	Command []string
-	Env     []Env
+	Provider string
+	Image    string
+	Command  []string
+	Env      []Env
 }
 
 func (ContainerSpec) nodeSpec() {}
@@ -55,9 +56,10 @@ type Env struct {
 // DomainSpec describes a virtual machine image and optional resource sizes.
 // Zero resource sizes leave sizing to the provider.
 type DomainSpec struct {
-	Image    string
-	CPUs     uint16
-	MemoryMB uint32
+	Image     string
+	SeedImage string
+	CPUs      uint16
+	MemoryMB  uint32
 }
 
 func (DomainSpec) nodeSpec() {}

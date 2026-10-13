@@ -10,28 +10,39 @@ import (
 	"github.com/tethux/tethux/topology"
 	"github.com/tethux/tethux/topology/local"
 	"github.com/tethux/tethux/virt/container"
-	"github.com/tethux/tethux/virt/emulator/dynamips"
 )
 
-func logSummary(ctx context.Context, logger *slog.Logger, top *topology.Topology, run *local.Running, provider container.ContainerProvider, routers *dynamips.Adapter) error {
+func logSummary(ctx context.Context, logger *slog.Logger, top *topology.Topology, run *local.Running) error {
 	for _, node := range top.Nodes {
 		if spec, isEndpoint := node.Spec.(topology.ShitnetSpec); isEndpoint {
 			logger.InfoContext(ctx, "Topology endpoint", "node", node.ID, "ipv4", spec.IP, "mac", spec.MAC)
 			continue
 		}
 		if node.Spec.Kind() == topology.NodeKindDynamips {
-			router, reloadErr := routers.Reload(ctx, string(node.ID))
+			router, reloadErr := run.Node(ctx, node.ID)
 			if reloadErr != nil {
 				return reloadErr
 			}
 			logger.InfoContext(ctx, "Topology router", "node", node.ID, "console_host", router.Console.Host, "console_port", router.Console.Port)
 			continue
 		}
+		if node.Spec.Kind() == topology.NodeKindDomain {
+			domain, reloadErr := run.Node(ctx, node.ID)
+			if reloadErr != nil {
+				return reloadErr
+			}
+			logger.InfoContext(ctx, "Topology domain", "node", node.ID, "domain", domain.ID, "state", domain.State)
+			continue
+		}
 		id, err := run.ContainerID(node.ID)
 		if err != nil {
 			return err
 		}
-		address := discoverAddress(ctx, provider, id)
+		selected, providerErr := run.ContainerProvider(node.ID)
+		if providerErr != nil {
+			return providerErr
+		}
+		address := discoverAddress(ctx, selected, id)
 		if address.IsValid() {
 			logger.InfoContext(ctx, "Topology node", "node", node.ID, "container", id, "ipv4", address.String())
 		} else {

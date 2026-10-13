@@ -24,6 +24,7 @@ import (
 	"github.com/tethux/tethux/virt/container"
 	"github.com/tethux/tethux/virt/emulator/dynamips"
 	"github.com/tethux/tethux/virt/emulator/shitnet"
+	libvirtprovider "github.com/tethux/tethux/virt/hypervisor/libvirt"
 )
 
 // NewRootCmd creates the topology command tree.
@@ -35,6 +36,7 @@ func NewRootCmd() *cobra.Command {
 
 func newRunCmd() *cobra.Command {
 	var providerName, stateRoot, dynamipsImage string
+	var domainImage, domainSeed, libvirtURI string
 	var basePort, consoleBasePort int
 	var duration time.Duration
 	command := &cobra.Command{
@@ -46,13 +48,14 @@ func newRunCmd() *cobra.Command {
 			if decodeErr != nil {
 				return decodeErr
 			}
-			var hasContainers, hasRouters, hasEndpoints bool
+			var hasContainers, hasRouters, hasEndpoints, hasDomains bool
 			for _, node := range top.Nodes {
 				hasContainers = hasContainers || node.Spec.Kind() == topologymodel.NodeKindContainer
 				hasRouters = hasRouters || node.Spec.Kind() == topologymodel.NodeKindDynamips
 				hasEndpoints = hasEndpoints || node.Spec.Kind() == topologymodel.NodeKindShitnet
+				hasDomains = hasDomains || node.Spec.Kind() == topologymodel.NodeKindDomain
 			}
-			if hasContainers && os.Geteuid() != 0 {
+			if (hasContainers || hasDomains) && os.Geteuid() != 0 {
 				return errs.New("run topology", errs.ErrStart, "namespace and raw-socket privileges required")
 			}
 			ctx, stop := signal.NotifyContext(command.Context(), os.Interrupt, syscall.SIGTERM)
@@ -63,12 +66,23 @@ func newRunCmd() *cobra.Command {
 				ctx = timed
 			}
 			var provider container.ContainerProvider
+			providers := make(map[string]container.ContainerProvider)
 			if hasContainers {
-				selected, providerErr := local.SelectContainerProvider(ctx, providerName)
+				selected, resolved, providerErr := selectContainers(ctx, top, providerName)
 				if providerErr != nil {
 					return providerErr
 				}
 				provider = selected
+				providers = resolved
+			}
+			var domains *local.DomainOptions
+			if hasDomains {
+				selected, domainErr := libvirtprovider.New(libvirtURI)
+				if domainErr != nil {
+					return domainErr
+				}
+				defer func() { resultErr = errors.Join(resultErr, selected.Close()) }()
+				domains = &local.DomainOptions{Provider: selected, Image: domainImage, SeedImage: domainSeed}
 			}
 			var routers *dynamips.Adapter
 			if hasRouters {
@@ -87,7 +101,7 @@ func newRunCmd() *cobra.Command {
 			}
 			logger.InfoContext(ctx, "Starting topology", "nodes", len(top.Nodes), "links", len(top.Links))
 			running, startErr := local.Start(ctx, top, local.Options{
-				Provider: provider, BasePort: basePort, Logger: logger,
+				Provider: provider, Containers: providers, Domains: domains, BasePort: basePort, Logger: logger,
 				Dynamips: routerOptions(routers, stateRoot, dynamipsImage, consoleBasePort),
 				Shitnet:  endpoints,
 			})
@@ -109,7 +123,7 @@ func newRunCmd() *cobra.Command {
 					logger.InfoContext(cleanupCtx, "Topology stopped; resources released")
 				}
 			}()
-			if summaryErr := logSummary(ctx, logger, top, running, provider, routers); summaryErr != nil {
+			if summaryErr := logSummary(ctx, logger, top, running); summaryErr != nil {
 				return summaryErr
 			}
 			logger.InfoContext(ctx, "Topology ready", "stop", "Ctrl+C")
@@ -123,7 +137,38 @@ func newRunCmd() *cobra.Command {
 	command.Flags().StringVar(&dynamipsImage, "dynamips-image", os.Getenv("TETHUX_DYNAMIPS_IMAGE"), "override local IOS image paths")
 	command.Flags().IntVar(&consoleBasePort, "console-base-port", 20000, "first TCP router console port")
 	command.Flags().DurationVar(&duration, "duration", 0, "stop after this duration; zero waits for Ctrl+C")
+	command.Flags().StringVar(&domainImage, "domain-image", os.Getenv("TETHUX_LIBVIRT_IMAGE"), "override domain qcow2 base image")
+	command.Flags().StringVar(&domainSeed, "domain-seed-image", "", "override domain seed ISO")
+	command.Flags().StringVar(&libvirtURI, "libvirt-uri", "qemu:///system", "domain provider URI")
 	return command
+}
+
+func selectContainers(ctx context.Context, top *topologymodel.Topology, fallback string) (container.ContainerProvider, map[string]container.ContainerProvider, error) {
+	providers := make(map[string]container.ContainerProvider)
+	var defaultProvider container.ContainerProvider
+	for _, node := range top.Nodes {
+		spec, isContainer := node.Spec.(topologymodel.ContainerSpec)
+		if !isContainer {
+			continue
+		}
+		name := spec.Provider
+		if name == "" {
+			name = fallback
+		}
+		provider, exists := providers[name]
+		if !exists {
+			selected, selectErr := local.SelectContainerProvider(ctx, name)
+			if selectErr != nil {
+				return nil, nil, selectErr
+			}
+			provider = selected
+			providers[name] = selected
+		}
+		if spec.Provider == "" {
+			defaultProvider = provider
+		}
+	}
+	return defaultProvider, providers, nil
 }
 
 func readTopology(path string) (*topologymodel.Topology, error) {
