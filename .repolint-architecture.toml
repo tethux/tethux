@@ -30,3 +30,15 @@ name = "topology-model-is-portable"
 from = ["topology"]
 deny_imports = ["github.com/tethux/tethux/virt", "github.com/tethux/tethux/storage", "github.com/tethux/tethux/bridge"]
 exclude_dirs = ["topology/local"]
+
+[rules.no-discarded-cleanup-error]
+enabled = true
+paths = ["storage/release.go", "virt/container/manager.go", "virt/domain/manager.go", "virt/emulator/dynamips/manager.go", "topology/local"]
+calls = ["*.Release", "*.Close"]
+
+[rules.cleanup-context-policy]
+enabled = true
+paths = ["virt/container/manager.go", "virt/domain/manager.go", "virt/emulator/dynamips/manager.go", "topology/local/container.go"]
+functions = ["rollback", "Prepare", "Create", "Start"]
+calls = ["*.Release", "*.Close"]
+context_factories = ["github.com/tethux/tethux/internal/cleanup.NewContext"]

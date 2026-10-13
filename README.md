@@ -157,4 +157,6 @@ lab host. Local privileged integration is never automatic; opt in with
 `lint:architecture` checks package boundaries using `../repolint` (override with
 `REPOLINT_SOURCE`). Its policies live in `.repolint-architecture.toml` while the
 published Go tool continues using `.repolint.toml`. Move these policies into the
-main quality gate when a repolint release includes the new rules.
+main quality gate when a repolint release includes the new rules. Cleanup policies
+also reject ignored release errors and require the bounded cleanup context helper
+in workload manager rollback paths.
