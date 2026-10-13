@@ -153,6 +153,8 @@ github.com/tethux/dynamips-downgrade v0.2.28-0.20261012153035-e77e6d5c9fc0 h1:KI
 github.com/tethux/dynamips-downgrade v0.2.28-0.20261012153035-e77e6d5c9fc0/go.mod h1:ODAL+llu0h0/ZJb550t63SC2fA4vvc0t4U+OU2NlwvY=
 github.com/tethux/repolint v0.2.1 h1:j3YLGPdUr8J/1YoFAj6X9ZJ5UUkLHBNiw/LYsCrSpWo=
 github.com/tethux/repolint v0.2.1/go.mod h1:5NHK1mRLyfhmy5ggXkf+G46UMGCc2fmH11lgX6E3EVA=
+github.com/tethux/shitnet v0.0.3-0.20261012154746-f5fdf6cdbea5 h1:wy57r0tMieYvmlv65C+xHoWzwtbUeWek2amKbyTjl8k=
+github.com/tethux/shitnet v0.0.3-0.20261012154746-f5fdf6cdbea5/go.mod h1:vL3KkNQ/hHEIC1Kl4NV3CyR7QDzF41X+wNRLymuqxWs=
 github.com/vishvananda/netlink v1.3.1 h1:3AEMt62VKqz90r0tmNhog0r/PpWKmrEShJU0wJW6bV0=
 github.com/vishvananda/netlink v1.3.1/go.mod h1:ARtKouGSTGchR8aMwmkzC0qiNPrrWO5JS/XMVl45+b4=
 github.com/vishvananda/netns v0.0.5 h1:DfiHV+j8bA32MFM7bfEunvT8IAqQ/NzSJHtcmW5zdEY=
