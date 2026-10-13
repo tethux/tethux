@@ -2,6 +2,7 @@ package libvirt
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	libvirtgo "libvirt.org/go/libvirt"
@@ -18,19 +19,17 @@ func (p *Provider) lookup(id string) (*libvirtgo.Domain, error) {
 
 	managed, metadataErr := isManaged(domainRef)
 	if metadataErr != nil {
-		_ = domainRef.Free()
-		return nil, metadataErr
+		return nil, errors.Join(metadataErr, releaseDomainRef(id, domainRef))
 	}
 
 	if !managed {
-		_ = domainRef.Free()
-		return nil, errs.New(errs.ErrNotManaged, id)
+		return nil, errors.Join(errs.New(errs.ErrNotManaged, id), releaseDomainRef(id, domainRef))
 	}
 
 	return domainRef, nil
 }
 
-func (p *Provider) lifecycle(ctx context.Context, id string, operation func(*libvirtgo.Domain) error) error {
+func (p *Provider) lifecycle(ctx context.Context, id string, operation func(*libvirtgo.Domain) error) (resultErr error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -38,7 +37,7 @@ func (p *Provider) lifecycle(ctx context.Context, id string, operation func(*lib
 	if err != nil {
 		return err
 	}
-	defer func() { _ = domain.Free() }()
+	defer func() { resultErr = errors.Join(resultErr, releaseDomainRef(id, domain)) }()
 	if operationErr := operation(domain); operationErr != nil {
 		return errs.Wrap(errs.ErrLifecycle, id, operationErr)
 	}
@@ -46,7 +45,7 @@ func (p *Provider) lifecycle(ctx context.Context, id string, operation func(*lib
 }
 
 // Start boots a stopped managed domain.
-func (p *Provider) Start(ctx context.Context, id string) error {
+func (p *Provider) Start(ctx context.Context, id string) (resultErr error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -54,7 +53,7 @@ func (p *Provider) Start(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = domain.Free() }()
+	defer func() { resultErr = errors.Join(resultErr, releaseDomainRef(id, domain)) }()
 	state, _, stateErr := domain.GetState()
 	if stateErr != nil {
 		return errs.Wrap(errs.ErrInspect, id, stateErr)
@@ -70,12 +69,12 @@ func (p *Provider) Start(ctx context.Context, id string) error {
 }
 
 // Stop requests an ACPI shutdown and waits for the domain to stop.
-func (p *Provider) Stop(ctx context.Context, id string) error {
+func (p *Provider) Stop(ctx context.Context, id string) (resultErr error) {
 	domain, err := p.lookup(id)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = domain.Free() }()
+	defer func() { resultErr = errors.Join(resultErr, releaseDomainRef(id, domain)) }()
 	state, _, stateErr := domain.GetState()
 	if stateErr != nil {
 		return errs.Wrap(errs.ErrInspect, id, stateErr)
@@ -113,7 +112,7 @@ func (p *Provider) Restart(ctx context.Context, id string) error {
 }
 
 // Delete stops and undefines a managed domain.
-func (p *Provider) Delete(ctx context.Context, id string) error {
+func (p *Provider) Delete(ctx context.Context, id string) (resultErr error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -121,7 +120,7 @@ func (p *Provider) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = domain.Free() }()
+	defer func() { resultErr = errors.Join(resultErr, releaseDomainRef(id, domain)) }()
 	persistent, persistentErr := domain.IsPersistent()
 	if persistentErr != nil {
 		return errs.Wrap(errs.ErrDelete, id, persistentErr)
@@ -174,7 +173,7 @@ func waitStopped(ctx context.Context, domain *libvirtgo.Domain, id string) error
 }
 
 // State returns the normalized lifecycle state of a managed domain.
-func (p *Provider) State(ctx context.Context, id string) (virt.NodeState, error) {
+func (p *Provider) State(ctx context.Context, id string) (stateResult virt.NodeState, resultErr error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -182,10 +181,18 @@ func (p *Provider) State(ctx context.Context, id string) (virt.NodeState, error)
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = domain.Free() }()
+	defer func() { resultErr = errors.Join(resultErr, releaseDomainRef(id, domain)) }()
 	state, _, stateErr := domain.GetState()
 	if stateErr != nil {
 		return "", errs.Wrap(errs.ErrInspect, id, stateErr)
 	}
 	return nodeState(state), nil
+}
+
+func releaseDomainRef(id string, reference *libvirtgo.Domain) error {
+	releaseErr := reference.Free()
+	if releaseErr != nil {
+		return errs.Wrap(errs.ErrLifecycle, id, releaseErr)
+	}
+	return nil
 }

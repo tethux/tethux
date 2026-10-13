@@ -15,6 +15,7 @@ import (
 
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
+	"github.com/tethux/tethux/internal/cleanup"
 
 	ciframework "github.com/tethux/tethux/internal/ci"
 	libvirt "github.com/tethux/tethux/virt"
@@ -192,7 +193,9 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 
 	defer func() {
 		if resultErr != nil && containerCreated {
-			_ = p.DeleteContainer(context.WithoutCancel(ctx), name, &client.ContainerRemoveOptions{Force: true})
+			cleanupCtx, cancel := cleanup.NewContext(ctx)
+			defer cancel()
+			resultErr = errors.Join(resultErr, p.DeleteContainer(cleanupCtx, name, &client.ContainerRemoveOptions{Force: true}))
 		}
 	}()
 
@@ -285,12 +288,12 @@ func runImageTest(ctx context.Context, writer *eventWriter, p container.Containe
 	}); err != nil {
 		return err
 	}
-	if err := call("logs", func() error {
+	if err := call("logs", func() (logErr error) {
 		reader, err := p.Logs(ctx, node.ID, nil)
 		if err != nil {
 			return err
 		}
-		defer reader.Close()
+		defer func() { logErr = errors.Join(logErr, reader.Close()) }()
 		logs, err := io.ReadAll(reader)
 		if err == nil && !strings.Contains(string(logs), "tethux-ready") {
 			return fmt.Errorf("expected readiness marker in logs")

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -30,6 +31,7 @@ import (
 	imagespecs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runtime-spec/specs-go"
 
+	"github.com/tethux/tethux/internal/cleanup"
 	"github.com/tethux/tethux/virt"
 	"github.com/tethux/tethux/virt/container"
 	"github.com/tethux/tethux/virt/container/errs"
@@ -1416,24 +1418,28 @@ func (c *Containerd) Exec(
 
 	wait, err := proc.Wait(ctx)
 	if err != nil {
-		_, _ = proc.Delete(ctx)
+		cleanupCtx, cancel := cleanup.NewContext(ctx)
+		defer cancel()
+		_, deleteErr := proc.Delete(cleanupCtx)
 
 		return nil, nil, errs.Wrap(
 			"containerd",
 			errs.ErrFailedToCreateExec,
 			id,
-			err,
+			errors.Join(err, deleteErr),
 		)
 	}
 
 	if err := proc.Start(ctx); err != nil {
-		_, _ = proc.Delete(ctx)
+		cleanupCtx, cancel := cleanup.NewContext(ctx)
+		defer cancel()
+		_, deleteErr := proc.Delete(cleanupCtx)
 
 		return nil, nil, errs.Wrap(
 			"containerd",
 			errs.ErrFailedToAttachExec,
 			id,
-			err,
+			errors.Join(err, deleteErr),
 		)
 	}
 
@@ -1443,18 +1449,11 @@ func (c *Containerd) Exec(
 	case status = <-wait:
 
 	case <-ctx.Done():
-		_ = proc.Kill(
-			withNamespace(context.Background()),
-			syscall.SIGKILL,
-		)
-
-		_, _ = proc.Delete(
-			withNamespace(context.Background()),
-		)
-
-		return stdout.Bytes(),
-			stderr.Bytes(),
-			ctx.Err()
+		cleanupCtx, cancel := cleanup.NewContext(ctx)
+		defer cancel()
+		killErr := proc.Kill(withNamespace(cleanupCtx), syscall.SIGKILL)
+		_, deleteErr := proc.Delete(withNamespace(cleanupCtx))
+		return stdout.Bytes(), stderr.Bytes(), errs.Wrap("containerd", errs.ErrExecFailed, id, errors.Join(ctx.Err(), killErr, deleteErr))
 	}
 
 	_, deleteErr := proc.Delete(ctx)

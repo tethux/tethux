@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/containerd/errdefs"
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
@@ -58,7 +59,9 @@ func linkEndpointCmd() *cobra.Command {
 			if providerErr != nil {
 				return providerErr
 			}
-			_ = p.Delete(ctx, name)
+			if deleteErr := p.Delete(ctx, name); deleteErr != nil && !errdefs.IsNotFound(deleteErr) {
+				return deleteErr
+			}
 			if pullErr := p.Pull(ctx, image, nil); pullErr != nil {
 				return pullErr
 			}
@@ -100,7 +103,7 @@ func linkEndpointCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer bridge.Close()
+			defer func() { resultErr = errors.Join(resultErr, bridge.Close()) }()
 			if _, stderr, err := p.Exec(ctx, node.ID, []string{"ip", "addr", "add", address, "dev", containerIf}, nil, nil); err != nil {
 				return fmt.Errorf("configure endpoint address (stderr %q): %w", stderr, err)
 			}

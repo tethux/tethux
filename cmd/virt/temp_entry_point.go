@@ -2,12 +2,14 @@ package virt
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	osexec "os/exec"
 	"strings"
 
+	"github.com/containerd/errdefs"
 	"github.com/moby/moby/client"
 	"github.com/spf13/cobra"
 
@@ -80,7 +82,9 @@ func smokeCmd() *cobra.Command {
 			}
 			fmt.Println("pulled", image)
 
-			_ = p.Delete(ctx, name)
+			if deleteErr := p.Delete(ctx, name); deleteErr != nil && !errdefs.IsNotFound(deleteErr) {
+				return deleteErr
+			}
 
 			node, err := p.CreateContainer(ctx, &container.RuntimeConfig{
 				NodeConfig: virt.NodeConfig{
@@ -134,8 +138,10 @@ func smokeCmd() *cobra.Command {
 				return err
 			}
 			fmt.Println("logs:")
-			_, _ = io.Copy(os.Stdout, reader)
-			_ = reader.Close()
+			_, copyErr := io.Copy(os.Stdout, reader)
+			if logsErr := errors.Join(copyErr, reader.Close()); logsErr != nil {
+				return logsErr
+			}
 			fmt.Println()
 
 			if err := p.SuspendContainer(ctx, node.ID, nil); err != nil {
@@ -312,10 +318,8 @@ func logsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer reader.Close()
-
-			_, _ = io.Copy(os.Stdout, reader)
-			return nil
+			_, copyErr := io.Copy(os.Stdout, reader)
+			return errors.Join(copyErr, reader.Close())
 		},
 	}
 

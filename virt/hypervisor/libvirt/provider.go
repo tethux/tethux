@@ -54,8 +54,8 @@ func New(uri string) (*Provider, error) {
 	}
 	callbackID, callbackErr := conn.DomainEventLifecycleRegister(nil, p.handleLifecycleEvent)
 	if callbackErr != nil {
-		_, _ = conn.Close()
-		return nil, errs.Wrap(errs.ErrEvents, uri, callbackErr)
+		_, closeErr := conn.Close()
+		return nil, errs.Wrap(errs.ErrEvents, uri, errors.Join(callbackErr, closeErr))
 	}
 	p.callbackID = callbackID
 	return p, nil

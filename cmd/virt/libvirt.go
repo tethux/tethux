@@ -2,10 +2,13 @@ package virt
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	osexec "os/exec"
 	"path/filepath"
+
+	"github.com/tethux/tethux/internal/cleanup"
 
 	"github.com/spf13/cobra"
 
@@ -41,14 +44,14 @@ func libvirtCmd() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "libvirt",
 		Short: "create and manage local libvirt domains",
-		RunE: func(command *cobra.Command, _ []string) error {
+		RunE: func(command *cobra.Command, _ []string) (resultErr error) {
 			ctx := command.Context()
 
 			provider, connectErr := libvirtprovider.New(uri)
 			if connectErr != nil {
 				return connectErr
 			}
-			defer provider.Close()
+			defer func() { resultErr = errors.Join(resultErr, provider.Close()) }()
 
 			switch action {
 			case "create":
@@ -154,7 +157,7 @@ func createLibvirtDomain(
 	bridges []string,
 	macs []string,
 	keep bool,
-) error {
+) (resultErr error) {
 	if disk == "" {
 		return fmt.Errorf("--disk is required when --action=create")
 	}
@@ -196,10 +199,17 @@ func createLibvirtDomain(
 	}
 
 	node, resources, createErr := manager.Create(ctx, provider, config)
+	released := node == nil
+	defer func() {
+		if released {
+			cleanupCtx, cancel := cleanup.NewContext(ctx)
+			defer cancel()
+			resultErr = errors.Join(resultErr, manager.Release(cleanupCtx, resources))
+		}
+	}()
 	if createErr != nil {
 		return createErr
 	}
-	defer func() { _ = manager.Release(context.Background(), resources) }()
 
 	fmt.Printf(
 		"created %s\n  id:    %s\n  state: %s\n",
@@ -220,6 +230,7 @@ func createLibvirtDomain(
 		return deleteErr
 	}
 
+	released = true
 	fmt.Println("stopped and deleted")
 	return nil
 }

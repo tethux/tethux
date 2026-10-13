@@ -14,7 +14,7 @@ import (
 )
 
 // CreateDomain defines and starts a persistent domain from cfg.
-func (p *Provider) CreateDomain(ctx context.Context, cfg *domain.RuntimeConfig) (*domain.Node, error) {
+func (p *Provider) CreateDomain(ctx context.Context, cfg *domain.RuntimeConfig) (nodeResult *domain.Node, resultErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func (p *Provider) CreateDomain(ctx context.Context, cfg *domain.RuntimeConfig) 
 	if defineErr != nil {
 		return nil, errs.Wrap(errs.ErrCreate, cfg.Name, defineErr)
 	}
-	defer func() { _ = domainRef.Free() }()
+	defer func() { resultErr = errors.Join(resultErr, releaseDomainRef("", domainRef)) }()
 
 	createErr := domainRef.Create()
 	if createErr != nil {
@@ -48,7 +48,7 @@ func (p *Provider) CreateDomain(ctx context.Context, cfg *domain.RuntimeConfig) 
 }
 
 // InspectDomain returns the domain-specific view of a managed domain.
-func (p *Provider) InspectDomain(ctx context.Context, id string) (*domain.Node, error) {
+func (p *Provider) InspectDomain(ctx context.Context, id string) (nodeResult *domain.Node, resultErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (p *Provider) InspectDomain(ctx context.Context, id string) (*domain.Node, 
 	if lookupErr != nil {
 		return nil, lookupErr
 	}
-	defer func() { _ = domainRef.Free() }()
+	defer func() { resultErr = errors.Join(resultErr, releaseDomainRef("", domainRef)) }()
 
 	managed, metadataErr := isManaged(domainRef)
 	if metadataErr != nil {
@@ -84,7 +84,7 @@ func (p *Provider) Reload(ctx context.Context, id string) (*virt.Node, error) {
 }
 
 // List returns every libvirt domain carrying tethux ownership metadata.
-func (p *Provider) List(ctx context.Context) ([]*virt.Node, error) {
+func (p *Provider) List(ctx context.Context) (nodesResult []*virt.Node, resultErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (p *Provider) List(ctx context.Context) ([]*virt.Node, error) {
 	}
 	defer func() {
 		for index := range domains {
-			_ = domains[index].Free()
+			resultErr = errors.Join(resultErr, releaseDomainRef("", &domains[index]))
 		}
 	}()
 
@@ -213,7 +213,7 @@ func (p *Provider) OpenConsole(
 	id string,
 	input io.Reader,
 	output io.Writer,
-) error {
+) (resultErr error) {
 	if output == nil {
 		return errs.New(errs.ErrConsole, id+": output is nil")
 	}
@@ -221,7 +221,7 @@ func (p *Provider) OpenConsole(
 	if err != nil {
 		return err
 	}
-	defer func() { _ = domainRef.Free() }()
+	defer func() { resultErr = errors.Join(resultErr, releaseDomainRef("", domainRef)) }()
 
 	stream, err := p.conn.NewStream(0)
 	if err != nil {
@@ -231,7 +231,7 @@ func (p *Provider) OpenConsole(
 	defer func() {
 		_ = stream.Abort()
 		if freeStream {
-			_ = stream.Free()
+			resultErr = errors.Join(resultErr, stream.Free())
 		}
 	}()
 	if err := domainRef.OpenConsole("", stream, libvirtgo.DOMAIN_CONSOLE_FORCE); err != nil {
@@ -260,7 +260,16 @@ func (p *Provider) OpenConsole(
 			return
 		}
 		if closer, ok := input.(io.Closer); ok {
-			_ = closer.Close()
+			closeErr := closer.Close()
+			resultErr = errors.Join(resultErr, closeErr)
+			if closeErr != nil {
+				select {
+				case <-inputDone:
+				default:
+					freeStream = false
+				}
+				return
+			}
 			<-inputDone
 			return
 		}
