@@ -141,9 +141,12 @@ installation, privilege, and recovery details.
 
 ## Dynamips integration
 
-The native library is pinned to a published Go module revision. No sibling
-checkout is required. IOS images remain local fixtures and are not included
-in source archives.
+The Go module and native library use Dynamips v0.2.28. The Nix integration
+shell supplies the matching native release and exposes `dynamips-bindings` through
+pkg-config. Outside Nix, install the matching [native release](../../README.md)
+before running the suite. No sibling checkout is required. IOS images remain
+local fixtures and are not included in source archives. When switching native
+installations, use a fresh `GOCACHE` so cgo relinks the native archives.
 
 ```bash
 TETHUX_DYNAMIPS_IMAGE=/absolute/path/to/c7200.bin mise run test:dynamips
