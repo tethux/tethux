@@ -93,14 +93,15 @@
           '';
         };
         shitnet = import ./nix/shitnet.nix { inherit pkgs; };
+        dynamipsBindings = import ./nix/dynamips.nix { inherit pkgs; };
         goInputs = {
           src = ./.;
           postPatch = ''
             rm -rf vendor
           '';
-          vendorHash = "sha256-H/F4vRICHM/9TwriTsd+lfL7yikn5AQ/dy8URaTx78Y=";
+          vendorHash = "sha256-CLNkvq4vg+zvkjVwJGDItyzx0zqO87N51x8zXyTqCYI=";
           nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = [ pkgs.libpcap pkgs.libvirt pkgs.libelf pkgs.libnsl shitnet ];
+          buildInputs = [ pkgs.libpcap pkgs.libvirt pkgs.libelf pkgs.libnsl shitnet dynamipsBindings ];
         };
         tethux = pkgs.buildGoModule (goInputs // {
           pname = "tethux";
@@ -110,7 +111,7 @@
       in
       {
         packages = {
-          inherit tethux shitnet;
+          inherit tethux shitnet dynamipsBindings;
           libvirtFixture = alpineCloudImage;
           default = tethux;
         };
@@ -141,6 +142,7 @@
                 MISE_ENABLE_TOOLS = "";
                 packages = miseTaskTools ++ (with pkgs; [
                   shitnet
+                  dynamipsBindings
                   bashInteractive
                   docker-client
                   git
@@ -164,6 +166,7 @@
                 packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   shitnet
+                  dynamipsBindings
                   bridge-utils
                   containerd
                   curl
@@ -193,6 +196,7 @@
                 packages = miseTaskTools ++ (with pkgs; [
                   bashInteractive
                   shitnet
+                  dynamipsBindings
                   bridge-utils
                   curl
                   dynamips

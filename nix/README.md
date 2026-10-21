@@ -77,9 +77,12 @@ fixtures and are never uploaded with the source. Run only that suite with
 command targeting `ci@10.0.0.78`.
 
 The development shells export explicit libpcap, libelf, and libnsl linker paths
-through `CGO_LDFLAGS` and `LD_LIBRARY_PATH`. They also supply the pinned Shitnet
-native library through pkg-config. The CI runner preserves those values
-when rebuilding the multicall binary for privileged provider tests.
+through `CGO_LDFLAGS` and `LD_LIBRARY_PATH`. They supply the checksum-pinned
+Dynamips v0.2.28 Linux amd64 native release and build Shitnet from its pinned
+source, exposing both through pkg-config. Dynamips source builds can depend on
+compiler register allocation at its legacy JIT assembly boundary; the package
+uses the verified release artifact. The CI runner preserves the native build
+environment when rebuilding the multicall binary for privileged provider tests.
 
 ## Test archives
 

@@ -15,7 +15,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/spf13/cobra v1.10.1
-	github.com/tethux/dynamips-downgrade v0.2.28-0.20261012153035-e77e6d5c9fc0
+	github.com/tethux/dynamips-downgrade v0.2.28
 	github.com/tethux/shitnet v0.0.3-0.20261012154746-f5fdf6cdbea5
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5

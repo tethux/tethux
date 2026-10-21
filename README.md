@@ -85,12 +85,22 @@ libvirt development library (`libvirt-dev` on Debian/Ubuntu,
 that import only `bridge`, `storage`, or the container providers do not need
 libvirt.
 
-The multicall binary also embeds Dynamips. Its bundled native archives target
-Linux amd64 and need libelf, libpcap, libnsl, and the C++ runtime. On Debian/Ubuntu,
-install `libelf-dev`, `libpcap-dev`, and `libnsl-dev` alongside libvirt. The Nix
-development shell supplies these dependencies. Dynamips bindings are pinned to
-a published Go module revision; no sibling checkout is required. Shitnet requires
-its native pkg-config package; the Nix shell builds the pinned upstream source.
+The multicall binary also embeds Dynamips. Dynamips v0.2.28 requires the
+matching native `dynamips-bindings` pkg-config package; native archives are
+not bundled in the Go module. The Nix shells fetch the checksum-pinned Linux
+amd64 native release and supply libelf, libpcap, libnsl, and the C++ runtime.
+Shitnet uses its pinned native pkg-config package. No sibling checkout is required.
+
+Outside Nix, install the development libraries (`libelf-dev`, `libpcap-dev`,
+`libnsl-dev`, and `libvirt-dev` on Debian/Ubuntu) and extract the matching
+[Dynamips native release](https://github.com/tethux/dynamips-downgrade/releases/tag/v0.2.28)
+for your platform into a directory outside this repository. Verify its
+`checksums.txt`, then point pkg-config at the extracted installation:
+
+```bash
+export PKG_CONFIG_PATH="/absolute/path/to/dynamips/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+pkg-config --modversion dynamips-bindings
+```
 
 Releases use semantic `vX.Y.Z` Git tags. Go tooling and pkg.go.dev discover the
 public packages from those tags, so documentation and API changes are tagged
